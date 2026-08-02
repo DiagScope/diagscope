@@ -1,0 +1,39 @@
+{
+  "fixture": "silent-catch",
+  "description": "Alpha contract for silent catch detection and explicit suppression.",
+  "expectedFindings": [
+    {
+      "case": "empty-catch",
+      "rule": "SILENT_CATCH",
+      "file": "src/main/java/com/example/payments/PaymentController.java",
+      "line": 30
+    },
+    {
+      "case": "explanatory-comment-without-suppression",
+      "rule": "SILENT_CATCH",
+      "file": "src/main/java/com/example/payments/PaymentController.java",
+      "line": 49
+    }
+  ],
+  "expectedNonFindings": [
+    {
+      "case": "structured-logger-call",
+      "rule": "SILENT_CATCH",
+      "file": "src/main/java/com/example/payments/PaymentController.java",
+      "line": 39
+    },
+    {
+      "case": "explicit-suppression-with-reason",
+      "rule": "SILENT_CATCH",
+      "file": "src/main/java/com/example/payments/PaymentController.java",
+      "line": 59
+    }
+  ],
+  "unexpectedRules": [
+    "HIGH_CARDINALITY_METRIC_TAG",
+    "KAFKA_SEND_RESULT_IGNORED",
+    "PRINT_STACK_TRACE",
+    "SILENT_FAILURE_CONVERSION",
+    "SYSTEM_OUTPUT"
+  ]
+}

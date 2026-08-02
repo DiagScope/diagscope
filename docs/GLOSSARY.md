@@ -1,0 +1,23 @@
+# Glossary
+
+- **Diagnostic coverage** — the degree to which a failure leaves useful evidence for diagnosis.
+- **Diagnostic evidence** — a log event, metric, trace attribute, exception cause, acknowledgement, stable failure code, or other signal relevant to investigating an outcome.
+- **Entrypoint** — a method where an operationally relevant flow begins, such as a REST endpoint, Kafka listener, or scheduled job.
+- **Bounded local flow** — a cycle-safe graph of methods conservatively reachable from one entrypoint within the analyzed module and configured depth.
+- **Flow method** — a reached `MethodModel` plus depth, ordered path, and the confidence of that path.
+- **Call edge** — one local-call attempt from a caller, with an optional resolved callee, source location, depth, confidence, and resolution reason.
+- **Terminal boundary** — a call edge where traversal stops because the target is external, ambiguous, unresolved, or beyond maximum depth.
+- **Resolution reason** — the explicit explanation for how an edge was resolved or why traversal stopped.
+- **Path confidence** — the minimum confidence of the inferences required to reach one method from its entrypoint.
+- **Related flow** — stable identity, display name, and confidence linking a deduplicated finding to an affected entrypoint flow.
+- **Finding** — the result of a deterministic rule, linked to source, canonical evidence, confidence, fingerprint, and related flows.
+- **Severity** — the potential operational impact of a finding if it is true.
+- **Confidence** — how strongly the available static evidence and reachability path support a conclusion.
+- **Typed evidence** — parser-neutral immutable facts extracted from source into a dedicated record such as `CatchEvidence`, `InvocationEvidence`, or `MetricTagEvidence`.
+- **Rule engine** — the core component that evaluates rules in stable order, deduplicates findings, and merges related-flow context deterministically.
+- **Adapter** — a component that connects the core to a parser, user interface, report format, filesystem, or future external system.
+- **Driving adapter** — an adapter that invokes a core input port, such as the CLI.
+- **Driven adapter** — an adapter that implements a core output port, such as the JavaParser analyzer or local-flow builder.
+- **Composition root** — the outermost location where concrete adapters, rules, and the application service are wired together.
+- **Fingerprint** — a stable SHA-256 identity derived from a rule, normalized source range, and canonical evidence so the same issue can be recognized across scans.
+- **Phase containment** — the rule that future-phase work does not begin until the current phase meets its validation gate.
