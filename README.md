@@ -83,6 +83,27 @@ Full reference: [docs/CLI.md](docs/CLI.md).
 | Flow boundaries | 6 |
 | Parse failures | 0 |
 
+## Executive summary
+
+5 finding(s): 3 error(s), 2 warning(s), 0 info. 4 are high confidence and worth triaging first.
+
+### Findings by rule
+
+| Rule | What it flags | Findings | Highest severity | High | Medium | Low |
+| --- | --- | --- | --- | --- | --- | --- |
+| `SILENT_CATCH` | Exception caught and ignored | 2 | `ERROR` | 2 | 0 | 0 |
+| `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
+| `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
+| `HIGH_CARDINALITY_METRIC_TAG` | High-cardinality metric tag | 1 | `ERROR` | 0 | 1 | 0 |
+
+### Findings by confidence
+
+| Confidence | Findings | What it means |
+| --- | --- | --- |
+| `HIGH` | 4 | HIGH — the evidence is explicit in the source and the call path was resolved without ambiguity. |
+| `MEDIUM` | 1 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution static analysis cannot prove. |
+| `LOW` | 0 | LOW — plausible, but depends on runtime behaviour DiagScope cannot observe. |
+
 ## Findings
 
 ### ❌ SILENT_FAILURE_CONVERSION — `src/main/java/example/PaymentService.java:15`
@@ -125,6 +146,8 @@ Exception is converted to a normal return value without preserving diagnostic ev
 | Kafka topic=payments | `KAFKA_LISTENER` | `HIGH` | 2 | 0 |
 | Scheduled cron=0 */5 * * * * | `SCHEDULED` | `HIGH` | 1 | 1 |
 ```
+
+Every report opens with an executive summary — findings per rule (with the highest severity and the split across confidence levels) and totals per confidence and severity — so the state of the project is readable in seconds. In HTML, clicking a rule filters the findings list; `result.json` exposes the same counts under `summary`.
 
 The HTML report shows the same content with severity and confidence filters, free-text search over rules, messages, methods and evidence, and a drill-down panel on every finding with four tabs: **Evidence** (why it was reported, plus the copyable fingerprint and affected methods), **Call paths** (entrypoint to evidence, step by step), **Flow impact** (the entrypoint reached, where that flow stops being analyzed, and the other findings on the same flow) and **Source** (the highlighted excerpt). It is a single self-contained file with no network requests — open it in a browser or attach it to a ticket.
 

@@ -59,6 +59,7 @@ public final class JsonReporter implements AnalysisReporter {
                         .map(Enum::name).sorted().toList()
         ));
         document.put("statistics", statistics(result));
+        document.put("summary", summary(result));
         document.put("parseFailures", result.parseFailures().stream().map(failure -> orderedMap(
                 "file", failure.file().toString(),
                 "message", failure.message()
@@ -97,6 +98,51 @@ public final class JsonReporter implements AnalysisReporter {
         values.put("ruleExecutionNanos", phases.ruleExecutionNanos());
         values.put("totalNanos", phases.totalNanos());
         return values;
+    }
+
+    /**
+     * Executive summary: how many findings each rule and each confidence level produced, so a reader
+     * can size up the project before reading a single finding.
+     */
+    private static Map<String, Object> summary(AnalysisResult result) {
+        var findings = result.findings();
+        var summary = new LinkedHashMap<String, Object>();
+        summary.put("totalFindings", findings.size());
+        summary.put("bySeverity", countBy(findings, finding -> finding.severity().name(),
+                java.util.List.of("ERROR", "WARNING", "INFO")));
+        summary.put("byConfidence", countBy(findings, finding -> finding.confidence().name(),
+                java.util.List.of("HIGH", "MEDIUM", "LOW")));
+        var byRule = new java.util.TreeMap<String, java.util.List<Finding>>();
+        findings.forEach(finding -> byRule.computeIfAbsent(finding.ruleId(), key -> new java.util.ArrayList<>())
+                .add(finding));
+        summary.put("byRule", byRule.entrySet().stream()
+                .sorted(java.util.Comparator
+                        .<Map.Entry<String, java.util.List<Finding>>>comparingInt(entry -> -entry.getValue().size())
+                        .thenComparing(Map.Entry::getKey))
+                .map(entry -> {
+                    var rule = new LinkedHashMap<String, Object>();
+                    rule.put("ruleId", entry.getKey());
+                    rule.put("title", RuleCatalog.explain(entry.getKey()).title());
+                    rule.put("count", entry.getValue().size());
+                    rule.put("highestSeverity", entry.getValue().stream()
+                            .map(finding -> finding.severity().name())
+                            .min(java.util.Comparator.comparingInt(
+                                    name -> java.util.List.of("ERROR", "WARNING", "INFO").indexOf(name)))
+                            .orElse("INFO"));
+                    rule.put("byConfidence", countBy(entry.getValue(), finding -> finding.confidence().name(),
+                            java.util.List.of("HIGH", "MEDIUM", "LOW")));
+                    return rule;
+                }).toList());
+        return summary;
+    }
+
+    private static Map<String, Object> countBy(java.util.List<Finding> findings,
+                                               java.util.function.Function<Finding, String> key,
+                                               java.util.List<String> buckets) {
+        var counts = new LinkedHashMap<String, Object>();
+        buckets.forEach(bucket -> counts.put(bucket,
+                findings.stream().filter(finding -> key.apply(finding).equals(bucket)).count()));
+        return counts;
     }
 
     private static Map<String, Object> flow(Flow flow) {

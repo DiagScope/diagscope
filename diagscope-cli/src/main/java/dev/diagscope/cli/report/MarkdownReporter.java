@@ -28,6 +28,7 @@ public final class MarkdownReporter implements AnalysisReporter {
     public void write(AnalysisResult result, OutputStream output) throws IOException {
         var builder = new StringBuilder(8192);
         appendSummary(builder, result);
+        appendExecutiveSummary(builder, result);
         appendFindings(builder, result);
         appendAspects(builder, result);
         appendFlows(builder, result);
@@ -71,6 +72,72 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append(escape(failure.message())).append("\n"));
             builder.append("\n</details>\n\n");
         }
+    }
+
+    /**
+     * Counts per rule and per confidence level, printed before the detailed findings so the state of
+     * the project is readable in seconds.
+     */
+    private static void appendExecutiveSummary(StringBuilder builder, AnalysisResult result) {
+        var findings = result.findings();
+        builder.append("## Executive summary\n\n");
+        if (findings.isEmpty()) {
+            builder.append("No findings. Every analyzed flow preserves diagnostic evidence.\n\n");
+            return;
+        }
+        builder.append(findings.size()).append(" finding(s): ")
+                .append(countBySeverity(result, "ERROR")).append(" error(s), ")
+                .append(countBySeverity(result, "WARNING")).append(" warning(s), ")
+                .append(countBySeverity(result, "INFO")).append(" info. ")
+                .append(countByConfidence(result, "HIGH")).append(" are high confidence and worth")
+                .append(" triaging first.\n\n")
+                .append("### Findings by rule\n\n")
+                .append("| Rule | What it flags | Findings | Highest severity | High | Medium | Low |\n")
+                .append("| --- | --- | --- | --- | --- | --- | --- |\n");
+        var byRule = new java.util.TreeMap<String, java.util.List<dev.diagscope.core.domain.Finding>>();
+        findings.forEach(finding -> byRule
+                .computeIfAbsent(finding.ruleId(), key -> new java.util.ArrayList<>()).add(finding));
+        byRule.entrySet().stream()
+                .sorted(java.util.Comparator
+                        .<java.util.Map.Entry<String, java.util.List<dev.diagscope.core.domain.Finding>>>
+                                comparingInt(entry -> -entry.getValue().size())
+                        .thenComparing(java.util.Map.Entry::getKey))
+                .forEach(entry -> {
+                    var rows = entry.getValue();
+                    builder.append("| `").append(entry.getKey()).append("` | ")
+                            .append(escape(RuleCatalog.explain(entry.getKey()).title())).append(" | ")
+                            .append(rows.size()).append(" | `").append(highestSeverity(rows)).append("` | ")
+                            .append(countConfidence(rows, "HIGH")).append(" | ")
+                            .append(countConfidence(rows, "MEDIUM")).append(" | ")
+                            .append(countConfidence(rows, "LOW")).append(" |\n");
+                });
+        builder.append("\n### Findings by confidence\n\n")
+                .append("| Confidence | Findings | What it means |\n| --- | --- | --- |\n");
+        var levels = new java.util.ArrayList<>(
+                java.util.List.of(dev.diagscope.core.domain.Confidence.values()));
+        java.util.Collections.reverse(levels);
+        for (var confidence : levels) {
+            builder.append("| `").append(confidence).append("` | ")
+                    .append(countByConfidence(result, confidence.name())).append(" | ")
+                    .append(escape(RuleCatalog.confidenceRationale(confidence))).append(" |\n");
+        }
+        builder.append('\n');
+    }
+
+    private static String highestSeverity(java.util.List<dev.diagscope.core.domain.Finding> findings) {
+        return findings.stream().map(finding -> finding.severity().name())
+                .min(java.util.Comparator.comparingInt(
+                        name -> java.util.List.of("ERROR", "WARNING", "INFO").indexOf(name)))
+                .orElse("INFO");
+    }
+
+    private static long countConfidence(java.util.List<dev.diagscope.core.domain.Finding> findings,
+                                        String confidence) {
+        return findings.stream().filter(finding -> finding.confidence().name().equals(confidence)).count();
+    }
+
+    private static long countByConfidence(AnalysisResult result, String confidence) {
+        return countConfidence(result.findings(), confidence);
     }
 
     private static void appendFindings(StringBuilder builder, AnalysisResult result) {
