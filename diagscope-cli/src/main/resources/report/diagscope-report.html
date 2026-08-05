@@ -14,11 +14,12 @@
 body {
   margin: 0 auto; background: var(--ink); color: var(--paper);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.55; padding: 32px; max-width: 1080px;
+  line-height: 1.55; padding: 32px; max-width: 1120px;
 }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
 h1 { margin: 0; font-size: 1.6rem; }
 h2 { font-size: 1.15rem; margin: 0 0 16px; }
+h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mute); }
 .muted { color: var(--mute); }
 .small { font-size: 0.85rem; }
 .top { margin-bottom: 24px; }
@@ -33,17 +34,18 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 }
 .card-value { font-size: 1.4rem; font-weight: 600; }
 .card-label { font-size: 0.78rem; color: var(--mute); }
-.filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 28px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   background: var(--ink-2); border: 1px solid var(--line); color: var(--paper);
   border-radius: 20px; padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
 }
 .chip.active { border-color: var(--ok); color: var(--ok); }
+.active-filter { margin-bottom: 22px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .flow-card { cursor: pointer; transition: border-color .15s; }
 .flow-card:hover, .flow-card:focus-visible { border-color: var(--ok); }
 .flow-card.active { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
-.permalink { color: var(--mute); text-decoration: none; float: right; font-size: 0.85rem; }
+.permalink { color: var(--mute); text-decoration: none; font-size: 0.85rem; }
 .permalink:hover { color: var(--ok); }
 .finding:target { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
 #finding-search {
@@ -57,7 +59,7 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
   display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 0.74rem;
   text-transform: uppercase; letter-spacing: 0.02em; margin-right: 6px;
 }
-.badge.outline { background: transparent; border: 1px solid var(--line); color: var(--mute); }
+.badge.outline { background: transparent; border: 1px solid var(--line); color: var(--mute); text-transform: none; }
 .badge.type-badge { background: var(--ink-3); color: var(--paper); }
 .sev-error { background: rgba(226, 114, 91, 0.15); color: var(--error); }
 .sev-warning { background: rgba(242, 184, 75, 0.15); color: var(--warning); }
@@ -71,31 +73,64 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 .flow-name { font-weight: 600; margin: 4px 0; }
 .finding {
   background: var(--ink-2); border: 1px solid var(--line); border-left: 3px solid var(--line);
-  border-radius: 8px; padding: 16px; margin-bottom: 12px;
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;
+}
+.finding.sev-error, .finding.sev-warning, .finding.sev-info {
+  background: var(--ink-2); color: var(--paper);
 }
 .finding.sev-error { border-left-color: var(--error); }
 .finding.sev-warning { border-left-color: var(--warning); }
 .finding.sev-info { border-left-color: var(--info); }
+.finding.open { border-color: var(--ok); }
+.finding-summary {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; cursor: pointer;
+  background: transparent; border: 0; color: inherit; font: inherit; text-align: left; padding: 0;
+}
+.finding-summary .caret { color: var(--mute); width: 14px; flex: none; line-height: 1.6; }
+.finding.open .finding-summary .caret { color: var(--ok); }
+.finding-summary-body { flex: 1; min-width: 0; }
 .rule-id { font-weight: 600; }
-.location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); }
+.finding-actions { display: flex; gap: 10px; align-items: center; margin-left: auto; flex: none; }
+.location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); margin: 2px 0; }
+.finding-message { margin: 4px 0 6px; }
 .recommendation { color: var(--paper); }
-.related-flows { margin-top: 8px; }
-.call-paths { margin-top: 12px; }
-.call-paths > summary { cursor: pointer; color: var(--mute); font-size: 0.85rem; }
-.call-path { margin-top: 8px; }
-.path-list { list-style: none; margin: 4px 0 0 0; padding: 0; }
+.related-flows { margin-top: 6px; }
+.drill { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tab {
+  background: transparent; border: 1px solid var(--line); color: var(--mute);
+  border-radius: 6px; padding: 5px 12px; font-size: 0.82rem; cursor: pointer;
+}
+.tab:hover { color: var(--paper); }
+.tab.active { border-color: var(--ok); color: var(--ok); }
+.panel > * + * { margin-top: 14px; }
+.kv { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.kv th, .kv td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.kv th { color: var(--mute); font-weight: 500; width: 34%; }
+.kv tr:last-child th, .kv tr:last-child td { border-bottom: 0; }
+.copy {
+  background: transparent; border: 1px solid var(--line); color: var(--mute);
+  border-radius: 6px; padding: 2px 8px; font-size: 0.74rem; cursor: pointer; margin-left: 8px;
+}
+.copy:hover { color: var(--ok); border-color: var(--ok); }
+.call-path { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.call-path + .call-path { margin-top: 10px; }
+.path-list { list-style: none; margin: 8px 0 0 0; padding: 0; }
 .path-list li { position: relative; padding: 2px 0 2px 18px; font-size: 0.82rem; }
 .path-list li::before { content: "\21B3"; position: absolute; left: 0; opacity: 0.55; }
 .path-list li:first-child::before { content: "\25B6"; }
-.path-list li.evidence-step code { font-weight: 700; }
-.snippet { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.path-list li.entry-step code { color: var(--info); }
+.path-list li.evidence-step code { font-weight: 700; color: var(--error); }
+.linkish {
+  background: transparent; border: 0; padding: 0; font: inherit; color: var(--ok);
+  cursor: pointer; text-align: left; text-decoration: underline dotted;
+}
+.snippet { border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
 .snippet table { border-collapse: collapse; width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
 .snippet td { padding: 2px 10px; white-space: pre; vertical-align: top; }
 .snippet td.ln { text-align: right; color: var(--mute); user-select: none; width: 1%; border-right: 1px solid var(--line); background: var(--ink-2); }
 .snippet tr.hl td { background: rgba(226, 114, 91, 0.12); }
 .snippet tr.hl td.ln { color: var(--error); background: rgba(226, 114, 91, 0.18); }
-.evidence { margin-top: 10px; }
-.evidence summary { cursor: pointer; color: var(--mute); font-size: 0.85rem; }
 .empty { color: var(--mute); font-style: italic; }
 .dropzone {
   border: 1px dashed var(--line); border-radius: 8px; padding: 10px 14px;
@@ -105,6 +140,10 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 .dropzone.over { border-color: var(--ok); color: var(--ok); }
 .dropzone input { font-size: 0.8rem; color: var(--mute); }
 .foot { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 12px; color: var(--mute); font-size: 0.82rem; }
+@media print {
+  .drill { display: block; }
+  .tabs, .dropzone, .filter-bar, .copy { display: none; }
+}
 </style>
 </head>
 <body>
@@ -124,7 +163,14 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 <section class="filter-bar">
   <div class="chips" id="severity-chips"></div>
   <div class="chips" id="confidence-chips"></div>
-  <input id="finding-search" type="search" placeholder="Filter by rule, file, or message…">
+  <input id="finding-search" type="search" placeholder="Filter by rule, file, message, method, or evidence…">
+</section>
+
+<section class="active-filter">
+  <span class="small muted" id="result-count"></span>
+  <button class="chip" id="expand-all" type="button">Expand all</button>
+  <button class="chip" id="collapse-all" type="button">Collapse all</button>
+  <span id="flow-filter-note"></span>
 </section>
 
 <section class="block">
@@ -149,8 +195,16 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 (function () {
   var SEVERITIES = ['ERROR', 'WARNING', 'INFO'];
   var CONFIDENCES = ['HIGH', 'MEDIUM', 'LOW'];
-  var state = { severity: 'ALL', confidence: 'ALL', flow: null, query: '' };
+  var TABS = [
+    { id: 'evidence', label: 'Evidence' },
+    { id: 'paths', label: 'Call paths' },
+    { id: 'impact', label: 'Flow impact' },
+    { id: 'source', label: 'Source' }
+  ];
+  var state = { severity: 'ALL', confidence: 'ALL', flow: null, query: '', open: {}, tab: {} };
   var report = null;
+  var flowsById = {};
+  var findingsByFlow = {};
 
   function esc(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (character) {
@@ -163,6 +217,11 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
+  function humanize(key) {
+    var spaced = String(key || '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_.-]+/g, ' ');
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+  }
+
   function sevClass(severity) { return 'sev-' + String(severity || '').toLowerCase(); }
   function confClass(confidence) { return 'conf-' + String(confidence || '').toLowerCase(); }
 
@@ -173,10 +232,25 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 
   function millis(nanos) { return Math.round((nanos || 0) / 1e6) + ' ms'; }
 
+  function findingId(finding) {
+    return 'finding-' + String(finding.fingerprint || finding.ruleId || '').replace(/[^A-Za-z0-9_-]/g, '-');
+  }
+
   function boundaryCount() {
     return (report.flows || []).reduce(function (total, flow) {
       return total + (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length);
     }, 0);
+  }
+
+  function index() {
+    flowsById = {};
+    findingsByFlow = {};
+    (report.flows || []).forEach(function (flow) { flowsById[flow.id] = flow; });
+    (report.findings || []).forEach(function (finding) {
+      (finding.relatedFlows || []).forEach(function (related) {
+        (findingsByFlow[related.id] = findingsByFlow[related.id] || []).push(finding);
+      });
+    });
   }
 
   function renderHeader() {
@@ -184,7 +258,7 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     var project = report.project || {};
     document.getElementById('report-subtitle').textContent =
       [project.name, project.buildSystemName, tool.name + ' ' + (tool.version || ''), report.generatedAt]
-        .filter(Boolean).join(' · ');
+        .filter(Boolean).join(' \u00b7 ');
     document.title = 'DiagScope report — ' + (project.name || 'scan');
   }
 
@@ -228,7 +302,9 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
   }
 
   function snippetHtml(snippet) {
-    if (!snippet || !snippet.lines || !snippet.lines.length) { return ''; }
+    if (!snippet || !snippet.lines || !snippet.lines.length) {
+      return '<p class="empty">No source excerpt was captured for this finding.</p>';
+    }
     var rows = snippet.lines.map(function (line) {
       var highlighted = line.number >= snippet.highlightedStartLine && line.number <= snippet.highlightedEndLine;
       return '<tr class="' + (highlighted ? 'hl' : '') + '">' +
@@ -239,45 +315,154 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     return '<div class="snippet"><table role="presentation"><tbody>' + rows + '</tbody></table></div>';
   }
 
-  function callPathHtml(finding) {
-    var traced = (finding.relatedFlows || []).filter(function (flow) { return (flow.path || []).length > 1; });
-    if (!traced.length) { return ''; }
-    var blocks = traced.map(function (flow) {
-      var steps = flow.path.map(function (method, index) {
-        var last = index === flow.path.length - 1;
-        return '<li class="' + (last ? 'evidence-step' : '') + '"><code>' + esc(method) + '</code>' +
-          (last ? '<span class="mute small"> evidence</span>' : '') + '</li>';
-      }).join('');
-      return '<div class="call-path"><p class="small">' + esc(flow.name) +
-        ' &middot; depth ' + esc(flow.depth) + '</p><ol class="path-list">' + steps + '</ol></div>';
+  function evidenceRow(label, value, extra) {
+    return '<tr><th>' + esc(label) + '</th><td>' + value + (extra || '') + '</td></tr>';
+  }
+
+  function evidencePanel(finding) {
+    var loc = finding.location || {};
+    var rows = [
+      evidenceRow('Rule', '<code>' + esc(finding.ruleId) + '</code>'),
+      evidenceRow('Severity', '<span class="badge ' + sevClass(finding.severity) + '">' + esc(title(finding.severity)) + '</span>'),
+      evidenceRow('Confidence', '<span class="badge ' + confClass(finding.confidence) + '">' +
+        esc(String(finding.confidence).toLowerCase()) + '</span>'),
+      evidenceRow('Location', '<code>' + esc(loc.file || '') + '</code> lines ' +
+        esc(loc.startLine) + '\u2013' + esc(loc.endLine == null ? loc.startLine : loc.endLine)),
+      evidenceRow('Fingerprint', '<code>' + esc(finding.fingerprint) + '</code>',
+        '<button class="copy" type="button" data-copy="' + esc(finding.fingerprint) + '">Copy</button>')
+    ];
+    Object.keys(finding.evidence || {}).forEach(function (key) {
+      rows.push(evidenceRow(humanize(key), '<code>' + esc(finding.evidence[key]) + '</code>'));
+    });
+    var methods = (finding.affectedMethods || []).map(function (method) {
+      return '<li><code>' + esc(method) + '</code></li>';
     }).join('');
-    return '<details class="call-paths"><summary>Call paths (' + traced.length + ')</summary>' + blocks + '</details>';
+    return '<div><h3>Why this was reported</h3>' +
+      '<table class="kv"><tbody>' + rows.join('') + '</tbody></table></div>' +
+      (finding.recommendation
+        ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>'
+        : '') +
+      (methods
+        ? '<div><h3>Affected methods (' + (finding.affectedMethods || []).length + ')</h3>' +
+          '<ul class="plain-list small">' + methods + '</ul></div>'
+        : '');
+  }
+
+  function pathsPanel(finding) {
+    var related = finding.relatedFlows || [];
+    if (!related.length) {
+      return '<p class="empty">This finding is not reachable from any detected entrypoint.</p>';
+    }
+    return related.map(function (flow) {
+      var path = (flow.path || []).length ? flow.path : [flow.affectedMethod].filter(Boolean);
+      var steps = path.map(function (method, position) {
+        var last = position === path.length - 1;
+        var first = position === 0;
+        return '<li class="' + (last ? 'evidence-step' : (first ? 'entry-step' : '')) + '">' +
+          '<code>' + esc(method) + '</code>' +
+          (first ? '<span class="muted small"> entrypoint</span>' : '') +
+          (last && !first ? '<span class="muted small"> evidence</span>' : '') +
+        '</li>';
+      }).join('');
+      return '<div class="call-path">' +
+        '<span class="badge type-badge">' + esc(flow.type) + '</span>' +
+        '<span class="badge ' + confClass(flow.confidence) + '">confidence: ' +
+          esc(String(flow.confidence).toLowerCase()) + '</span>' +
+        '<span class="badge outline">depth ' + esc(flow.depth == null ? 0 : flow.depth) + '</span>' +
+        '<p class="flow-name">' + esc(flow.name) + '</p>' +
+        '<ol class="path-list">' + steps + '</ol>' +
+      '</div>';
+    }).join('');
+  }
+
+  function impactPanel(finding) {
+    var related = finding.relatedFlows || [];
+    if (!related.length) {
+      return '<p class="empty">No entrypoint reaches this code, so no runtime flow is affected.</p>';
+    }
+    return related.map(function (related) {
+      var flow = flowsById[related.id];
+      if (!flow) {
+        return '<div class="call-path"><p class="flow-name">' + esc(related.name) + '</p>' +
+          '<p class="muted small">Flow details are not part of this payload.</p></div>';
+      }
+      var boundaries = (flow.boundaries || []).map(function (boundary) {
+        return '<li><span class="badge outline">' + esc(boundary.resolutionReason) + '</span> <code>' +
+          esc(boundary.call) + '</code> <span class="muted">(' + esc(location(boundary.location)) + ')</span></li>';
+      }).join('');
+      var siblings = (findingsByFlow[flow.id] || []).filter(function (other) {
+        return other.fingerprint !== finding.fingerprint;
+      }).map(function (other) {
+        return '<li><span class="badge ' + sevClass(other.severity) + '">' + esc(title(other.severity)) + '</span> ' +
+          '<button class="linkish" type="button" data-goto-finding="' + esc(other.fingerprint) + '">' +
+          esc(other.ruleId) + ' \u00b7 ' + esc(location(other.location)) + '</button></li>';
+      }).join('');
+      return '<div class="call-path">' +
+        '<span class="badge type-badge">' + esc(flow.type) + '</span>' +
+        '<span class="badge ' + confClass(flow.confidence) + '">confidence: ' +
+          esc(String(flow.confidence).toLowerCase()) + '</span>' +
+        '<p class="flow-name">' + esc(flow.name) + '</p>' +
+        '<p class="location">' + esc(flow.method) + ' \u00b7 ' + esc(location(flow.location)) + '</p>' +
+        '<p class="small">' + (flow.methods || []).length + ' method(s) reached \u00b7 ' +
+          (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length) +
+          ' boundary(ies) \u00b7 this finding sits at depth ' + esc(related.depth == null ? 0 : related.depth) + '</p>' +
+        (boundaries
+          ? '<h3>Where this flow stops being analyzed</h3><ul class="plain-list small">' + boundaries + '</ul>'
+          : '<p class="muted small">No boundaries: every call in this flow was resolved.</p>') +
+        (siblings
+          ? '<h3>Other findings in this flow</h3><ul class="plain-list small">' + siblings + '</ul>'
+          : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function panelHtml(finding, tab) {
+    if (tab === 'paths') { return pathsPanel(finding); }
+    if (tab === 'impact') { return impactPanel(finding); }
+    if (tab === 'source') { return snippetHtml(finding.snippet); }
+    return evidencePanel(finding);
+  }
+
+  function drillHtml(finding) {
+    var key = finding.fingerprint;
+    var active = state.tab[key] || 'evidence';
+    var tabs = TABS.map(function (tab) {
+      var count = tab.id === 'paths'
+        ? ' (' + (finding.relatedFlows || []).length + ')'
+        : (tab.id === 'evidence' ? ' (' + Object.keys(finding.evidence || {}).length + ')' : '');
+      return '<button class="tab' + (tab.id === active ? ' active' : '') + '" type="button" ' +
+        'data-tab="' + tab.id + '" data-tab-finding="' + esc(key) + '">' + esc(tab.label) + count + '</button>';
+    }).join('');
+    return '<div class="drill"><div class="tabs" role="tablist">' + tabs + '</div>' +
+      '<div class="panel">' + panelHtml(finding, active) + '</div></div>';
   }
 
   function findingHtml(finding) {
+    var open = !!state.open[finding.fingerprint];
     var flows = (finding.relatedFlows || []).map(function (flow) {
       return '<span class="badge outline">' + esc(flow.name) + ' (' + esc(String(flow.confidence).toLowerCase()) +
         (flow.depth != null ? ', depth ' + esc(flow.depth) : '') + ')</span>';
     }).join('');
-    var evidence = Object.keys(finding.evidence || {}).map(function (key) {
-      return '<li><code>' + esc(key) + '</code>: ' + esc(finding.evidence[key]) + '</li>';
-    }).join('');
-    var id = 'finding-' + String(finding.fingerprint || '').replace(/[^A-Za-z0-9_-]/g, '-');
-    var snippet = snippetHtml(finding.snippet);
-    return '<article id="' + id + '" class="finding ' + sevClass(finding.severity) + '">' +
-      '<div class="finding-head">' +
-        '<span class="badge ' + sevClass(finding.severity) + '">' + esc(title(finding.severity)) + '</span>' +
-        '<span class="rule-id">' + esc(finding.ruleId) + '</span>' +
-        '<span class="badge ' + confClass(finding.confidence) + '">confidence: ' + esc(String(finding.confidence).toLowerCase()) + '</span>' +
-        '<a class="permalink" href="#' + id + '" title="Permalink to this finding">#</a>' +
+    var id = findingId(finding);
+    return '<article id="' + id + '" class="finding ' + sevClass(finding.severity) + (open ? ' open' : '') +
+      '" data-finding="' + esc(finding.fingerprint) + '">' +
+      '<div class="finding-summary" role="button" tabindex="0" aria-expanded="' + open +
+        '" data-finding-toggle="' + esc(finding.fingerprint) + '">' +
+        '<span class="caret">' + (open ? '\u25be' : '\u25b8') + '</span>' +
+        '<span class="finding-summary-body">' +
+          '<span class="badge ' + sevClass(finding.severity) + '">' + esc(title(finding.severity)) + '</span>' +
+          '<span class="rule-id">' + esc(finding.ruleId) + '</span>' +
+          '<span class="badge ' + confClass(finding.confidence) + '">confidence: ' +
+            esc(String(finding.confidence).toLowerCase()) + '</span>' +
+          '<p class="location">' + esc(location(finding.location)) + '</p>' +
+          '<p class="finding-message">' + esc(finding.message) + '</p>' +
+          (flows ? '<span class="related-flows">' + flows + '</span>' : '') +
+        '</span>' +
+        '<span class="finding-actions">' +
+          '<a class="permalink" href="#' + id + '" title="Permalink to this finding">#</a>' +
+        '</span>' +
       '</div>' +
-      '<p class="location">' + esc(location(finding.location)) + '</p>' +
-      '<p>' + esc(finding.message) + '</p>' +
-      snippet +
-      (finding.recommendation ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>' : '') +
-      (flows ? '<div class="related-flows">' + flows + '</div>' : '') +
-      callPathHtml(finding) +
-      (evidence ? '<details class="evidence"><summary>Evidence</summary><ul class="plain-list small">' + evidence + '</ul></details>' : '') +
+      (open ? drillHtml(finding) : '') +
     '</article>';
   }
 
@@ -286,8 +471,12 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     if (state.confidence !== 'ALL' && finding.confidence !== state.confidence) { return false; }
     if (state.flow && !(finding.relatedFlows || []).some(function (flow) { return flow.id === state.flow; })) { return false; }
     if (state.query) {
+      var evidence = Object.keys(finding.evidence || {}).map(function (key) {
+        return key + ' ' + finding.evidence[key];
+      }).join(' ');
       var haystack = [finding.ruleId, finding.message, finding.recommendation, location(finding.location),
-        (finding.affectedMethods || []).join(' ')]
+        (finding.affectedMethods || []).join(' '), evidence,
+        (finding.relatedFlows || []).map(function (flow) { return flow.name; }).join(' ')]
         .join(' ').toLowerCase();
       if (haystack.indexOf(state.query) === -1) { return false; }
     }
@@ -295,10 +484,18 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
   }
 
   function renderFindings() {
-    var visible = (report.findings || []).filter(matches);
+    var all = report.findings || [];
+    var visible = all.filter(matches);
     document.getElementById('findings-list').innerHTML = visible.length
       ? visible.map(findingHtml).join('')
       : '<p class="empty">No findings match the current filters.</p>';
+    document.getElementById('result-count').textContent =
+      'Showing ' + visible.length + ' of ' + all.length + ' finding(s)';
+    var note = document.getElementById('flow-filter-note');
+    note.innerHTML = state.flow && flowsById[state.flow]
+      ? '<span class="badge outline">flow: ' + esc(flowsById[state.flow].name) +
+        '</span><button class="linkish" type="button" id="clear-flow">clear</button>'
+      : '';
   }
 
   function renderFlows() {
@@ -309,14 +506,16 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
           esc(boundary.call) + ' <span class="muted">(' + esc(location(boundary.location)) + ')</span></li>';
       }).join('');
       var hidden = (flow.boundaries || []).length - 5;
+      var findings = (findingsByFlow[flow.id] || []).length;
       return '<article class="flow-card' + (state.flow === flow.id ? ' active' : '') + '" data-flow-id="' + esc(flow.id) +
         '" tabindex="0" role="button" aria-pressed="' + (state.flow === flow.id) + '">' +
         '<div class="flow-head"><span class="badge type-badge">' + esc(flow.type) + '</span>' +
         '<span class="badge ' + confClass(flow.confidence) + '">confidence: ' + esc(String(flow.confidence).toLowerCase()) + '</span></div>' +
         '<p class="flow-name">' + esc(flow.name) + '</p>' +
         '<p class="muted small">' + esc(flow.method) + '</p>' +
-        '<p class="small">' + (flow.methods || []).length + ' method(s) reached · ' +
-        (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length) + ' boundary(ies)</p>' +
+        '<p class="small">' + (flow.methods || []).length + ' method(s) reached \u00b7 ' +
+        (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length) + ' boundary(ies) \u00b7 ' +
+        findings + ' finding(s)</p>' +
         (boundaries ? '<ul class="plain-list small">' + boundaries +
           (hidden > 0 ? '<li class="muted">+ ' + hidden + ' more</li>' : '') + '</ul>' : '') +
       '</article>';
@@ -332,21 +531,36 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     }).join('');
   }
 
+  function openFromHash() {
+    if (!window.location.hash) { return; }
+    var finding = (report.findings || []).filter(function (item) {
+      return '#' + findingId(item) === window.location.hash;
+    })[0];
+    if (finding) { state.open[finding.fingerprint] = true; }
+    renderFindings();
+    var target = document.getElementById(window.location.hash.slice(1));
+    if (target) { target.scrollIntoView(); }
+  }
+
   function renderAll() {
+    index();
     renderHeader();
     renderCards();
     renderChips();
     renderFindings();
     renderFlows();
     renderParseFailures();
-    if (window.location.hash) {
-      var target = document.querySelector(window.location.hash);
-      if (target) { target.scrollIntoView(); }
-    }
+    openFromHash();
+  }
+
+  function toggleFinding(fingerprint) {
+    if (state.open[fingerprint]) { delete state.open[fingerprint]; } else { state.open[fingerprint] = true; }
+    renderFindings();
   }
 
   document.addEventListener('click', function (event) {
-    var severityChip = event.target.closest('[data-filter-severity]');
+    var target = event.target;
+    var severityChip = target.closest('[data-filter-severity]');
     if (severityChip) {
       state.severity = severityChip.getAttribute('data-filter-severity');
       renderChips();
@@ -354,7 +568,7 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
       renderFindings();
       return;
     }
-    var confidenceChip = event.target.closest('[data-filter-confidence]');
+    var confidenceChip = target.closest('[data-filter-confidence]');
     if (confidenceChip) {
       state.confidence = confidenceChip.getAttribute('data-filter-confidence');
       renderChips();
@@ -362,7 +576,42 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
       renderFindings();
       return;
     }
-    var flowCard = event.target.closest('[data-flow-id]');
+    var copyButton = target.closest('[data-copy]');
+    if (copyButton) {
+      var text = copyButton.getAttribute('data-copy');
+      if (navigator.clipboard) { navigator.clipboard.writeText(text); }
+      copyButton.textContent = 'Copied';
+      window.setTimeout(function () { copyButton.textContent = 'Copy'; }, 1200);
+      return;
+    }
+    var tabButton = target.closest('[data-tab]');
+    if (tabButton) {
+      state.tab[tabButton.getAttribute('data-tab-finding')] = tabButton.getAttribute('data-tab');
+      renderFindings();
+      return;
+    }
+    var jump = target.closest('[data-goto-finding]');
+    if (jump) {
+      var fingerprint = jump.getAttribute('data-goto-finding');
+      state.open[fingerprint] = true;
+      renderFindings();
+      var article = document.querySelector('[data-finding="' + fingerprint + '"]');
+      if (article) { article.scrollIntoView({ block: 'center' }); }
+      return;
+    }
+    if (target.closest('.permalink')) { return; }
+    var toggle = target.closest('[data-finding-toggle]');
+    if (toggle) {
+      toggleFinding(toggle.getAttribute('data-finding-toggle'));
+      return;
+    }
+    if (target.closest('#clear-flow')) {
+      state.flow = null;
+      renderFlows();
+      renderFindings();
+      return;
+    }
+    var flowCard = target.closest('[data-flow-id]');
     if (flowCard) {
       var id = flowCard.getAttribute('data-flow-id');
       state.flow = state.flow === id ? null : id;
@@ -373,11 +622,21 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 
   document.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' && event.key !== ' ') { return; }
-    var flowCard = event.target.closest && event.target.closest('[data-flow-id]');
-    if (flowCard) {
+    var interactive = event.target.closest && event.target.closest('[data-flow-id], [data-finding-toggle]');
+    if (interactive) {
       event.preventDefault();
-      flowCard.click();
+      interactive.click();
     }
+  });
+
+  document.getElementById('expand-all').addEventListener('click', function () {
+    (report.findings || []).filter(matches).forEach(function (finding) { state.open[finding.fingerprint] = true; });
+    renderFindings();
+  });
+
+  document.getElementById('collapse-all').addEventListener('click', function () {
+    state.open = {};
+    renderFindings();
   });
 
   function syncChips() {
@@ -397,6 +656,8 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
   function load(data) {
     report = data;
     state.flow = null;
+    state.open = {};
+    state.tab = {};
     renderAll();
     syncChips();
   }
@@ -427,6 +688,8 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
   document.getElementById('file-input').addEventListener('change', function (event) {
     if (event.target.files && event.target.files[0]) { readFile(event.target.files[0]); }
   });
+
+  window.addEventListener('hashchange', openFromHash);
 
   load(JSON.parse(document.getElementById('diagscope-data').textContent));
 }());

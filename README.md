@@ -119,7 +119,7 @@ Exception is converted to a normal return value without preserving diagnostic ev
 | Scheduled cron=0 */5 * * * * | `SCHEDULED` | `HIGH` | 1 | 1 |
 ```
 
-The HTML report shows the same content with severity filters, per-finding code snippets, and flow navigation. It is a single self-contained file — open it in a browser or attach it to a ticket.
+The HTML report shows the same content with severity and confidence filters, free-text search over rules, messages, methods and evidence, and a drill-down panel on every finding with four tabs: **Evidence** (why it was reported, plus the copyable fingerprint and affected methods), **Call paths** (entrypoint to evidence, step by step), **Flow impact** (the entrypoint reached, where that flow stops being analyzed, and the other findings on the same flow) and **Source** (the highlighted excerpt). It is a single self-contained file with no network requests — open it in a browser or attach it to a ticket.
 
 ## Reading the report
 

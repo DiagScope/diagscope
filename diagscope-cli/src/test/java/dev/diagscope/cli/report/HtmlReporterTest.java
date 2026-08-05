@@ -75,6 +75,38 @@ class HtmlReporterTest {
         }
     }
 
+    @Test
+    void ships_the_drill_down_shell_so_every_finding_can_be_inspected_in_place() throws Exception {
+        String html = render();
+
+        assertThat(html).contains("data-finding-toggle=");
+        assertThat(html).contains("data-tab=");
+        assertThat(html).contains("'evidence'").contains("'paths'").contains("'impact'").contains("'source'");
+        assertThat(html).contains("data-goto-finding=");
+        assertThat(html).contains("id=\"expand-all\"").contains("id=\"collapse-all\"");
+    }
+
+    @Test
+    void embeds_the_flow_detail_needed_by_the_drill_down_panels() throws Exception {
+        var payload = JSON.readTree(embeddedPayload(render()));
+
+        assertThat(payload.path("flows")).isNotEmpty();
+        for (var flow : payload.path("flows")) {
+            assertThat(flow.path("id").asText()).isNotBlank();
+            assertThat(flow.path("methods").isArray()).isTrue();
+            assertThat(flow.path("boundaries").isArray()).isTrue();
+        }
+        for (var finding : payload.path("findings")) {
+            assertThat(finding.path("affectedMethods").isArray()).isTrue();
+            for (var related : finding.path("relatedFlows")) {
+                assertThat(payload.path("flows").findValuesAsText("id"))
+                        .as("related flow %s resolves to an embedded flow", related.path("id").asText())
+                        .contains(related.path("id").asText());
+                assertThat(related.path("path").isArray()).isTrue();
+            }
+        }
+    }
+
     private String render() throws Exception {
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         var useCase = new DiagnosticCoverageService(
