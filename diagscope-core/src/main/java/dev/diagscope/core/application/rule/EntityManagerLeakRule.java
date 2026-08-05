@@ -14,14 +14,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
- * Reports JDBC resources acquired outside try-with-resources and never closed on the same method.
+ * Reports an application-managed {@code EntityManager} created outside try-with-resources and never
+ * closed in the method that created it.
  *
- * <p>A leaked {@code Connection}, {@code Statement} or {@code ResultSet} does not fail where it is
- * opened. The pool drains later, under load, in a different flow, and the stack trace points at an
- * innocent caller. The acquisition site is the only place where the problem is still visible.</p>
+ * <p>An {@code EntityManager} obtained from an {@code EntityManagerFactory} is owned by the caller,
+ * not by the container. Leaving it open holds the persistence context and its underlying connection,
+ * and the resulting failure appears as an unrelated pool timeout later in the flow.</p>
  */
-public final class JdbcResourceLeakRule implements DiagnosticRule {
-    public static final String ID = "JDBC_RESOURCE_NOT_CLOSED";
+public final class EntityManagerLeakRule implements DiagnosticRule {
+    public static final String ID = "JPA_ENTITY_MANAGER_NOT_CLOSED";
 
     @Override
     public String id() {
@@ -34,12 +35,7 @@ public final class JdbcResourceLeakRule implements DiagnosticRule {
         for (var flowMethod : flow.methods()) {
             MethodModel method = flowMethod.method();
             for (InvocationEvidence invocation : method.invocations()) {
-                if (!DatabaseResources.JDBC_ACQUISITIONS.contains(invocation.methodName())
-                        || invocation.resourceManaged()) {
-                    continue;
-                }
-                if (!DatabaseResources.looksJdbc(invocation)
-                        || DatabaseResources.escapesJdbcTemplate(invocation)) {
+                if (!DatabaseResources.createsEntityManager(invocation) || invocation.resourceManaged()) {
                     continue;
                 }
                 if (invocation.resultUsage() != InvocationResultUsage.ASSIGNED) {
@@ -56,20 +52,17 @@ public final class JdbcResourceLeakRule implements DiagnosticRule {
                 Confidence confidence = Confidence.min(ruleConfidence, flowMethod.confidence());
                 var details = new LinkedHashMap<String, String>();
                 details.put("method", method.id().displayName());
-                details.put("acquisition", invocation.methodName() + "()");
                 details.put("receiverType", invocation.receiverType());
                 details.put("assignedTo", invocation.assignedTo());
                 findings.add(new Finding(
                         ID, Severity.ERROR, confidence, invocation.location(),
-                        "JDBC resource from " + invocation.methodName()
-                                + "() is not managed by try-with-resources and is never closed in this method.",
-                        "Acquire the resource in a try-with-resources block, or close it in a finally"
-                                + " block on every path.",
+                        "EntityManager created by createEntityManager() is never closed in this method.",
+                        "Close the EntityManager in a finally block or a try-with-resources block, or"
+                                + " inject a container-managed one with @PersistenceContext.",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         details));
             }
         }
         return List.copyOf(findings);
     }
-
 }

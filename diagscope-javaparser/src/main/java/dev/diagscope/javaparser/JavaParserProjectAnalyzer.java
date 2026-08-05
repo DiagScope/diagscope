@@ -734,7 +734,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 resultUsage(call),
                 false,
                 isTryResource(call),
-                assignedVariable(call)
+                assignedVariable(call),
+                insideFinally(call)
         );
     }
 
@@ -758,6 +759,20 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     }
                 }
                 return false;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    /** True when the call runs from a {@code finally} block, so the failure path executes it too. */
+    private static boolean insideFinally(MethodCallExpr call) {
+        Node current = call;
+        while (current.getParentNode().isPresent()) {
+            Node parent = current.getParentNode().orElseThrow();
+            if (parent instanceof com.github.javaparser.ast.stmt.TryStmt tryStmt
+                    && tryStmt.getFinallyBlock().map(block -> block.isAncestorOf(call)).orElse(false)) {
+                return true;
             }
             current = parent;
         }

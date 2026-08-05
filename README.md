@@ -163,7 +163,10 @@ A finding is never more confident than the path that reaches it. If a flow becom
 | `KAFKA_ACK_NOT_INVOKED` | A listener that receives an `Acknowledgment` but never acknowledges the record |
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | A listener that handles its own failure, so retry, error handler and DLT never run |
 | `TX_ROLLBACK_SUPPRESSED` | A failure caught inside a `@Transactional` method, so the transaction commits anyway |
-| `JDBC_RESOURCE_NOT_CLOSED` | A JDBC connection or statement opened outside try-with-resources and never closed |
+| `JDBC_RESOURCE_NOT_CLOSED` | A connection, statement or result set opened outside try-with-resources and never closed |
+| `DB_RESOURCE_CLOSE_NOT_GUARDED` | A database handle closed on the success path only, so a thrown exception leaks it |
+| `JPA_ENTITY_MANAGER_NOT_CLOSED` | An `EntityManager` created from the factory and never closed |
+| `JDBC_TEMPLATE_CONNECTION_ESCAPE` | A raw connection pulled out of `JdbcTemplate` / `DataSourceUtils`, outside the active transaction |
 | `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an ID, UUID, email, or token |
 | `PRINT_STACK_TRACE` | `printStackTrace()` instead of structured logging |
 | `SYSTEM_OUTPUT` | `System.out` / `System.err` instead of the application logger |
