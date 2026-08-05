@@ -25,6 +25,29 @@
 
 </details>
 
+## Executive summary
+
+6 finding(s): 3 error(s), 3 warning(s), 0 info. 5 are high confidence and worth triaging first.
+
+### Findings by rule
+
+| Rule | What it flags | Findings | Highest severity | High | Medium | Low |
+| --- | --- | --- | --- | --- | --- | --- |
+| `HIGH_CARDINALITY_METRIC_TAG` | High-cardinality metric tag | 1 | `ERROR` | 0 | 1 | 0 |
+| `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
+| `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
+| `SILENT_CATCH` | Exception caught and ignored | 1 | `ERROR` | 1 | 0 | 0 |
+| `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
+| `SYSTEM_OUTPUT` | Diagnostics written to standard output | 1 | `WARNING` | 1 | 0 | 0 |
+
+### Findings by confidence
+
+| Confidence | Findings | What it means |
+| --- | --- | --- |
+| `HIGH` | 5 | HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding. |
+| `MEDIUM` | 1 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
+| `LOW` | 0 | LOW — the situation is plausible but depends on runtime behaviour DiagScope cannot observe (dynamic targets, global handlers, or deep or ambiguous call edges). Use it as a hint, not as a defect. |
+
 ## Findings
 
 ### ⚠️ KAFKA_LISTENER_ERROR_NOT_PROPAGATED — `src/main/java/example/PaymentListener.java:6`

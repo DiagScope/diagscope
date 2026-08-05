@@ -28,6 +28,80 @@
     "ruleExecutionNanos" : 0,
     "totalNanos" : 0
   },
+  "summary" : {
+    "totalFindings" : 6,
+    "bySeverity" : {
+      "ERROR" : 3,
+      "WARNING" : 3,
+      "INFO" : 0
+    },
+    "byConfidence" : {
+      "HIGH" : 5,
+      "MEDIUM" : 1,
+      "LOW" : 0
+    },
+    "byRule" : [ {
+      "ruleId" : "HIGH_CARDINALITY_METRIC_TAG",
+      "title" : "High-cardinality metric tag",
+      "count" : 1,
+      "highestSeverity" : "ERROR",
+      "byConfidence" : {
+        "HIGH" : 0,
+        "MEDIUM" : 1,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "KAFKA_LISTENER_ERROR_NOT_PROPAGATED",
+      "title" : "Kafka listener swallows the failure",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "KAFKA_SEND_RESULT_IGNORED",
+      "title" : "Kafka send result ignored",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "SILENT_CATCH",
+      "title" : "Exception caught and ignored",
+      "count" : 1,
+      "highestSeverity" : "ERROR",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "SILENT_FAILURE_CONVERSION",
+      "title" : "Failure converted into a normal value",
+      "count" : 1,
+      "highestSeverity" : "ERROR",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "SYSTEM_OUTPUT",
+      "title" : "Diagnostics written to standard output",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    } ]
+  },
   "parseFailures" : [ ],
   "aspects" : [ ],
   "flows" : [ {

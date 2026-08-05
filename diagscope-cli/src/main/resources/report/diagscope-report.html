@@ -27,6 +27,19 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
   font-size: 0.82rem; color: var(--mute); border: 1px dashed var(--line);
   border-radius: 8px; padding: 8px 12px; display: inline-block; margin-top: 10px;
 }
+.exec-summary { background: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+.exec-summary h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.exec-headline { margin: 0 0 14px; color: var(--paper); }
+.exec-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .exec-grid { grid-template-columns: minmax(0, 1fr); } }
+.exec-grid > div { min-width: 0; overflow-x: auto; }
+.exec-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.exec-table th, .exec-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.exec-table th { color: var(--mute); font-weight: 500; }
+.exec-table td.num, .exec-table th.num { text-align: right; }
+.exec-table tr:last-child td { border-bottom: 0; }
+.exec-rule { background: transparent; border: 0; padding: 0; font: inherit; color: var(--paper); cursor: pointer; text-align: left; text-decoration: underline dotted; }
+.exec-rule:hover { color: var(--ok); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .card {
   background: var(--ink-2); border: 1px solid var(--line); border-radius: 10px;
@@ -161,6 +174,8 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
   </div>
 </header>
 
+<section class="exec-summary" id="exec-summary" hidden></section>
+
 <section class="cards" id="cards"></section>
 
 <section class="filter-bar">
@@ -269,6 +284,73 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
       [project.name, project.buildSystemName, tool.name + ' ' + (tool.version || ''), report.generatedAt]
         .filter(Boolean).join(' \u00b7 ');
     document.title = 'DiagScope report — ' + (project.name || 'scan');
+  }
+
+  function renderExecutiveSummary() {
+    var host = document.getElementById('exec-summary');
+    var findings = report.findings || [];
+    var summary = report.summary || {};
+    if (!findings.length) {
+      host.hidden = false;
+      host.innerHTML = '<h2>Executive summary</h2><p class="exec-headline">' +
+        'No findings. Every analyzed flow preserves diagnostic evidence.</p>';
+      return;
+    }
+    var bySeverity = summary.bySeverity || {};
+    var byConfidence = summary.byConfidence || {};
+    function sev(name) { return bySeverity[name] != null ? bySeverity[name] : countBy('severity', name); }
+    function conf(name) { return byConfidence[name] != null ? byConfidence[name] : countBy('confidence', name); }
+    var rules = summary.byRule;
+    if (!rules) {
+      var grouped = {};
+      findings.forEach(function (finding) {
+        var row = grouped[finding.ruleId] = grouped[finding.ruleId] ||
+          { ruleId: finding.ruleId, title: '', count: 0, byConfidence: { HIGH: 0, MEDIUM: 0, LOW: 0 } };
+        row.count += 1;
+        row.byConfidence[finding.confidence] = (row.byConfidence[finding.confidence] || 0) + 1;
+        if (!row.title && finding.explanation) { row.title = finding.explanation.title || ''; }
+      });
+      rules = Object.keys(grouped).map(function (key) { return grouped[key]; })
+        .sort(function (a, b) { return b.count - a.count || a.ruleId.localeCompare(b.ruleId); });
+    }
+    var ruleRows = rules.map(function (rule) {
+      var counts = rule.byConfidence || {};
+      return '<tr>' +
+        '<td><button class="exec-rule" type="button" data-exec-rule="' + esc(rule.ruleId) + '">' +
+        esc(rule.ruleId) + '</button>' +
+        (rule.title ? '<div class="small muted">' + esc(rule.title) + '</div>' : '') + '</td>' +
+        '<td><span class="badge ' + sevClass(rule.highestSeverity || 'INFO') + '">' +
+        esc(title(rule.highestSeverity || 'INFO')) + '</span></td>' +
+        '<td class="num">' + esc(rule.count) + '</td>' +
+        '<td class="num">' + esc(counts.HIGH || 0) + '</td>' +
+        '<td class="num">' + esc(counts.MEDIUM || 0) + '</td>' +
+        '<td class="num">' + esc(counts.LOW || 0) + '</td>' +
+        '</tr>';
+    }).join('');
+    var confidenceRows = CONFIDENCES.map(function (level) {
+      return '<tr><td><span class="badge ' + confClass(level) + '">' + esc(title(level)) + '</span></td>' +
+        '<td class="num">' + esc(conf(level)) + '</td></tr>';
+    }).join('');
+    var severityRows = SEVERITIES.map(function (level) {
+      return '<tr><td><span class="badge ' + sevClass(level) + '">' + esc(title(level)) + '</span></td>' +
+        '<td class="num">' + esc(sev(level)) + '</td></tr>';
+    }).join('');
+    host.hidden = false;
+    host.innerHTML = '<h2>Executive summary</h2>' +
+      '<p class="exec-headline">' + esc(findings.length) + ' finding(s) across ' +
+      esc(rules.length) + ' rule(s) — ' + esc(sev('ERROR')) + ' error(s), ' +
+      esc(sev('WARNING')) + ' warning(s), ' + esc(sev('INFO')) + ' info. ' +
+      esc(conf('HIGH')) + ' are high confidence and worth triaging first.</p>' +
+      '<div class="exec-grid">' +
+        '<div><h3 class="small muted">By rule</h3><table class="exec-table">' +
+          '<thead><tr><th>Rule</th><th>Severity</th><th class="num">Total</th>' +
+          '<th class="num">High</th><th class="num">Med</th><th class="num">Low</th></tr></thead>' +
+          '<tbody>' + ruleRows + '</tbody></table></div>' +
+        '<div><h3 class="small muted">By confidence</h3><table class="exec-table">' +
+          '<tbody>' + confidenceRows + '</tbody></table>' +
+          '<h3 class="small muted" style="margin-top:16px">By severity</h3><table class="exec-table">' +
+          '<tbody>' + severityRows + '</tbody></table></div>' +
+      '</div>';
   }
 
   function renderCards() {
@@ -580,6 +662,7 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
   function renderAll() {
     index();
     renderHeader();
+    renderExecutiveSummary();
     renderCards();
     renderChips();
     renderFindings();
@@ -596,6 +679,16 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
 
   document.addEventListener('click', function (event) {
     var target = event.target;
+    var execRule = target.closest('[data-exec-rule]');
+    if (execRule) {
+      var ruleId = execRule.getAttribute('data-exec-rule');
+      state.query = ruleId.toLowerCase();
+      var search = document.getElementById('finding-search');
+      search.value = ruleId;
+      renderFindings();
+      document.getElementById('findings-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     var severityChip = target.closest('[data-filter-severity]');
     if (severityChip) {
       state.severity = severityChip.getAttribute('data-filter-severity');
