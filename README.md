@@ -89,9 +89,16 @@ Full reference: [docs/CLI.md](docs/CLI.md).
 
 Exception is converted to a normal return value without preserving diagnostic evidence.
 
+**What this means:** An exception is caught and turned into a benign result such as null, an empty collection, false, or a default value.
+
+**Why it matters:** Downstream code cannot distinguish 'no data' from 'the call failed', so the incident surfaces later as wrong data instead of as an error.
+
+**How it was detected:** The catch block returns a constant or empty value and never logs, rethrows, or records the cause.
+
 **Suggested action:** Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.
 
 - Severity: `ERROR` · Confidence: `HIGH`
+- Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: POST /payments/{id}/capture (`HIGH`, depth 1)
 - Fingerprint: `sha256:9ed6a377b9b7224a3c9e7f2575...`
 
@@ -138,6 +145,8 @@ The HTML report shows the same content with severity and confidence filters, fre
 | `HIGH` | The pattern is syntactically unambiguous and the flow reaching it is direct. |
 | `MEDIUM` | The pattern is likely, or the path to it goes through a single-implementation interface or an inferred type. Review it. |
 | `LOW` | Weak evidence or a long, uncertain path. Treat as a hint. |
+
+Every finding also carries a plain-language explanation — *what this means*, *why it matters*, *how it was detected* — and a one-line note stating what its confidence level implies for triage. Markdown and HTML render them inline; `result.json` exposes them as `explanation` and `confidenceRationale`. This text is presentation only and never affects the fingerprint.
 
 A finding is never more confident than the path that reaches it. If a flow becomes uncertain halfway, every finding after that point inherits the lower confidence — the tool never overstates what it knows.
 

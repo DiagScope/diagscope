@@ -3,6 +3,7 @@ package dev.diagscope.cli.report;
 import dev.diagscope.cli.BuildInfo;
 import dev.diagscope.cli.ReportFormat;
 import dev.diagscope.core.application.AnalysisResult;
+import dev.diagscope.core.application.rule.RuleCatalog;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -87,10 +88,16 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append(finding.ruleId()).append(" — `")
                     .append(escape(finding.location().file().toString())).append(':')
                     .append(finding.location().startLine()).append("`\n\n")
-                    .append(escape(finding.message())).append("\n\n")
+                    .append(escape(finding.message())).append("\n\n");
+            var doc = RuleCatalog.explain(finding.ruleId());
+            builder.append("**What this means:** ").append(escape(doc.whatItMeans())).append("\n\n")
+                    .append("**Why it matters:** ").append(escape(doc.whyItMatters())).append("\n\n")
+                    .append("**How it was detected:** ").append(escape(doc.howDetected())).append("\n\n")
                     .append("**Suggested action:** ").append(escape(finding.recommendation())).append("\n\n")
                     .append("- Severity: `").append(finding.severity())
                     .append("` · Confidence: `").append(finding.confidence()).append("`\n")
+                    .append("- Confidence means: ")
+                    .append(escape(RuleCatalog.confidenceRationale(finding.confidence()))).append("\n")
                     .append("- Affected flows: ").append(flows.isEmpty() ? "none" : flows).append("\n")
                     .append("- Fingerprint: `").append(finding.fingerprint()).append("`\n\n");
             appendCallPaths(builder, finding);
