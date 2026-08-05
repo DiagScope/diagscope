@@ -148,6 +148,50 @@ Known limitation: receiver recognition is syntax-based. The rule does not evalua
 
 Recommended response: use structured logging with stable context and the original throwable where relevant.
 
+## `AOP_SELF_INVOCATION`
+
+Detects a call from one method of a class to another method of the same class where the target is only
+instrumented through a Spring proxy — `@Transactional`, `@Async`, `@Cacheable`, `@Retryable`,
+`@PreAuthorize`, or a matching `@Aspect` advice. Spring proxies wrap the bean reference, not `this`, so
+an internal call executes the plain method body and the advice never runs.
+
+- Default severity: `WARNING`.
+- Final confidence: `HIGH` for a proxied annotation on the target, `MEDIUM` when the instrumentation
+  comes only from a pointcut match, then capped by reachability of the calling method.
+
+Known limitation: the rule does not know whether AspectJ load-time weaving is enabled. Under weaving,
+self-invocation is advised normally and the finding is a false positive.
+
+Recommended response: move the annotated method to another bean, or inject a self reference obtained
+from the context instead of calling `this`.
+
+## `AOP_ADVICE_NOT_APPLIED`
+
+Detects instrumentation attached to a target a JDK or CGLIB proxy cannot intercept: a `private`,
+`static`, or `final` method, or a method of a `final` class.
+
+- Default severity: `WARNING`.
+- Final confidence: `HIGH` — the modifiers are read directly from source.
+
+Known limitation: same weaving caveat as above.
+
+Recommended response: make the method `public` (or at least non-final and non-static) on a proxied
+bean, or move the behaviour to a method that can be intercepted.
+
+## `AOP_UNMANAGED_ADVICE_TARGET`
+
+Detects a class that carries proxy-dependent annotations or matches an aspect pointcut but shows no
+Spring stereotype (`@Component`, `@Service`, `@Repository`, `@Controller`, `@RestController`,
+`@Configuration`) and is not returned by a visible `@Bean` factory method. Advice only applies to beans,
+so an instance created with `new` is never instrumented.
+
+- Default severity: `INFO`.
+- Final confidence: `MEDIUM` — component scanning and external configuration are not visible to source
+  analysis, so the class may still be registered somewhere DiagScope cannot see.
+
+Recommended response: confirm the class is a managed bean; if it is created manually, the annotation
+is decorative and should be removed or the object should be obtained from the context.
+
 ## Rule admission criteria
 
 Before adding another rule:

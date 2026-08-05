@@ -62,9 +62,23 @@ public final class JsonReporter implements AnalysisReporter {
                 "file", failure.file().toString(),
                 "message", failure.message()
         )).toList());
+        document.put("aspects", result.aspects().stream().map(JsonReporter::aspect).toList());
         document.put("flows", result.flows().stream().map(JsonReporter::flow).toList());
         document.put("findings", result.findings().stream().map(JsonReporter::finding).toList());
         return document;
+    }
+
+    private static Map<String, Object> aspect(dev.diagscope.core.domain.AspectAdvice advice) {
+        return orderedMap(
+                "id", advice.id(),
+                "aspectType", advice.aspectType(),
+                "adviceMethod", advice.adviceMethod(),
+                "kind", advice.kind().name(),
+                "annotation", advice.kind().annotation(),
+                "pointcut", advice.pointcut(),
+                "springManagedAspect", advice.springManagedAspect(),
+                "location", location(advice.location())
+        );
     }
 
     private static Map<String, Object> statistics(AnalysisResult result) {

@@ -47,6 +47,6 @@ public final class DiagnosticCoverageService implements ScanProjectUseCase {
         );
         return new AnalysisResult(project.name(), project.root(), project.layout(), request.options(),
                 project.parseFailures(),
-                flows, findings, statistics);
+                flows, findings, statistics, project.aspects());
     }
 }
