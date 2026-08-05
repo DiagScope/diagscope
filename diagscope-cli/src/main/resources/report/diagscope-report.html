@@ -80,6 +80,12 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 .location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); }
 .recommendation { color: var(--paper); }
 .related-flows { margin-top: 8px; }
+.snippet { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.snippet table { border-collapse: collapse; width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
+.snippet td { padding: 2px 10px; white-space: pre; vertical-align: top; }
+.snippet td.ln { text-align: right; color: var(--mute); user-select: none; width: 1%; border-right: 1px solid var(--line); background: var(--ink-2); }
+.snippet tr.hl td { background: rgba(226, 114, 91, 0.12); }
+.snippet tr.hl td.ln { color: var(--error); background: rgba(226, 114, 91, 0.18); }
 .evidence { margin-top: 10px; }
 .evidence summary { cursor: pointer; color: var(--mute); font-size: 0.85rem; }
 .empty { color: var(--mute); font-style: italic; }
@@ -212,6 +218,18 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
       }).join('');
   }
 
+  function snippetHtml(snippet) {
+    if (!snippet || !snippet.lines || !snippet.lines.length) { return ''; }
+    var rows = snippet.lines.map(function (line) {
+      var highlighted = line.number >= snippet.highlightedStartLine && line.number <= snippet.highlightedEndLine;
+      return '<tr class="' + (highlighted ? 'hl' : '') + '">' +
+        '<td class="ln">' + esc(line.number) + '</td>' +
+        '<td>' + esc(line.content) + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="snippet"><table role="presentation"><tbody>' + rows + '</tbody></table></div>';
+  }
+
   function findingHtml(finding) {
     var flows = (finding.relatedFlows || []).map(function (flow) {
       return '<span class="badge outline">' + esc(flow.name) + ' (' + esc(String(flow.confidence).toLowerCase()) + ')</span>';
@@ -219,7 +237,8 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     var evidence = Object.keys(finding.evidence || {}).map(function (key) {
       return '<li><code>' + esc(key) + '</code>: ' + esc(finding.evidence[key]) + '</li>';
     }).join('');
-    var id = 'finding-' + esc(finding.fingerprint);
+    var id = 'finding-' + String(finding.fingerprint || '').replace(/[^A-Za-z0-9_-]/g, '-');
+    var snippet = snippetHtml(finding.snippet);
     return '<article id="' + id + '" class="finding ' + sevClass(finding.severity) + '">' +
       '<div class="finding-head">' +
         '<span class="badge ' + sevClass(finding.severity) + '">' + esc(title(finding.severity)) + '</span>' +
@@ -229,6 +248,7 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
       '</div>' +
       '<p class="location">' + esc(location(finding.location)) + '</p>' +
       '<p>' + esc(finding.message) + '</p>' +
+      snippet +
       (finding.recommendation ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>' : '') +
       (flows ? '<div class="related-flows">' + flows + '</div>' : '') +
       (evidence ? '<details class="evidence"><summary>Evidence</summary><ul class="plain-list small">' + evidence + '</ul></details>' : '') +

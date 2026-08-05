@@ -53,6 +53,28 @@ class HtmlReporterTest {
         assertThat(JSON.readTree(payload).path("project").path("name").asText()).isNotBlank();
     }
 
+    @Test
+    void embeds_a_highlighted_source_snippet_for_every_finding() throws Exception {
+        var payload = JSON.readTree(embeddedPayload(render()));
+        var findings = payload.path("findings");
+
+        assertThat(findings).isNotEmpty();
+        for (var finding : findings) {
+            assertThat(finding.path("fingerprint").asText()).matches("sha256:[0-9a-f]{64}");
+            assertThat(finding.path("fingerprintVersion").asInt()).isEqualTo(1);
+
+            var snippet = finding.path("snippet");
+            assertThat(snippet.isObject()).as("snippet for %s", finding.path("ruleId").asText()).isTrue();
+            assertThat(snippet.path("lines")).isNotEmpty();
+            int highlightStart = snippet.path("highlightedStartLine").asInt();
+            int highlightEnd = snippet.path("highlightedEndLine").asInt();
+            assertThat(highlightStart).isEqualTo(finding.path("location").path("startLine").asInt());
+            assertThat(highlightEnd).isGreaterThanOrEqualTo(highlightStart);
+            assertThat(snippet.path("lines").findValues("number"))
+                    .allSatisfy(number -> assertThat(number.asInt()).isPositive());
+        }
+    }
+
     private String render() throws Exception {
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         var useCase = new DiagnosticCoverageService(

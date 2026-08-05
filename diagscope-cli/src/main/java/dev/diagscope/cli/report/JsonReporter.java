@@ -118,6 +118,7 @@ public final class JsonReporter implements AnalysisReporter {
     private static Map<String, Object> finding(Finding finding) {
         var item = new LinkedHashMap<String, Object>();
         item.put("fingerprint", finding.fingerprint());
+        item.put("fingerprintVersion", Finding.FINGERPRINT_VERSION);
         item.put("ruleId", finding.ruleId());
         item.put("severity", finding.severity().name());
         item.put("confidence", finding.confidence().name());

@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class FindingTest {
     @Test
-    void fingerprint_is_sha256_of_normalized_location_and_sorted_evidence() {
+    void fingerprint_is_sha256_of_rule_path_and_sorted_evidence_ignoring_line_numbers() {
         var evidenceInReverseOrder = new LinkedHashMap<String, String>();
         evidenceInReverseOrder.put("z", "last");
         evidenceInReverseOrder.put("a", "first");
@@ -40,12 +40,23 @@ class FindingTest {
                 java.util.Map.entry("z", "last"));
         assertThat(first.relatedFlows()).hasSize(1);
         assertThat(first.fingerprint())
-                .matches("[0-9a-f]{64}")
+                .matches("sha256:[0-9a-f]{64}")
                 .isEqualTo(second.fingerprint());
         assertThat(finding(
-                new SourceLocation(Path.of("src/main/Example.java"), 10, 13),
+                new SourceLocation(Path.of("src/main/Example.java"), 84, 90),
                 List.of(),
                 java.util.Map.of("a", "first", "z", "last")).fingerprint())
+                .as("moving code must not change the identity of a finding")
+                .isEqualTo(first.fingerprint());
+        assertThat(finding(
+                new SourceLocation(Path.of("src/main/Other.java"), 10, 12),
+                List.of(),
+                java.util.Map.of("a", "first", "z", "last")).fingerprint())
+                .isNotEqualTo(first.fingerprint());
+        assertThat(finding(
+                new SourceLocation(Path.of("src/main/Example.java"), 10, 12),
+                List.of(),
+                java.util.Map.of("a", "changed", "z", "last")).fingerprint())
                 .isNotEqualTo(first.fingerprint());
     }
 

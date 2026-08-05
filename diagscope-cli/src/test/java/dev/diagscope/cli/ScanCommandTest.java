@@ -72,7 +72,7 @@ class ScanCommandTest {
         String markdown = Files.readString(output.resolve("report.md"));
         assertThat(markdown)
                 .startsWith("# DiagScope Report")
-                .contains("## Flow Overview")
+                .contains("## Flow overview")
                 .contains("## Findings")
                 .contains("SILENT_FAILURE_CONVERSION")
                 .contains("KAFKA_SEND_RESULT_IGNORED")
@@ -199,7 +199,8 @@ class ScanCommandTest {
     }
 
     private static String stableMarkdown(String source) {
-        return source.replaceAll("(?m)^- Total time: \\d+ ms\\R", "");
+        return source.replaceAll("(?m)^\\| Total time \\| \\d+ ms \\|\\R", "")
+                .replaceAll("(?m)^- Total time: \\d+ ms\\R", "");
     }
 
     private static Set<String> textValues(JsonNode array) {

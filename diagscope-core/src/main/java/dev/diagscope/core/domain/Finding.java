@@ -22,8 +22,14 @@ public record Finding(
         List<RelatedFlow> relatedFlows,
         Map<String, String> evidence
 ) {
+    /** Increment whenever the fingerprint inputs change, so stored baselines can be migrated. */
+    public static final int FINGERPRINT_VERSION = 1;
+
+    private static final String FINGERPRINT_NAMESPACE = "diagscope.finding";
+
     private static final Comparator<RelatedFlow> RELATED_FLOW_ORDER =
             Comparator.comparing(RelatedFlow::id).thenComparing(RelatedFlow::displayName);
+
 
     public Finding {
         Objects.requireNonNull(ruleId, "ruleId");
@@ -42,25 +48,31 @@ public record Finding(
     }
 
     /**
-     * Returns the alpha location-based identity used to deduplicate findings.
-     * Presentation text, confidence, severity, and related flows are excluded.
+     * Returns the stable identity used to deduplicate findings and to compare runs over time.
+     *
+     * <p>Identity is built from the rule, the fingerprint version, the normalized relative path,
+     * and the sorted rule evidence (which carries the declaring type, the method signature, and the
+     * normalized expression). Line numbers are deliberately excluded: they are useful for
+     * navigation, but they change whenever unrelated code above the finding moves, which would
+     * otherwise invalidate baselines and suppressions.</p>
      */
     public String fingerprint() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            update(digest, FINGERPRINT_NAMESPACE);
+            update(digest, Integer.toString(FINGERPRINT_VERSION));
             update(digest, ruleId);
             update(digest, normalizedPath(location));
-            update(digest, Integer.toString(location.startLine()));
-            update(digest, Integer.toString(location.endLine()));
             for (var entry : evidence.entrySet()) {
                 update(digest, entry.getKey());
                 update(digest, entry.getValue());
             }
-            return HexFormat.of().formatHex(digest.digest());
+            return "sha256:" + HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
     }
+
 
     public static String normalizedPath(SourceLocation location) {
         Objects.requireNonNull(location, "location");
