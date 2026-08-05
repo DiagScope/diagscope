@@ -540,11 +540,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 detectRestEntrypoint(method).ifPresent(result::add);
             }
             if (enabledTypes.contains(EntrypointType.KAFKA_LISTENER)) {
-                annotation(method.methodAnnotations(), "KafkaListener").ifPresent(annotation -> {
-                    String topic = firstAttribute(annotation, "topics", "value").orElse("unknown");
-                    result.add(new Entrypoint(EntrypointType.KAFKA_LISTENER, method.id(),
-                            "Kafka topic=" + topic, method.location()));
-                });
+                detectKafkaEntrypoint(method).ifPresent(result::add);
             }
             if (enabledTypes.contains(EntrypointType.SCHEDULED)) {
                 annotation(method.methodAnnotations(), "Scheduled").ifPresent(annotation -> {
@@ -557,6 +553,47 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .thenComparing(Entrypoint::displayName)
                 .thenComparing(entrypoint -> entrypoint.method().displayName()));
         return List.copyOf(result);
+    }
+
+    /**
+     * Recognises every syntax-visible Kafka listener shape: a method level {@code @KafkaListener},
+     * a class level {@code @KafkaListener} whose payload methods carry {@code @KafkaHandler}, and
+     * the topic selectors ({@code topics}, {@code topicPattern}, {@code topicPartitions}).
+     */
+    private static Optional<Entrypoint> detectKafkaEntrypoint(RawMethod method) {
+        Optional<AnnotationDescriptor> methodLevel = annotation(method.methodAnnotations(), "KafkaListener");
+        if (methodLevel.isPresent()) {
+            return Optional.of(new Entrypoint(EntrypointType.KAFKA_LISTENER, method.id(),
+                    kafkaDisplay(methodLevel.orElseThrow()), method.location()));
+        }
+        boolean classListener = annotation(method.typeAnnotations(), "KafkaListener").isPresent();
+        boolean handler = annotation(method.methodAnnotations(), "KafkaHandler").isPresent()
+                || annotation(method.methodAnnotations(), "DltHandler").isPresent();
+        if (!classListener || !handler) {
+            return Optional.empty();
+        }
+        AnnotationDescriptor typeAnnotation = annotation(method.typeAnnotations(), "KafkaListener").orElseThrow();
+        String display = kafkaDisplay(typeAnnotation);
+        if (annotation(method.methodAnnotations(), "DltHandler").isPresent()) {
+            display = display + " (DLT handler)";
+        }
+        return Optional.of(new Entrypoint(EntrypointType.KAFKA_LISTENER, method.id(), display, method.location()));
+    }
+
+    private static String kafkaDisplay(AnnotationDescriptor annotation) {
+        Optional<String> topics = firstAttribute(annotation, "topics", "value");
+        if (topics.isPresent()) {
+            return "Kafka topic=" + topics.orElseThrow();
+        }
+        Optional<String> pattern = firstAttribute(annotation, "topicPattern");
+        if (pattern.isPresent()) {
+            return "Kafka topicPattern=" + pattern.orElseThrow();
+        }
+        Optional<String> partitions = firstAttribute(annotation, "topicPartitions");
+        if (partitions.isPresent()) {
+            return "Kafka topicPartitions=" + partitions.orElseThrow();
+        }
+        return "Kafka topic=unknown";
     }
 
     private static Optional<Entrypoint> detectRestEntrypoint(RawMethod method) {
@@ -694,7 +731,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 receiverType,
                 call.getNameAsString(),
                 call.getArguments().stream().map(Node::toString).toList(),
-                resultUsage(call)
+                resultUsage(call),
+                false,
+                isTryResource(call),
+                assignedVariable(call)
         );
     }
 
@@ -704,6 +744,45 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         int separator = rawScope.indexOf('.');
         String root = separator < 0 ? rawScope : rawScope.substring(0, separator);
         return !root.isBlank() && Character.isUpperCase(root.charAt(0)) ? root : "";
+    }
+
+    /** True when the call initialises a try-with-resources resource, which guarantees closing. */
+    private static boolean isTryResource(MethodCallExpr call) {
+        Node current = call;
+        while (current.getParentNode().isPresent()) {
+            Node parent = current.getParentNode().orElseThrow();
+            if (parent instanceof com.github.javaparser.ast.stmt.TryStmt tryStmt) {
+                for (Expression resource : tryStmt.getResources()) {
+                    if (resource == current || resource.isAncestorOf(call)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    /** Name of the variable the call result is assigned to, empty when the result is not assigned. */
+    private static String assignedVariable(MethodCallExpr call) {
+        Node current = call;
+        while (current.getParentNode().isPresent()) {
+            Node parent = current.getParentNode().orElseThrow();
+            if (parent instanceof VariableDeclarator variable
+                    && variable.getInitializer().orElse(null) == current) {
+                return variable.getNameAsString();
+            }
+            if (parent instanceof AssignExpr assignment && assignment.getValue() == current) {
+                return assignment.getTarget().toString();
+            }
+            if (parent instanceof Expression) {
+                current = parent;
+                continue;
+            }
+            return "";
+        }
+        return "";
     }
 
     private static InvocationResultUsage resultUsage(MethodCallExpr call) {

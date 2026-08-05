@@ -1,13 +1,13 @@
 # DiagScope Report
 
-`mixed-flow` — 5 finding(s) across 3 flow(s).
+`mixed-flow` — 6 finding(s) across 3 flow(s).
 
 | Metric | Value |
 | --- | --- |
 | Build system | Maven |
-| Findings | 5 |
+| Findings | 6 |
 | Errors | 3 |
-| Warnings | 2 |
+| Warnings | 3 |
 | Info | 0 |
 | Flows | 3 |
 | Source files | 6 |
@@ -26,6 +26,32 @@
 </details>
 
 ## Findings
+
+### ⚠️ KAFKA_LISTENER_ERROR_NOT_PROPAGATED — `src/main/java/example/PaymentListener.java:6`
+
+Listener handles RuntimeException itself and returns normally, so retry, error handler and dead-letter routing never see the failure.
+
+**Suggested action:** Rethrow the failure (or wrap it) so the container error handler, @RetryableTopic or the DLT can act on it.
+
+- Severity: `WARNING` · Confidence: `HIGH`
+- Affected flows: Kafka topic=payments (`HIGH`, depth 0)
+- Fingerprint: `sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd`
+
+<details><summary>Call paths (1)</summary>
+
+- `KAFKA_LISTENER` Kafka topic=payments
+  - `example.PaymentListener.consume(String)` ← evidence
+
+</details>
+
+<details><summary>Evidence</summary>
+
+- `entrypoint`: `Kafka topic=payments`
+- `exceptionType`: `RuntimeException`
+- `logged`: `false`
+- `method`: `example.PaymentListener.consume(String)`
+
+</details>
 
 ### ❌ SILENT_CATCH — `src/main/java/example/PaymentListener.java:6`
 

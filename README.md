@@ -160,6 +160,10 @@ A finding is never more confident than the path that reaches it. If a flow becom
 | `SILENT_CATCH` | A catch block that handles nothing and logs nothing |
 | `SILENT_FAILURE_CONVERSION` | An exception turned into `false`, `null`, or `Optional.empty()` with the cause discarded |
 | `KAFKA_SEND_RESULT_IGNORED` | `KafkaTemplate.send()` whose completion stage is never observed |
+| `KAFKA_ACK_NOT_INVOKED` | A listener that receives an `Acknowledgment` but never acknowledges the record |
+| `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | A listener that handles its own failure, so retry, error handler and DLT never run |
+| `TX_ROLLBACK_SUPPRESSED` | A failure caught inside a `@Transactional` method, so the transaction commits anyway |
+| `JDBC_RESOURCE_NOT_CLOSED` | A JDBC connection or statement opened outside try-with-resources and never closed |
 | `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an ID, UUID, email, or token |
 | `PRINT_STACK_TRACE` | `printStackTrace()` instead of structured logging |
 | `SYSTEM_OUTPUT` | `System.out` / `System.err` instead of the application logger |

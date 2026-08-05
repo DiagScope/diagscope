@@ -8,6 +8,10 @@ import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
+import dev.diagscope.core.application.rule.JdbcResourceLeakRule;
+import dev.diagscope.core.application.rule.KafkaListenerFailureNotPropagatedRule;
+import dev.diagscope.core.application.rule.KafkaManualAckMissingRule;
+import dev.diagscope.core.application.rule.TransactionalRollbackSuppressedRule;
 import dev.diagscope.core.application.rule.NonProxyableAdviceTargetRule;
 import dev.diagscope.core.application.rule.PrintStackTraceRule;
 import dev.diagscope.core.application.rule.RuleEngine;
@@ -37,6 +41,10 @@ public final class DiagScopeMain {
                 new SilentCatchRule(),
                 new SilentFailureConversionRule(),
                 new IgnoredKafkaSendResultRule(),
+                new KafkaManualAckMissingRule(),
+                new KafkaListenerFailureNotPropagatedRule(),
+                new TransactionalRollbackSuppressedRule(),
+                new JdbcResourceLeakRule(),
                 new HighCardinalityMetricTagRule(),
                 new DynamicMetricNameRule(),
                 new PrintStackTraceRule(),
