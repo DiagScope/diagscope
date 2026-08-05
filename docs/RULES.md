@@ -241,8 +241,8 @@ Recommended response: rethrow, or call
 
 ## `JDBC_RESOURCE_NOT_CLOSED`
 
-Detects `getConnection()`, `createStatement()`, `prepareStatement()`, `prepareCall()` and
-`executeQuery()` results assigned to a variable that is neither a try-with-resources resource nor closed
+Detects `getConnection()`, `createStatement()`, `prepareStatement()`, `prepareCall()`,
+`executeQuery()`, `getResultSet()` and `getGeneratedKeys()` results assigned to a variable that is neither a try-with-resources resource nor closed
 in the same method. The failure surfaces later as pool exhaustion in an unrelated flow.
 
 - Default severity: `ERROR`.
@@ -254,6 +254,56 @@ sites with an explicit suppression.
 
 Recommended response: acquire the resource in try-with-resources, or close it in a `finally` block on
 every path.
+
+## `DB_RESOURCE_CLOSE_NOT_GUARDED`
+
+Detects a `Connection`, `Statement`, `PreparedStatement`, `ResultSet` or `EntityManager` acquired
+outside try-with-resources and released only where the success path reaches the `close()` call. Every
+throw between acquisition and release skips the close, so the handle leaks exactly on the paths that
+already went wrong and the pool exhaustion surfaces in an unrelated flow.
+
+- Default severity: `ERROR`.
+- Final confidence: `HIGH`, capped by reachability. A release inside a `finally` block, or a
+  try-with-resources acquisition, is not reported.
+
+Known limitation: the release is matched inside the acquiring method. A handle closed by a
+collaborator that receives it as an argument is still reported.
+
+Recommended response: move the acquisition into try-with-resources, or close the handle in a `finally`
+block.
+
+## `JPA_ENTITY_MANAGER_NOT_CLOSED`
+
+Detects `createEntityManager()` assigned to a variable that is neither a try-with-resources resource
+nor closed in the same method. An application-managed `EntityManager` is owned by the caller: leaving
+it open holds the persistence context and its connection.
+
+- Default severity: `ERROR`.
+- Final confidence: `HIGH` when the result is assigned to a named variable, `MEDIUM` otherwise, then
+  capped by reachability.
+
+Known limitation: an `EntityManager` deliberately kept open across a conversation and closed elsewhere
+is reported; suppress those call sites explicitly.
+
+Recommended response: close it in a `finally` block, or inject a container-managed one with
+`@PersistenceContext`.
+
+## `JDBC_TEMPLATE_CONNECTION_ESCAPE`
+
+Detects `getConnection()` reached through a `JdbcTemplate`, `NamedParameterJdbcTemplate`,
+`JdbcOperations` or `DataSourceUtils`. The template binds the connection to the active transaction and
+translates driver errors into the Spring hierarchy; a hand-managed connection has neither, so writes
+can land outside the surrounding `@Transactional` boundary and failures arrive as raw `SQLException`.
+
+- Default severity: `WARNING`.
+- Final confidence: `HIGH` when the connection is never released or released on the success path only,
+  `MEDIUM` when it is released on every path — the transaction-binding concern remains either way.
+
+Known limitation: some low-level work legitimately needs the raw connection (LOB streaming, vendor
+APIs). Those call sites should carry an explicit suppression with the reason.
+
+Recommended response: run the statement through the template, or release the handle with
+`DataSourceUtils.releaseConnection` in a `finally` block.
 
 ## Rule admission criteria
 

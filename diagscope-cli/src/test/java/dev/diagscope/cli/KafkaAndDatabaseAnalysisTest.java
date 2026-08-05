@@ -35,8 +35,26 @@ class KafkaAndDatabaseAnalysisTest {
                 .contains("TX_ROLLBACK_SUPPRESSED")
                 .contains("JDBC_RESOURCE_NOT_CLOSED");
 
-        // try-with-resources acquisition must not be reported
-        assertThat(json).doesNotContain("insertSafely");
+        assertThat(json).contains("DB_RESOURCE_CLOSE_NOT_GUARDED")
+                .contains("JPA_ENTITY_MANAGER_NOT_CLOSED")
+                .contains("JDBC_TEMPLATE_CONNECTION_ESCAPE");
+
+        // try-with-resources and finally-guarded releases are correct and must not be reported
+        assertThat(findingMethods(json))
+                .noneMatch(method -> method.endsWith("insertSafely"))
+                .noneMatch(method -> method.endsWith("loadOrderSafely"));
+    }
+
+    /** Declaring methods of every finding, read from the {@code details.method} entry. */
+    private static java.util.List<String> findingMethods(String json) {
+        var methods = new java.util.ArrayList<String>();
+        var matcher = java.util.regex.Pattern
+                .compile("\"method\" : \"([^\"]+)\"").matcher(json);
+        while (matcher.find()) {
+            methods.add(matcher.group(1));
+        }
+        assertThat(methods).isNotEmpty();
+        return methods;
     }
 
     private String scan() throws IOException {

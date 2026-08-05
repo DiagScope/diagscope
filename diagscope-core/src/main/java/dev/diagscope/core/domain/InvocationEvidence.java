@@ -8,6 +8,8 @@ import java.util.Objects;
  *
  * @param resourceManaged whether the call sits in a try-with-resources resource declaration
  * @param assignedTo name of the variable the result is assigned to, empty when there is none
+ * @param insideFinally whether the call sits in a {@code finally} block, so it also runs when the
+ *        protected block throws
  */
 public record InvocationEvidence(
         SourceLocation location,
@@ -18,7 +20,8 @@ public record InvocationEvidence(
         InvocationResultUsage resultUsage,
         boolean producerListenerVisible,
         boolean resourceManaged,
-        String assignedTo
+        String assignedTo,
+        boolean insideFinally
 ) {
     public InvocationEvidence {
         Objects.requireNonNull(location, "location");
@@ -37,10 +40,25 @@ public record InvocationEvidence(
             String methodName,
             List<String> arguments,
             InvocationResultUsage resultUsage,
+            boolean producerListenerVisible,
+            boolean resourceManaged,
+            String assignedTo
+    ) {
+        this(location, scope, receiverType, methodName, arguments, resultUsage,
+                producerListenerVisible, resourceManaged, assignedTo, false);
+    }
+
+    public InvocationEvidence(
+            SourceLocation location,
+            String scope,
+            String receiverType,
+            String methodName,
+            List<String> arguments,
+            InvocationResultUsage resultUsage,
             boolean producerListenerVisible
     ) {
         this(location, scope, receiverType, methodName, arguments, resultUsage,
-                producerListenerVisible, false, "");
+                producerListenerVisible, false, "", false);
     }
 
     public InvocationEvidence(
@@ -51,7 +69,7 @@ public record InvocationEvidence(
             List<String> arguments,
             InvocationResultUsage resultUsage
     ) {
-        this(location, scope, receiverType, methodName, arguments, resultUsage, false, false, "");
+        this(location, scope, receiverType, methodName, arguments, resultUsage, false, false, "", false);
     }
 
     public InvocationEvidence(
@@ -74,6 +92,6 @@ public record InvocationEvidence(
         return visible == producerListenerVisible
                 ? this
                 : new InvocationEvidence(location, scope, receiverType, methodName, arguments, resultUsage,
-                        visible, resourceManaged, assignedTo);
+                        visible, resourceManaged, assignedTo, insideFinally);
     }
 }
