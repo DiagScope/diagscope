@@ -55,11 +55,13 @@ An Alpha 1 success exit does not mean “no findings.” Severity thresholds and
 
 ## Supported input shape
 
-The project directory must contain:
+The project directory must declare a Maven or a Gradle build and expose conventional Java sources, either at the root or in its modules:
 
 ```text
-pom.xml
+pom.xml | build.gradle | build.gradle.kts | settings.gradle | settings.gradle.kts
 src/main/java/
 ```
 
-Multi-module reactor aggregation, alternate source roots, and generated-source discovery are not part of Alpha 1. Scan a supported module directory directly.
+Multi-module builds are supported for both tools: every nested directory (up to four levels deep) that carries its own build descriptor and a `src/main/java` folder is scanned in one run, and build output directories (`target/`, `build/`, `out/`, `bin/`) are skipped. The detected build system and module list are reported in `result.json` (`project.buildSystem`, `project.modules`), in the Markdown summary table, and in the HTML report header.
+
+Source directories configured explicitly inside a build script (custom `sourceSets` or `build-helper` roots) and generated sources are still out of scope: DiagScope never executes Maven or Gradle, it only reads the conventional layout.

@@ -73,6 +73,7 @@ class ScanCommandTest {
         assertThat(markdown)
                 .startsWith("# DiagScope Report")
                 .contains("## Flow overview")
+                .contains("| Build system | Maven |")
                 .contains("## Findings")
                 .contains("SILENT_FAILURE_CONVERSION")
                 .contains("KAFKA_SEND_RESULT_IGNORED")
@@ -159,6 +160,23 @@ class ScanCommandTest {
 
         assertThat(exit).isEqualTo(3);
         assertThat(output).doesNotExist();
+    }
+
+    @Test
+    void scans_a_gradle_multi_module_project_end_to_end() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "gradle-multi-module");
+        Path output = temp.resolve("gradle-reports");
+
+        int exit = executeScan(project, output);
+
+        assertThat(exit).isZero();
+        JsonNode report = JSON.readTree(output.resolve("result.json").toFile());
+        assertThat(report.path("project").path("buildSystem").asText()).isEqualTo("GRADLE");
+        assertThat(report.path("project").path("buildSystemName").asText()).isEqualTo("Gradle");
+        assertThat(textValues(report.path("project").path("modules"))).containsExactly("api", "worker");
+        assertThat(report.path("statistics").path("sourceFiles").asInt()).isEqualTo(3);
+        assertThat(report.path("flows")).isNotEmpty();
+        assertThat(Files.readString(output.resolve("report.md"))).contains("| Build system | Gradle (2 modules) |");
     }
 
     @Test

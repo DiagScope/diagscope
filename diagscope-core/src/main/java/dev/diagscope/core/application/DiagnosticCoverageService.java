@@ -45,7 +45,8 @@ public final class DiagnosticCoverageService implements ScanProjectUseCase {
                 flows.size(), findings.size(), project.parseFailures().size(),
                 new PhaseMetrics(projectAnalysisNanos, flowNanos, ruleNanos, totalNanos)
         );
-        return new AnalysisResult(project.name(), project.root(), request.options(), project.parseFailures(),
+        return new AnalysisResult(project.name(), project.root(), project.layout(), request.options(),
+                project.parseFailures(),
                 flows, findings, statistics);
     }
 }

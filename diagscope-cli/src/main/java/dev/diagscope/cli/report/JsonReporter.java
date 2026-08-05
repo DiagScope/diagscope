@@ -13,6 +13,7 @@ import dev.diagscope.core.domain.RelatedFlow;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -41,9 +42,14 @@ public final class JsonReporter implements AnalysisReporter {
                 "name", "DiagScope",
                 "version", BuildInfo.version()
         ));
+        var layout = result.projectLayout();
         document.put("project", orderedMap(
                 "name", result.projectName(),
-                "root", result.projectRoot().toString()
+                "root", result.projectRoot().toString(),
+                "buildSystem", layout.buildSystem().name(),
+                "buildSystemName", layout.buildSystem().displayName(),
+                "modules", layout.modules().stream().map(Path::toString)
+                        .map(module -> module.isEmpty() ? "." : module).toList()
         ));
         document.put("configuration", orderedMap(
                 "maxFlowDepth", result.options().maxFlowDepth(),

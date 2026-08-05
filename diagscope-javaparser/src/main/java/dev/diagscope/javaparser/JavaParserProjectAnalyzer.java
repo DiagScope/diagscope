@@ -31,8 +31,8 @@ import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.ThrowStmt;
 import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.port.out.ProjectAnalyzer;
-import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.AnalyzedProject;
+import dev.diagscope.core.domain.ProjectLayout;
 import dev.diagscope.core.domain.CatchEvidence;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
@@ -89,10 +89,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     public AnalyzedProject analyze(Path projectDirectory, AnalysisOptions options) {
         Objects.requireNonNull(projectDirectory, "projectDirectory");
         Objects.requireNonNull(options, "options");
-        Path root = projectDirectory.toAbsolutePath().normalize();
-        Path sourceRoot = requireSupportedProject(root);
+        ProjectLayout layout = ProjectLayoutDetector.detect(projectDirectory);
+        Path root = layout.root();
 
-        List<Path> sourceFiles = discoverSourceFiles(sourceRoot);
+        List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots());
         ParseBatch parseBatch = parseFiles(root, sourceFiles, options.parallelism());
         MappedProject mapped = mergeMappedUnits(parseBatch.units());
         Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped);
@@ -102,28 +102,22 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         failures.addAll(parseBatch.failures());
         failures.addAll(mapped.failures());
         failures.sort(Comparator.comparing(failure -> failure.file().toString()));
-        return new AnalyzedProject(root.getFileName().toString(), root, methods, entrypoints,
+        return new AnalyzedProject(root.getFileName().toString(), root, layout, methods, entrypoints,
                 sourceFiles.size(), failures);
     }
 
-    private static Path requireSupportedProject(Path root) {
-        if (!Files.isRegularFile(root.resolve("pom.xml"))) {
-            throw new UnsupportedProjectException("No pom.xml found in " + root);
+    /** Collects the Java files of every source root, deduplicated so nested modules cannot double count. */
+    private static List<Path> discoverSourceFiles(List<Path> sourceRoots) {
+        var files = new java.util.TreeSet<Path>();
+        for (Path sourceRoot : sourceRoots) {
+            try (var stream = Files.find(sourceRoot, Integer.MAX_VALUE,
+                    (path, attributes) -> attributes.isRegularFile() && path.toString().endsWith(".java"))) {
+                stream.forEach(files::add);
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to discover Java sources under " + sourceRoot, exception);
+            }
         }
-        Path sourceRoot = root.resolve("src/main/java");
-        if (!Files.isDirectory(sourceRoot)) {
-            throw new UnsupportedProjectException("No src/main/java directory found in " + root);
-        }
-        return sourceRoot;
-    }
-
-    private static List<Path> discoverSourceFiles(Path sourceRoot) {
-        try (var stream = Files.find(sourceRoot, Integer.MAX_VALUE,
-                (path, attributes) -> attributes.isRegularFile() && path.toString().endsWith(".java"))) {
-            return stream.sorted().toList();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to discover Java sources under " + sourceRoot, exception);
-        }
+        return List.copyOf(files);
     }
 
     private static ParseBatch parseFiles(Path root, List<Path> files, int parallelism) {

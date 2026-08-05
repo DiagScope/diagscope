@@ -10,6 +10,7 @@ import java.util.Objects;
 public record AnalyzedProject(
         String name,
         Path root,
+        ProjectLayout layout,
         Map<MethodId, MethodModel> methods,
         List<Entrypoint> entrypoints,
         long discoveredSourceFiles,
@@ -18,6 +19,7 @@ public record AnalyzedProject(
     public AnalyzedProject {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(root, "root");
+        Objects.requireNonNull(layout, "layout");
         Objects.requireNonNull(methods, "methods");
         Objects.requireNonNull(entrypoints, "entrypoints");
         Objects.requireNonNull(parseFailures, "parseFailures");
@@ -27,5 +29,10 @@ public record AnalyzedProject(
         methods = Collections.unmodifiableMap(new LinkedHashMap<>(methods));
         entrypoints = List.copyOf(entrypoints);
         parseFailures = List.copyOf(parseFailures);
+    }
+
+    /** Build tool that declares this project. */
+    public BuildSystem buildSystem() {
+        return layout.buildSystem();
     }
 }

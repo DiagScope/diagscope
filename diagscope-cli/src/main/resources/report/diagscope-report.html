@@ -175,7 +175,8 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     var tool = report.tool || {};
     var project = report.project || {};
     document.getElementById('report-subtitle').textContent =
-      [project.name, tool.name + ' ' + (tool.version || ''), report.generatedAt].filter(Boolean).join(' · ');
+      [project.name, project.buildSystemName, tool.name + ' ' + (tool.version || ''), report.generatedAt]
+        .filter(Boolean).join(' · ');
     document.title = 'DiagScope report — ' + (project.name || 'scan');
   }
 

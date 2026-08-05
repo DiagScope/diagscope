@@ -14,7 +14,7 @@ Alpha 1 is an executable validation build. It is suitable for controlled scans a
 
 ## Current scope
 
-The alpha analyzes one conventional Maven module per execution. It discovers Java sources under `src/main/java`, parses each source file once, builds parser-neutral evidence and indexes, detects likely Spring MVC, Kafka listener, and scheduled entrypoints, and follows bounded local calls.
+The alpha analyzes conventional Maven and Gradle projects, including multi-module builds, in a single execution. It discovers Java sources under `src/main/java`, parses each source file once, builds parser-neutral evidence and indexes, detects likely Spring MVC, Kafka listener, and scheduled entrypoints, and follows bounded local calls.
 
 Current deterministic rules:
 
@@ -34,7 +34,7 @@ Flow reachability is path-aware. Every reached method has a path and confidence,
 - Overloads, interfaces with multiple implementations, inherited methods, fluent APIs, external libraries, Spring proxies, and reflection may stop or weaken a flow.
 - Logging, Kafka, and Micrometer recognition still use conservative heuristics and may require manual review.
 - Parse failures are counted and reported with a source path and concise parser diagnostic; scans may still contain partial results from other files.
-- Multi-module reactor analysis, configuration/baselines, SARIF, Maven-plugin execution, and cross-service topology are outside Alpha 1.
+- Build-script-driven source sets, configuration/baselines, SARIF, Maven-plugin execution, and cross-service topology are outside Alpha 1.
 
 See [supported and unsupported analysis](docs/PROJECT_OVERVIEW.md#supported-alpha-analysis) before interpreting results.
 

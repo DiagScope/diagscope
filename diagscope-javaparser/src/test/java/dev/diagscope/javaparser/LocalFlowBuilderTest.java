@@ -1,6 +1,8 @@
 package dev.diagscope.javaparser;
 
 import dev.diagscope.core.domain.AnalyzedProject;
+import dev.diagscope.core.domain.BuildSystem;
+import dev.diagscope.core.domain.ProjectLayout;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
@@ -88,7 +90,9 @@ class LocalFlowBuilderTest {
     private static AnalyzedProject project(MethodModel... methods) {
         var byId = new LinkedHashMap<MethodId, MethodModel>();
         for (MethodModel method : methods) byId.put(method.id(), method);
-        return new AnalyzedProject("test", Path.of("/test"), byId, List.of(), methods.length, List.of());
+        var layout = new ProjectLayout(BuildSystem.MAVEN, Path.of("/test"), List.of(Path.of("")),
+                List.of(Path.of("/test/src/main/java")));
+        return new AnalyzedProject("test", Path.of("/test"), layout, byId, List.of(), methods.length, List.of());
     }
 
     private static MethodModel method(MethodId id, int line, List<MethodCall> calls) {

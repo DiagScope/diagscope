@@ -12,6 +12,7 @@ import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
 import dev.diagscope.core.domain.AnalyzedProject;
+import dev.diagscope.core.domain.BuildSystem;
 import dev.diagscope.core.domain.CallEdge;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Entrypoint;
@@ -396,6 +397,23 @@ class JavaParserProjectAnalyzerTest {
                 .filter(entrypoint -> entrypoint.type() == type)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    @Test
+    void analyzes_a_gradle_multi_module_project_and_parses_every_module() {
+        Path project = FixtureCatalog.copyTo(temp, "gradle-multi-module");
+
+        AnalyzedProject analyzed = analyze(project, new AnalysisOptions(3, 1, EnumSet.allOf(EntrypointType.class)));
+
+        assertThat(analyzed.buildSystem()).isEqualTo(BuildSystem.GRADLE);
+        assertThat(analyzed.layout().modules())
+                .containsExactly(Path.of("api"), Path.of("worker"));
+        assertThat(analyzed.discoveredSourceFiles()).isEqualTo(3);
+        assertThat(analyzed.methods().keySet()).extracting(id -> id.declaringType())
+                .contains("example.api.OrderService", "example.worker.SettlementJob");
+        assertThat(analyzed.entrypoints()).extracting(Entrypoint::type)
+                .contains(EntrypointType.REST, EntrypointType.SCHEDULED);
+        assertThat(analyzed.parseFailures()).isEmpty();
     }
 
     private Path project(String name, Map<String, String> sources) throws IOException {

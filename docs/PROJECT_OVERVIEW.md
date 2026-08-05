@@ -41,8 +41,8 @@ Alpha findings require human review. The release is not yet approved to block CI
 
 | Capability | Alpha 1 behavior |
 |---|---|
-| Project input | One directory containing `pom.xml` and `src/main/java` |
-| Source discovery | Sorted `.java` files below `src/main/java` |
+| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with `src/main/java` in the root or in its modules |
+| Source discovery | Sorted, deduplicated `.java` files below every discovered module's `src/main/java` (module search depth 4, build output directories skipped) |
 | Parsing | JavaParser configured for Java 25; each file parsed once with bounded workers |
 | Domain mapping | Immutable parser-neutral method and typed-evidence records |
 | REST entrypoints | Direct Spring controller and mapping annotations; class and method annotations are treated separately; best-effort verb/route display metadata |
