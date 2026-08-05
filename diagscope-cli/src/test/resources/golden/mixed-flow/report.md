@@ -52,7 +52,7 @@ Metric tag may have unbounded cardinality: paymentId
 
 - Severity: `ERROR` · Confidence: `MEDIUM`
 - Affected flows: POST /payments/{id}/capture (`MEDIUM`)
-- Fingerprint: `sha256:92c8bcf1b244e056cedf1c9e058cd10b30cc900e47081355c600bd74f71ade6c`
+- Fingerprint: `sha256:619967b3ba07a12c50eab539f93995c4940292c8f9397ba6916b70778ab0a75b`
 
 <details><summary>Evidence</summary>
 
@@ -60,6 +60,8 @@ Metric tag may have unbounded cardinality: paymentId
 - `micrometerConfirmed`: `true`
 - `tag`: `paymentId`
 - `value`: `paymentId`
+- `valueProvenance`: `PARAMETER`
+- `valueType`: `String`
 
 </details>
 
@@ -71,11 +73,12 @@ KafkaTemplate.send() result is ignored by this flow.
 
 - Severity: `WARNING` · Confidence: `HIGH`
 - Affected flows: POST /payments/{id}/capture (`HIGH`)
-- Fingerprint: `sha256:4e889ac8704ee2e9cc7cb3bc5a80d5c922f3066d4df55abcb109fa506879c255`
+- Fingerprint: `sha256:cdeb8989de1ccd84a2f232807d8fb5b5c8b39c1c5361dda5523d02ebdda23d9f`
 
 <details><summary>Evidence</summary>
 
 - `method`: `example.PaymentPublisher.publish(String)`
+- `producerListenerVisible`: `false`
 - `receiverType`: `KafkaTemplate`
 - `resultUsage`: `IGNORED`
 - `scope`: `kafkaTemplate`

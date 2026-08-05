@@ -88,6 +88,8 @@ The rule's claim is deliberately narrow:
 
 It does not claim that the entire application has no global `ProducerListener`, framework configuration, interceptor, or external failure handling.
 
+When the project declares a syntax-visible `ProducerListener` (a type implementing it, or a `setProducerListener(...)` call), the finding is still reported but its confidence drops to `LOW` and the evidence carries `producerListenerVisible=true`. The analyzer cannot prove that the listener is registered on this specific template, so the finding becomes a prompt to confirm the policy instead of a defect claim.
+
 Observed local handling may include returning or storing the future/result, waiting with `get`/`join`, or attaching completion/error callbacks. Exact supported fluent shapes remain fixture-driven and conservative.
 
 Recommended response: make acknowledgement or failure participate in the business decision, or document and test the application-level policy that handles it elsewhere.
@@ -97,15 +99,32 @@ Recommended response: make acknowledgement or failure participate in the busines
 Detects a likely unbounded value used as a metric tag.
 
 - Default severity: `ERROR`.
-- Confidence: `HIGH` for syntax-identified UUID values and `MEDIUM` for the remaining supported unbounded-value heuristics.
+- Confidence: `HIGH` for syntax-identified UUID or date/time values and `MEDIUM` for the remaining supported unbounded-value heuristics.
+- Values whose provenance is bounded are never reported: string/char/boolean literals, enum constants, and constant fields.
 - Risk indicators: identifier-like tag keys, UUID-looking expressions, tokens, email addresses, request identifiers, and other per-entity values.
 - Final confidence: capped by reachability of the containing method.
 
 Identifiers usually belong in logs or traces. Metric tags should use bounded dimensions such as provider, operation, result, region, or error category.
 
-Known limitation: Alpha 1 does not provide complete Micrometer receiver typing or data-flow provenance. The adapter discards `tag(...)` calls unless their receiver matches a supported Micrometer-style syntax, but similarly named custom APIs can still resemble those builders and indirectly derived unbounded values may be missed.
+Each tag carries its value provenance (`LITERAL`, `ENUM_CONSTANT`, `CONSTANT_FIELD`, `PARAMETER`, `LOCAL_VARIABLE`, `FIELD`, `METHOD_CALL`, `CONCATENATION`, `UNKNOWN`) and its declared value type in the evidence map, so a reader can judge the claim without reopening the file.
+
+Receiver recognition is exact rather than name-shaped: known Micrometer registry types, the `Metrics` facade, the static meter builders (`Counter.builder`, `Timer.builder`, ...), and `Tag`/`Tags` factories. A custom `CustomBuilder.tag(...)` or a `NotAMeterRegistry` field is not Micrometer syntax and produces no evidence.
+
+Known limitation: provenance is local and syntax-only. A value derived indirectly (through a helper method or a field assigned elsewhere) is classified as `METHOD_CALL`, `FIELD`, or `UNKNOWN` and may be missed.
 
 Recommended response: move the identifier to structured logs or trace attributes and replace the tag value with a bounded category.
+
+## `DYNAMIC_METRIC_NAME`
+
+Detects a meter registered with a name that is not a compile-time constant on the analyzed local path.
+
+- Default severity: `WARNING`.
+- Confidence: `HIGH` for string concatenation, `MEDIUM` for parameters, locals, fields, and method calls.
+- Final confidence: capped by reachability of the containing method.
+
+A dynamic meter name multiplies time series exactly like an unbounded tag, but it is worse: the resulting series cannot be aggregated, and dashboards and alerts silently stop matching.
+
+Recommended response: use a fixed meter name and move the varying part into a bounded tag.
 
 ## `PRINT_STACK_TRACE`
 

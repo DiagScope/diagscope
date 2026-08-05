@@ -41,6 +41,7 @@ import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.MethodCall;
 import dev.diagscope.core.domain.MethodId;
 import dev.diagscope.core.domain.MethodModel;
+import dev.diagscope.core.domain.MetricNameEvidence;
 import dev.diagscope.core.domain.MetricTagEvidence;
 import dev.diagscope.core.domain.ParseFailure;
 import dev.diagscope.core.domain.ResolutionReason;
@@ -76,9 +77,6 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
-    );
-    private static final Set<String> MICROMETER_BUILDERS = Set.of(
-            "Counter", "Timer", "Gauge", "DistributionSummary", "LongTaskTimer", "FunctionCounter", "Tags"
     );
     private static final Pattern STABLE_FAILURE_CODE = Pattern.compile("[A-Z][A-Z0-9_.-]{2,}");
     private static final Pattern SILENT_CATCH_SUPPRESSION = Pattern.compile(
@@ -183,7 +181,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             }
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
-                List.copyOf(rawMethods), List.copyOf(types));
+                List.copyOf(rawMethods), List.copyOf(types), declaresProducerListener(unit));
     }
 
     private static MappedProject mergeMappedUnits(List<MappedUnit> units) {
@@ -207,10 +205,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 }
             }
         }
+        boolean producerListenerVisible = units.stream().anyMatch(MappedUnit::producerListenerVisible);
         return new MappedProject(
                 Collections.unmodifiableMap(new LinkedHashMap<>(rawMethods)),
                 Collections.unmodifiableMap(new LinkedHashMap<>(types)),
-                List.copyOf(failures)
+                List.copyOf(failures),
+                producerListenerVisible
         );
     }
 
@@ -246,8 +246,26 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .sorted(Comparator.comparingInt(evidence -> evidence.location().startLine()))
                 .toList();
 
+        var parameterNames = new LinkedHashSet<String>();
+        method.getParameters().forEach(parameter -> parameterNames.add(parameter.getNameAsString()));
+        var localNames = new LinkedHashSet<String>();
+        method.findAll(VariableDeclarator.class).stream()
+                .filter(variable -> belongsToMethod(variable, method))
+                .forEach(variable -> localNames.add(variable.getNameAsString()));
+        var fieldNames = new LinkedHashSet<>(declaredVariables.keySet());
+        fieldNames.removeAll(parameterNames);
+        fieldNames.removeAll(localNames);
+        var constantFieldNames = new LinkedHashSet<String>();
+        fieldNames.stream().filter(name -> name.equals(name.toUpperCase(Locale.ROOT)))
+                .forEach(constantFieldNames::add);
+        var metricNamesContext = new MetricEvidenceExtractor.Names(
+                Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
+                Set.copyOf(parameterNames), Set.copyOf(localNames),
+                Set.copyOf(fieldNames), Set.copyOf(constantFieldNames));
+
         var invocations = new ArrayList<InvocationEvidence>();
         var metricTags = new ArrayList<MetricTagEvidence>();
+        var metricNames = new ArrayList<MetricNameEvidence>();
         var calls = new ArrayList<RawCall>();
         List<MethodCallExpr> methodCalls = method.findAll(MethodCallExpr.class).stream()
                 .filter(call -> belongsToMethod(call, method))
@@ -255,14 +273,16 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .toList();
         for (var call : methodCalls) {
             invocations.add(invocationEvidence(root, file, call, variableTypes));
-            metricTagEvidence(root, file, call, variableTypes).ifPresent(metricTags::add);
+            SourceLocation callLocation = location(root, file, call);
+            metricTags.addAll(MetricEvidenceExtractor.tags(callLocation, call, metricNamesContext));
+            MetricEvidenceExtractor.meter(callLocation, call, metricNamesContext).ifPresent(metricNames::add);
             calls.add(new RawCall(location(root, file, call), scope(call), call.getNameAsString(),
                     call.getArguments().size()));
         }
 
         return new RawMethod(id, methodLocation, Set.copyOf(annotationNames), typeAnnotations, methodAnnotations,
-                catches, List.copyOf(invocations), List.copyOf(metricTags), List.copyOf(calls),
-                Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)));
+                catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
+                List.copyOf(calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)));
     }
 
     private static boolean belongsToMethod(Node node, MethodDeclaration method) {
@@ -309,6 +329,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         implementationsBySuperType.values().forEach(list ->
                 list.sort(Comparator.comparing(TypeInfo::qualifiedName)));
 
+        boolean producerListenerVisible = project.producerListenerVisible();
         var resolved = new LinkedHashMap<MethodId, MethodModel>(project.rawMethods().size());
         for (var raw : project.rawMethods().values()) {
             var calls = new ArrayList<MethodCall>(raw.calls().size());
@@ -318,8 +339,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 calls.add(new MethodCall(call.location(), call.scope(), call.methodName(), call.argumentCount(),
                         resolution.target(), resolution.reason()));
             }
+            List<InvocationEvidence> invocations = producerListenerVisible
+                    ? raw.invocations().stream()
+                        .map(invocation -> invocation.withProducerListenerVisible(true)).toList()
+                    : raw.invocations();
             resolved.put(raw.id(), new MethodModel(raw.id(), raw.location(), raw.annotationNames(), raw.catches(),
-                    raw.invocations(), raw.metricTags(), calls));
+                    invocations, raw.metricTags(), raw.metricNames(), calls));
         }
         return Collections.unmodifiableMap(resolved);
     }
@@ -612,48 +637,6 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return InvocationResultUsage.UNKNOWN;
     }
 
-    private static Optional<MetricTagEvidence> metricTagEvidence(
-            Path root,
-            Path file,
-            MethodCallExpr call,
-            Map<String, String> variableTypes
-    ) {
-        if (!"tag".equals(call.getNameAsString()) || call.getArguments().size() < 2) return Optional.empty();
-        String rawScope = scope(call);
-        boolean micrometer = isMicrometerTagScope(rawScope, variableTypes);
-        if (!micrometer) return Optional.empty();
-        String tagName = call.getArgument(0) instanceof StringLiteralExpr literal
-                ? literal.asString()
-                : call.getArgument(0).toString();
-        Expression value = call.getArgument(1);
-        boolean uuid = value.findAll(NameExpr.class).stream()
-                .map(name -> variableTypes.getOrDefault(name.getNameAsString(), ""))
-                .map(JavaParserProjectAnalyzer::simpleName)
-                .anyMatch("UUID"::equals)
-                || value.toString().toLowerCase(Locale.ROOT).contains("uuid");
-        boolean unbounded = uuid || value.findAll(NameExpr.class).stream()
-                .map(NameExpr::getNameAsString)
-                .anyMatch(JavaParserProjectAnalyzer::looksUnboundedIdentifier);
-        return Optional.of(new MetricTagEvidence(location(root, file, call), tagName, value.toString(),
-                true, uuid, unbounded));
-    }
-
-    private static boolean isMicrometerTagScope(String rawScope, Map<String, String> variableTypes) {
-        String receiverType = simpleName(Optional.ofNullable(receiverType(rawScope, variableTypes)).orElse(""));
-        if (MICROMETER_BUILDERS.contains(receiverType)) return true;
-        for (String builder : MICROMETER_BUILDERS) {
-            if (rawScope.contains(builder + ".builder") || rawScope.startsWith(builder + ".of")) return true;
-        }
-        return false;
-    }
-
-    private static boolean looksUnboundedIdentifier(String name) {
-        String normalized = name.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
-        return normalized.endsWith("id") || normalized.contains("uuid") || normalized.contains("email")
-                || normalized.contains("token") || normalized.contains("requestid")
-                || normalized.contains("traceid") || normalized.contains("spanid");
-    }
-
     private static MethodId methodId(String declaringType, MethodDeclaration method) {
         return new MethodId(declaringType, method.getNameAsString(),
                 method.getParameters().stream().map(parameter -> parameter.getTypeAsString()).toList());
@@ -762,7 +745,36 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return null;
     }
 
-    private record MappedUnit(Path file, List<RawMethod> rawMethods, List<TypeInfo> types) {}
+    /** Detects a syntax-visible ProducerListener declaration or registration in this compilation unit. */
+    private static boolean declaresProducerListener(CompilationUnit unit) {
+        boolean registered = unit.findAll(MethodCallExpr.class).stream()
+                .map(MethodCallExpr::getNameAsString)
+                .anyMatch("setProducerListener"::equals);
+        if (registered) return true;
+        return unit.findAll(com.github.javaparser.ast.type.ClassOrInterfaceType.class).stream()
+                .map(com.github.javaparser.ast.type.ClassOrInterfaceType::getNameAsString)
+                .anyMatch("ProducerListener"::equals);
+    }
+
+    private static List<MetricTagEvidence> dedupeTags(List<MetricTagEvidence> tags) {
+        var unique = new LinkedHashMap<String, MetricTagEvidence>();
+        for (var tag : tags) {
+            unique.putIfAbsent(tag.location().startLine() + "|" + tag.tagName() + "|" + tag.valueExpression(), tag);
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private static List<MetricNameEvidence> dedupeMeters(List<MetricNameEvidence> meters) {
+        var unique = new LinkedHashMap<String, MetricNameEvidence>();
+        for (var meter : meters) {
+            unique.putIfAbsent(meter.location().startLine() + "|" + meter.meterType()
+                    + "|" + meter.nameExpression(), meter);
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private record MappedUnit(Path file, List<RawMethod> rawMethods, List<TypeInfo> types,
+            boolean producerListenerVisible) {}
 
     private record ParseBatch(List<MappedUnit> units, List<ParseFailure> failures) {}
 
@@ -785,6 +797,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             List<CatchEvidence> catches,
             List<InvocationEvidence> invocations,
             List<MetricTagEvidence> metricTags,
+            List<MetricNameEvidence> metricNames,
             List<RawCall> calls,
             Map<String, String> variableTypes
     ) {}
@@ -792,7 +805,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private record MappedProject(
             Map<MethodId, RawMethod> rawMethods,
             Map<String, TypeInfo> types,
-            List<ParseFailure> failures
+            List<ParseFailure> failures,
+            boolean producerListenerVisible
     ) {}
 
     private record Resolution(Optional<MethodId> target, ResolutionReason reason) {}

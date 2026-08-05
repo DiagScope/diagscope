@@ -60,15 +60,15 @@ The immediate objective is not more feature breadth. It is to prove precision, c
 - [x] classify ignored, stored, returned, callback-observed, argument, and generic chained results;
 - [x] classify direct `get`/`join` observation shapes;
 - [x] add wrapped completion-stage rule tests;
-- [ ] identify syntax-visible `ProducerListener` context without claiming global absence;
+- [x] identify syntax-visible `ProducerListener` context without claiming global absence;
 - [x] test fluent and wrapped send patterns;
 - [x] preserve the narrow report claim: the result is not observed in this local path.
 
 ### Metrics
 
-- [ ] strengthen Micrometer receiver recognition;
-- [ ] analyze tag key, value name, value type, and syntax-visible provenance together;
-- [ ] cover dynamic metric names;
+- [x] strengthen Micrometer receiver recognition;
+- [x] analyze tag key, value name, value type, and syntax-visible provenance together;
+- [x] cover dynamic metric names;
 - [x] prove a parser-level negative case for an unrelated fluent API named `tag`.
 
 ### Auxiliary rules

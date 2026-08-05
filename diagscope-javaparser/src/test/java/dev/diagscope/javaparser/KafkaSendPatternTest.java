@@ -5,6 +5,7 @@ import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
 import dev.diagscope.core.application.rule.RuleEngine;
+import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.testfixtures.FixtureCatalog;
@@ -61,6 +62,24 @@ class KafkaSendPatternTest {
                     assertThat(finding.evidence().get("method"))
                             .isEqualTo("example.kafka.PublishService.ignoredSend(String)");
                 });
+    }
+
+    @Test
+    void lowers_confidence_when_a_producer_listener_is_syntax_visible_in_the_project() {
+        Path project = FixtureCatalog.copyTo(temp, "kafka-producer-listener");
+        var service = new DiagnosticCoverageService(
+                new JavaParserProjectAnalyzer(),
+                new LocalFlowBuilder(),
+                new RuleEngine(List.of(new IgnoredKafkaSendResultRule())));
+
+        var result = service.scan(new AnalysisRequest(project, AnalysisOptions.defaults()));
+
+        assertThat(result.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.ruleId()).isEqualTo(IgnoredKafkaSendResultRule.ID);
+            assertThat(finding.evidence()).containsEntry("producerListenerVisible", "true");
+            assertThat(finding.confidence()).isEqualTo(Confidence.LOW);
+            assertThat(finding.message()).contains("ProducerListener is declared elsewhere");
+        });
     }
 
     private Map<String, InvocationResultUsage> sendUsageByMethod() {

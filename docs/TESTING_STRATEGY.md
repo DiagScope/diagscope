@@ -122,3 +122,5 @@ The combined Phase 1 continuation gate is at least 10 reviewable findings, at le
 | `gradle-multi-module` | Gradle Groovy and Kotlin DSL modules, nested module discovery |
 | `edge-cases` | Default package, nested classes, records, enums, arity and same-arity overloads |
 | `kafka-patterns` | Every `KafkaTemplate.send` result shape: ignored, observed, blocking, assigned, returned, chained |
+| `kafka-producer-listener` | Ignored send in a project that declares a `ProducerListener`, lowering confidence to `LOW` |
+| `metric-patterns` | Micrometer receivers, bounded and unbounded tag provenance, dynamic meter names, unrelated fluent `tag` API |

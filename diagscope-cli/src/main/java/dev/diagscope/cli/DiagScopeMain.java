@@ -5,6 +5,7 @@ import dev.diagscope.cli.report.HtmlReporter;
 import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
+import dev.diagscope.core.application.rule.DynamicMetricNameRule;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
 import dev.diagscope.core.application.rule.PrintStackTraceRule;
@@ -34,6 +35,7 @@ public final class DiagScopeMain {
                 new SilentFailureConversionRule(),
                 new IgnoredKafkaSendResultRule(),
                 new HighCardinalityMetricTagRule(),
+                new DynamicMetricNameRule(),
                 new PrintStackTraceRule(),
                 new SystemOutputRule()
         ));

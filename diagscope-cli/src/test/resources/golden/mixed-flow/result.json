@@ -360,7 +360,7 @@
       "method" : "example.PaymentListener.consume(String)"
     }
   }, {
-    "fingerprint" : "sha256:92c8bcf1b244e056cedf1c9e058cd10b30cc900e47081355c600bd74f71ade6c",
+    "fingerprint" : "sha256:619967b3ba07a12c50eab539f93995c4940292c8f9397ba6916b70778ab0a75b",
     "fingerprintVersion" : 1,
     "ruleId" : "HIGH_CARDINALITY_METRIC_TAG",
     "severity" : "ERROR",
@@ -381,10 +381,12 @@
       "method" : "example.PaymentMetrics.record(String)",
       "micrometerConfirmed" : "true",
       "tag" : "paymentId",
-      "value" : "paymentId"
+      "value" : "paymentId",
+      "valueProvenance" : "PARAMETER",
+      "valueType" : "String"
     }
   }, {
-    "fingerprint" : "sha256:4e889ac8704ee2e9cc7cb3bc5a80d5c922f3066d4df55abcb109fa506879c255",
+    "fingerprint" : "sha256:cdeb8989de1ccd84a2f232807d8fb5b5c8b39c1c5361dda5523d02ebdda23d9f",
     "fingerprintVersion" : 1,
     "ruleId" : "KAFKA_SEND_RESULT_IGNORED",
     "severity" : "WARNING",
@@ -403,6 +405,7 @@
     } ],
     "evidence" : {
       "method" : "example.PaymentPublisher.publish(String)",
+      "producerListenerVisible" : "false",
       "receiverType" : "KafkaTemplate",
       "resultUsage" : "IGNORED",
       "scope" : "kafkaTemplate"
