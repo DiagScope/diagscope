@@ -44,7 +44,7 @@ public final class HighCardinalityMetricTagRule implements DiagnosticRule {
                         ID, Severity.ERROR, confidence, tag.location(),
                         "Metric tag may have unbounded cardinality: " + tag.tagName(),
                         "Keep unique identifiers in logs or traces and use bounded dimensions in metrics.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("tag", tag.tagName(), "value", tag.valueExpression(),
                                 "micrometerConfirmed", Boolean.toString(tag.micrometerConfirmed()),
                                 "valueProvenance", tag.valueProvenance().name(),

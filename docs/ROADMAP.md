@@ -42,12 +42,18 @@ If findings are obvious, repetitive, already equivalently covered by existing to
 
 ## Phase 2 — Richer deterministic analysis
 
+Delivered:
+
+- deterministic flow tracing: every finding carries the full call path from the entrypoint to the evidence
+  method, its depth, and the flattened list of affected methods, rendered in Markdown, JSON and HTML;
+- metrics with dynamic names (`DYNAMIC_METRIC_NAME`).
+
 Candidate work, selected only from real validation evidence:
 
 - log calls that omit the original throwable;
 - duplicate or contradictory diagnostic signals;
 - sensitive or complete payload logging;
-- metrics created in loops or with dynamic names;
+- metrics created in loops;
 - fallback paths and scheduled/Kafka-consumer suppression;
 - technical versus business metric patterns;
 - SARIF output;

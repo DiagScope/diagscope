@@ -353,8 +353,13 @@
     "relatedFlows" : [ {
       "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
       "name" : "Kafka topic=payments",
-      "confidence" : "HIGH"
+      "type" : "KAFKA_LISTENER",
+      "confidence" : "HIGH",
+      "depth" : 0,
+      "affectedMethod" : "example.PaymentListener.consume(String)",
+      "path" : [ "example.PaymentListener.consume(String)" ]
     } ],
+    "affectedMethods" : [ "example.PaymentListener.consume(String)" ],
     "evidence" : {
       "exceptionType" : "RuntimeException",
       "method" : "example.PaymentListener.consume(String)"
@@ -375,8 +380,13 @@
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
-      "confidence" : "MEDIUM"
+      "type" : "REST",
+      "confidence" : "MEDIUM",
+      "depth" : 2,
+      "affectedMethod" : "example.PaymentMetrics.record(String)",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)", "example.PaymentMetrics.record(String)" ]
     } ],
+    "affectedMethods" : [ "example.PaymentController.capture(String)", "example.PaymentMetrics.record(String)", "example.PaymentService.capture(String)" ],
     "evidence" : {
       "method" : "example.PaymentMetrics.record(String)",
       "micrometerConfirmed" : "true",
@@ -401,8 +411,13 @@
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
-      "confidence" : "HIGH"
+      "type" : "REST",
+      "confidence" : "HIGH",
+      "depth" : 2,
+      "affectedMethod" : "example.PaymentPublisher.publish(String)",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)", "example.PaymentPublisher.publish(String)" ]
     } ],
+    "affectedMethods" : [ "example.PaymentController.capture(String)", "example.PaymentPublisher.publish(String)", "example.PaymentService.capture(String)" ],
     "evidence" : {
       "method" : "example.PaymentPublisher.publish(String)",
       "producerListenerVisible" : "false",
@@ -426,8 +441,13 @@
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
-      "confidence" : "HIGH"
+      "type" : "REST",
+      "confidence" : "HIGH",
+      "depth" : 1,
+      "affectedMethod" : "example.PaymentService.capture(String)",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)" ]
     } ],
+    "affectedMethods" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)" ],
     "evidence" : {
       "method" : "example.PaymentService.capture(String)",
       "returnedExpression" : "false"
@@ -448,8 +468,13 @@
     "relatedFlows" : [ {
       "id" : "SCHEDULED:example.ReconciliationJob.execute()",
       "name" : "Scheduled cron=0 */5 * * * *",
-      "confidence" : "HIGH"
+      "type" : "SCHEDULED",
+      "confidence" : "HIGH",
+      "depth" : 0,
+      "affectedMethod" : "example.ReconciliationJob.execute()",
+      "path" : [ "example.ReconciliationJob.execute()" ]
     } ],
+    "affectedMethods" : [ "example.ReconciliationJob.execute()" ],
     "evidence" : {
       "method" : "example.ReconciliationJob.execute()"
     }

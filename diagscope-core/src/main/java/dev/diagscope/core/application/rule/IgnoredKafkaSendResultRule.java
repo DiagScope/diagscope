@@ -32,7 +32,7 @@ public final class IgnoredKafkaSendResultRule implements DiagnosticRule {
                 findings.add(new Finding(
                         ID, Severity.WARNING, confidence, invocation.location(),
                         message, recommendation,
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("scope", invocation.scope(), "receiverType", invocation.receiverType(),
                                 "resultUsage", invocation.resultUsage().name(),
                                 "producerListenerVisible", Boolean.toString(producerListener),

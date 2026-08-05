@@ -46,8 +46,7 @@ public final class RuleEngine {
                         () -> "Rule " + rule.id() + " returned null");
                 for (var finding : evaluated) {
                     Objects.requireNonNull(finding, () -> "Rule " + rule.id() + " returned a null finding");
-                    Finding findingWithFlow = addRelatedFlow(finding,
-                            RelatedFlow.from(flow.entrypoint(), finding.confidence()));
+                    Finding findingWithFlow = ensureRelatedFlow(finding, flow);
                     findingsByFingerprint.merge(
                             findingWithFlow.fingerprint(), findingWithFlow, RuleEngine::mergeFindings);
                 }
@@ -57,12 +56,23 @@ public final class RuleEngine {
         return findingsByFingerprint.values().stream().sorted(FINDING_ORDER).toList();
     }
 
-    private static Finding addRelatedFlow(Finding finding, RelatedFlow relatedFlow) {
+    /**
+     * Guarantees that every finding references the flow it was produced from. Rules that already
+     * traced the call path keep their richer reference; only rules that reported no path at all get
+     * the entrypoint-level fallback.
+     */
+    private static Finding ensureRelatedFlow(Finding finding, Flow flow) {
+        var fallback = RelatedFlow.from(flow.entrypoint(), finding.confidence());
+        if (finding.relatedFlows().stream().anyMatch(related -> related.id().equals(fallback.id()))) {
+            return finding;
+        }
         var relatedFlows = new ArrayList<>(finding.relatedFlows());
-        relatedFlows.add(relatedFlow);
+        relatedFlows.add(fallback);
         return copy(finding, finding.severity(), finding.confidence(), relatedFlows,
                 finding.message(), finding.recommendation());
     }
+
+
 
     private static Finding mergeFindings(Finding left, Finding right) {
         var relatedFlows = new ArrayList<RelatedFlow>(

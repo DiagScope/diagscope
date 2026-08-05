@@ -23,7 +23,7 @@ public final class SystemOutputRule implements DiagnosticRule {
                 findings.add(new Finding(ID, Severity.WARNING, confidence, invocation.location(),
                         "System output is used instead of application logging.",
                         "Use the configured logger so the message participates in structured production telemetry.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("method", method.id().displayName())));
             }
         }

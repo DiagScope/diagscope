@@ -90,11 +90,48 @@ public record Finding(
         return List.copyOf(normalized);
     }
 
+    /**
+     * Returns every method the finding is reachable through, entrypoints and intermediate callers
+     * included, sorted for deterministic reporting.
+     */
+    public List<String> affectedMethods() {
+        var methods = new java.util.TreeSet<String>();
+        relatedFlows.forEach(relatedFlow -> methods.addAll(relatedFlow.path()));
+        return List.copyOf(methods);
+    }
+
+    /**
+     * Merges two references to the same flow.
+     *
+     * <p>When one traced path is a prefix of the other, the longer one wins because it carries more
+     * flow information. Otherwise the shortest path wins, since it is the most direct route from the
+     * entrypoint to the evidence; ties are broken lexicographically so runs stay reproducible.</p>
+     */
     private static RelatedFlow mergeRelatedFlow(RelatedFlow left, RelatedFlow right) {
         String displayName = left.displayName().compareTo(right.displayName()) <= 0
                 ? left.displayName() : right.displayName();
-        return new RelatedFlow(left.id(), displayName, Confidence.min(left.confidence(), right.confidence()));
+        RelatedFlow path = choosePath(left, right);
+        return new RelatedFlow(left.id(), displayName, left.entrypointType(),
+                Confidence.min(left.confidence(), right.confidence()), path.depth(), path.path());
     }
+
+    private static RelatedFlow choosePath(RelatedFlow left, RelatedFlow right) {
+        if (isPrefix(left.path(), right.path())) {
+            return right;
+        }
+        if (isPrefix(right.path(), left.path())) {
+            return left;
+        }
+        if (left.path().size() != right.path().size()) {
+            return left.path().size() < right.path().size() ? left : right;
+        }
+        return left.callPath().compareTo(right.callPath()) <= 0 ? left : right;
+    }
+
+    private static boolean isPrefix(List<String> candidate, List<String> path) {
+        return candidate.size() <= path.size() && path.subList(0, candidate.size()).equals(candidate);
+    }
+
 
     private static void update(MessageDigest digest, String value) {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);

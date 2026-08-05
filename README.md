@@ -92,8 +92,16 @@ Exception is converted to a normal return value without preserving diagnostic ev
 **Suggested action:** Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.
 
 - Severity: `ERROR` · Confidence: `HIGH`
-- Affected flows: POST /payments/{id}/capture (`HIGH`)
+- Affected flows: POST /payments/{id}/capture (`HIGH`, depth 1)
 - Fingerprint: `sha256:9ed6a377b9b7224a3c9e7f2575...`
+
+<details><summary>Call paths (1)</summary>
+
+- `REST` POST /payments/{id}/capture
+  - `example.PaymentController.capture(String)`
+    - `example.PaymentService.capture(String)` ← evidence
+
+</details>
 
 <details><summary>Evidence</summary>
 
@@ -134,6 +142,8 @@ The HTML report shows the same content with severity filters, per-finding code s
 A finding is never more confident than the path that reaches it. If a flow becomes uncertain halfway, every finding after that point inherits the lower confidence — the tool never overstates what it knows.
 
 **Affected flows** — the entrypoints that can actually reach this code. This is the operational question: a swallowed exception in a payment capture endpoint matters more than the same code in a dev-only utility.
+
+**Call paths** — the exact chain of methods from the entrypoint down to the line holding the evidence, with the depth of that chain. Use it to decide who owns the fix: the caller that ignores the failure, or the method that hides it. The JSON report exposes the same information as `relatedFlows[].path` plus a flattened `affectedMethods` list, so you can route findings to teams by package.
 
 **Fingerprint** — a stable identity built from the rule, the file, and the evidence, deliberately excluding line numbers. Moving code around does not create a "new" finding, so you can diff scans between commits and see only real changes.
 

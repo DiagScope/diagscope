@@ -30,7 +30,7 @@ public final class DynamicMetricNameRule implements DiagnosticRule {
                         ID, Severity.WARNING, confidence, meter.location(),
                         "Meter name is built dynamically: " + meter.nameExpression(),
                         "Use a fixed meter name and move the varying part into a bounded tag.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("meterType", meter.meterType(),
                                 "name", meter.nameExpression(),
                                 "nameProvenance", meter.nameProvenance().name(),

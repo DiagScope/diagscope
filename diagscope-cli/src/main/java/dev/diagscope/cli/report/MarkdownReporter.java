@@ -79,7 +79,8 @@ public final class MarkdownReporter implements AnalysisReporter {
         }
         for (var finding : result.findings()) {
             String flows = finding.relatedFlows().stream()
-                    .map(flow -> escape(flow.displayName()) + " (`" + flow.confidence() + "`)")
+                    .map(flow -> escape(flow.displayName()) + " (`" + flow.confidence() + "`, depth "
+                            + flow.depth() + ")")
                     .collect(Collectors.joining(", "));
             builder.append("### ").append(icon(finding.severity())).append(' ')
                     .append(finding.ruleId()).append(" — `")
@@ -91,6 +92,7 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append("` · Confidence: `").append(finding.confidence()).append("`\n")
                     .append("- Affected flows: ").append(flows.isEmpty() ? "none" : flows).append("\n")
                     .append("- Fingerprint: `").append(finding.fingerprint()).append("`\n\n");
+            appendCallPaths(builder, finding);
             if (!finding.evidence().isEmpty()) {
                 builder.append("<details><summary>Evidence</summary>\n\n");
                 finding.evidence().forEach((key, value) -> builder.append("- `")
@@ -98,6 +100,27 @@ public final class MarkdownReporter implements AnalysisReporter {
                 builder.append("\n</details>\n\n");
             }
         }
+    }
+
+    /** Renders the traced call path from every affected entrypoint down to the evidence method. */
+    private static void appendCallPaths(StringBuilder builder, dev.diagscope.core.domain.Finding finding) {
+        if (finding.relatedFlows().isEmpty()) {
+            return;
+        }
+        builder.append("<details><summary>Call paths (").append(finding.relatedFlows().size())
+                .append(")</summary>\n\n");
+        for (var flow : finding.relatedFlows()) {
+            builder.append("- `").append(flow.entrypointType()).append("` ")
+                    .append(escape(flow.displayName())).append("\n");
+            var path = flow.path();
+            for (int index = 0; index < path.size(); index++) {
+                builder.append("  ").append("  ".repeat(index)).append("- `")
+                        .append(escape(path.get(index))).append('`')
+                        .append(index == path.size() - 1 ? " ← evidence" : "")
+                        .append("\n");
+            }
+        }
+        builder.append("\n</details>\n\n");
     }
 
     private static void appendFlows(StringBuilder builder, AnalysisResult result) {

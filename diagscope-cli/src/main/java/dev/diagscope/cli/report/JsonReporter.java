@@ -132,6 +132,7 @@ public final class JsonReporter implements AnalysisReporter {
         item.put("message", finding.message());
         item.put("recommendation", finding.recommendation());
         item.put("relatedFlows", finding.relatedFlows().stream().map(JsonReporter::relatedFlow).toList());
+        item.put("affectedMethods", finding.affectedMethods());
         item.put("evidence", new LinkedHashMap<>(finding.evidence()));
         return item;
     }
@@ -140,7 +141,11 @@ public final class JsonReporter implements AnalysisReporter {
         return orderedMap(
                 "id", flow.id(),
                 "name", flow.displayName(),
-                "confidence", flow.confidence().name()
+                "type", flow.entrypointType().name(),
+                "confidence", flow.confidence().name(),
+                "depth", flow.depth(),
+                "affectedMethod", flow.affectedMethod(),
+                "path", flow.path()
         );
     }
 

@@ -80,6 +80,14 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
 .location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); }
 .recommendation { color: var(--paper); }
 .related-flows { margin-top: 8px; }
+.call-paths { margin-top: 12px; }
+.call-paths > summary { cursor: pointer; color: var(--mute); font-size: 0.85rem; }
+.call-path { margin-top: 8px; }
+.path-list { list-style: none; margin: 4px 0 0 0; padding: 0; }
+.path-list li { position: relative; padding: 2px 0 2px 18px; font-size: 0.82rem; }
+.path-list li::before { content: "\21B3"; position: absolute; left: 0; opacity: 0.55; }
+.path-list li:first-child::before { content: "\25B6"; }
+.path-list li.evidence-step code { font-weight: 700; }
 .snippet { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
 .snippet table { border-collapse: collapse; width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
 .snippet td { padding: 2px 10px; white-space: pre; vertical-align: top; }
@@ -231,9 +239,25 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     return '<div class="snippet"><table role="presentation"><tbody>' + rows + '</tbody></table></div>';
   }
 
+  function callPathHtml(finding) {
+    var traced = (finding.relatedFlows || []).filter(function (flow) { return (flow.path || []).length > 1; });
+    if (!traced.length) { return ''; }
+    var blocks = traced.map(function (flow) {
+      var steps = flow.path.map(function (method, index) {
+        var last = index === flow.path.length - 1;
+        return '<li class="' + (last ? 'evidence-step' : '') + '"><code>' + esc(method) + '</code>' +
+          (last ? '<span class="mute small"> evidence</span>' : '') + '</li>';
+      }).join('');
+      return '<div class="call-path"><p class="small">' + esc(flow.name) +
+        ' &middot; depth ' + esc(flow.depth) + '</p><ol class="path-list">' + steps + '</ol></div>';
+    }).join('');
+    return '<details class="call-paths"><summary>Call paths (' + traced.length + ')</summary>' + blocks + '</details>';
+  }
+
   function findingHtml(finding) {
     var flows = (finding.relatedFlows || []).map(function (flow) {
-      return '<span class="badge outline">' + esc(flow.name) + ' (' + esc(String(flow.confidence).toLowerCase()) + ')</span>';
+      return '<span class="badge outline">' + esc(flow.name) + ' (' + esc(String(flow.confidence).toLowerCase()) +
+        (flow.depth != null ? ', depth ' + esc(flow.depth) : '') + ')</span>';
     }).join('');
     var evidence = Object.keys(finding.evidence || {}).map(function (key) {
       return '<li><code>' + esc(key) + '</code>: ' + esc(finding.evidence[key]) + '</li>';
@@ -252,6 +276,7 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
       snippet +
       (finding.recommendation ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>' : '') +
       (flows ? '<div class="related-flows">' + flows + '</div>' : '') +
+      callPathHtml(finding) +
       (evidence ? '<details class="evidence"><summary>Evidence</summary><ul class="plain-list small">' + evidence + '</ul></details>' : '') +
     '</article>';
   }
@@ -261,7 +286,8 @@ h2 { font-size: 1.15rem; margin: 0 0 16px; }
     if (state.confidence !== 'ALL' && finding.confidence !== state.confidence) { return false; }
     if (state.flow && !(finding.relatedFlows || []).some(function (flow) { return flow.id === state.flow; })) { return false; }
     if (state.query) {
-      var haystack = [finding.ruleId, finding.message, finding.recommendation, location(finding.location)]
+      var haystack = [finding.ruleId, finding.message, finding.recommendation, location(finding.location),
+        (finding.affectedMethods || []).join(' ')]
         .join(' ').toLowerCase();
       if (haystack.indexOf(state.query) === -1) { return false; }
     }

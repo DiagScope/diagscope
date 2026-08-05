@@ -24,7 +24,7 @@ public final class SilentFailureConversionRule implements DiagnosticRule {
                         ID, Severity.ERROR, confidence, evidence.location(),
                         "Exception is converted to a normal return value without preserving diagnostic evidence.",
                         "Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("returnedExpression", evidence.returnedExpression(), "method", method.id().displayName())
                 ));
             }

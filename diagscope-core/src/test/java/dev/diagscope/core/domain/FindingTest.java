@@ -16,7 +16,7 @@ class FindingTest {
         evidenceInReverseOrder.put("z", "last");
         evidenceInReverseOrder.put("a", "first");
         var relatedFlows = new ArrayList<>(List.of(
-                new RelatedFlow("REST:z", "Z", Confidence.HIGH)));
+                new RelatedFlow("REST:z", "Z", EntrypointType.REST, Confidence.HIGH, 0, List.of("Z.handle()"))));
 
         var first = finding(
                 new SourceLocation(Path.of("src/main/../main/Example.java"), 10, 12),
@@ -29,7 +29,7 @@ class FindingTest {
                 new SourceLocation(Path.of("src/main/Example.java"), 10, 12),
                 "Different presentation text",
                 "Different recommendation",
-                List.of(new RelatedFlow("SCHEDULED:a", "A", Confidence.LOW)),
+                List.of(new RelatedFlow("SCHEDULED:a", "A", EntrypointType.SCHEDULED, Confidence.LOW, 0, List.of("A.run()"))),
                 java.util.Map.of("a", "first", "z", "last"));
 
         evidenceInReverseOrder.put("later", "mutation");

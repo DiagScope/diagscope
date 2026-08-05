@@ -23,7 +23,7 @@ public final class SilentCatchRule implements DiagnosticRule {
                         ID, Severity.ERROR, confidence, evidence.location(),
                         "Exception is caught and ignored.",
                         "Log, propagate, preserve the cause, or use an explicit DiagScope suppression with a reason.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("exceptionType", evidence.exceptionType(), "method", method.id().displayName())
                 ));
             }

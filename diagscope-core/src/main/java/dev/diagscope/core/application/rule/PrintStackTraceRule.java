@@ -24,7 +24,7 @@ public final class PrintStackTraceRule implements DiagnosticRule {
                 findings.add(new Finding(ID, Severity.WARNING, confidence, invocation.location(),
                         "printStackTrace() is used in production code.",
                         "Use the configured application logger and preserve structured context.",
-                        List.of(RelatedFlow.from(flow.entrypoint(), confidence)),
+                        List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of("method", method.id().displayName())));
             }
         }
