@@ -149,6 +149,8 @@ A finding is never more confident than the path that reaches it. If a flow becom
 
 **Flow boundaries** — points where the analyzer stopped: an external library, an ambiguous overload, an interface with several implementations, or the depth limit. **Boundaries are not defects.** They tell you where the report is silent, so you know what was *not* checked instead of assuming it was clean.
 
+**Indirect instrumentation** — advice declared by `@Aspect` classes, listed with its kind, pointcut, and location. This behaviour never appears at the call site, so the report names it explicitly: it is the code that runs around your methods without being written in them.
+
 **Parse failures** — files the parser could not read, reported with the path and reason. Everything else is still analyzed.
 
 ## Rules
@@ -161,6 +163,9 @@ A finding is never more confident than the path that reaches it. If a flow becom
 | `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an ID, UUID, email, or token |
 | `PRINT_STACK_TRACE` | `printStackTrace()` instead of structured logging |
 | `SYSTEM_OUTPUT` | `System.out` / `System.err` instead of the application logger |
+| `AOP_SELF_INVOCATION` | An internal `this` call that bypasses the Spring proxy, so `@Transactional`, `@Async`, or aspect advice never runs |
+| `AOP_ADVICE_NOT_APPLIED` | Advice attached to a private, static, or final method a proxy cannot intercept |
+| `AOP_UNMANAGED_ADVICE_TARGET` | Proxy-dependent annotations on a class with no visible Spring stereotype |
 
 To intentionally keep a pattern, suppress it explicitly with a reason:
 

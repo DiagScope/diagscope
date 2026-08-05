@@ -1,5 +1,6 @@
 package dev.diagscope.core.application;
 
+import dev.diagscope.core.domain.AspectAdvice;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
 import dev.diagscope.core.domain.BuildSystem;
@@ -18,7 +19,8 @@ public record AnalysisResult(
         List<ParseFailure> parseFailures,
         List<Flow> flows,
         List<Finding> findings,
-        AnalysisStatistics statistics
+        AnalysisStatistics statistics,
+        List<AspectAdvice> aspects
 ) {
     public AnalysisResult {
         Objects.requireNonNull(projectName, "projectName");
@@ -29,9 +31,26 @@ public record AnalysisResult(
         Objects.requireNonNull(flows, "flows");
         Objects.requireNonNull(findings, "findings");
         Objects.requireNonNull(statistics, "statistics");
+        Objects.requireNonNull(aspects, "aspects");
         parseFailures = List.copyOf(parseFailures);
         flows = List.copyOf(flows);
         findings = List.copyOf(findings);
+        aspects = List.copyOf(aspects);
+    }
+
+    /** Result without discovered aspects, kept for callers that do not model indirect instrumentation. */
+    public AnalysisResult(
+            String projectName,
+            Path projectRoot,
+            ProjectLayout projectLayout,
+            AnalysisOptions options,
+            List<ParseFailure> parseFailures,
+            List<Flow> flows,
+            List<Finding> findings,
+            AnalysisStatistics statistics
+    ) {
+        this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings, statistics,
+                List.of());
     }
 
     /** Build tool that declares the scanned project. */

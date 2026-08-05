@@ -31,7 +31,11 @@ import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.ThrowStmt;
 import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.port.out.ProjectAnalyzer;
+import dev.diagscope.core.domain.AdviceKind;
 import dev.diagscope.core.domain.AnalyzedProject;
+import dev.diagscope.core.domain.AspectAdvice;
+import dev.diagscope.core.domain.MethodVisibility;
+import dev.diagscope.core.domain.ProxyProfile;
 import dev.diagscope.core.domain.ProjectLayout;
 import dev.diagscope.core.domain.CatchEvidence;
 import dev.diagscope.core.domain.Entrypoint;
@@ -74,6 +78,17 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static final Set<String> REST_MAPPING_ANNOTATIONS = Set.of(
             "RequestMapping", "GetMapping", "PostMapping", "PutMapping", "PatchMapping", "DeleteMapping"
     );
+    private static final Set<String> SPRING_STEREOTYPES = Set.of(
+            "Component", "Service", "Repository", "Controller", "RestController", "Configuration",
+            "ControllerAdvice", "RestControllerAdvice", "Aspect"
+    );
+    /** Annotations whose behaviour is delivered by a Spring proxy rather than by the method body. */
+    private static final Set<String> PROXIED_ANNOTATIONS = Set.of(
+            "Transactional", "Async", "Cacheable", "CacheEvict", "CachePut", "Caching",
+            "Retryable", "CircuitBreaker", "RateLimiter", "Bulkhead", "TimeLimiter",
+            "PreAuthorize", "PostAuthorize", "Secured", "RolesAllowed", "Validated",
+            "Observed", "Timed", "Counted", "NewSpan", "ContinueSpan"
+    );
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -93,7 +108,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots());
         ParseBatch parseBatch = parseFiles(root, sourceFiles, options.parallelism());
         MappedProject mapped = mergeMappedUnits(parseBatch.units());
-        Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped);
+        List<AspectAdvice> aspects = collectAspects(mapped);
+        Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped, aspects);
         List<Entrypoint> entrypoints = detectEntrypoints(mapped.rawMethods(), options.enabledEntrypointTypes());
 
         var failures = new ArrayList<ParseFailure>(parseBatch.failures().size() + mapped.failures().size());
@@ -101,7 +117,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         failures.addAll(mapped.failures());
         failures.sort(Comparator.comparing(failure -> failure.file().toString()));
         return new AnalyzedProject(root.getFileName().toString(), root, layout, methods, entrypoints,
-                sourceFiles.size(), failures);
+                sourceFiles.size(), failures, aspects);
     }
 
     /** Collects the Java files of every source root, deduplicated so nested modules cannot double count. */
@@ -170,9 +186,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             TypeDeclaration<?> type = (TypeDeclaration<?>) node;
             if (hasMethodAncestor(type)) continue;
             String qualifiedName = qualifiedTypeName(packageName, type);
-            types.add(typeInfo(qualifiedName, type));
             Map<String, String> declaredVariables = declaredTypeVariables(type);
             List<AnnotationDescriptor> typeAnnotations = annotations(type.getAnnotations());
+            types.add(typeInfo(qualifiedName, type, typeAnnotations));
 
             for (BodyDeclaration<?> member : type.getMembers()) {
                 if (!member.isMethodDeclaration()) continue;
@@ -282,7 +298,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
 
         return new RawMethod(id, methodLocation, Set.copyOf(annotationNames), typeAnnotations, methodAnnotations,
                 catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
-                List.copyOf(calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)));
+                List.copyOf(calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
+                visibility(method), method.isStatic(), method.isFinal(), method.getTypeAsString());
     }
 
     private static boolean belongsToMethod(Node node, MethodDeclaration method) {
@@ -303,7 +320,85 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return false;
     }
 
-    private static Map<MethodId, MethodModel> resolveLocalCalls(MappedProject project) {
+    private static MethodVisibility visibility(MethodDeclaration method) {
+        if (method.isPrivate()) return MethodVisibility.PRIVATE;
+        if (method.isProtected()) return MethodVisibility.PROTECTED;
+        if (method.isPublic()) return MethodVisibility.PUBLIC;
+        return MethodVisibility.PACKAGE_PRIVATE;
+    }
+
+    private static Set<String> typeAnnotationNames(List<AnnotationDescriptor> typeAnnotations) {
+        var names = new TreeSet<String>();
+        typeAnnotations.forEach(annotation -> names.add(annotation.name()));
+        return Collections.unmodifiableSet(names);
+    }
+
+    /**
+     * Collects the advice declared by {@code @Aspect} classes. Advice is instrumentation that no
+     * call site mentions, so surfacing the declarations is the only way a reader can know it exists.
+     */
+    private static List<AspectAdvice> collectAspects(MappedProject project) {
+        var advice = new ArrayList<AspectAdvice>();
+        for (var raw : project.rawMethods().values()) {
+            Set<String> typeAnnotations = typeAnnotationNames(raw.typeAnnotations());
+            if (!typeAnnotations.contains("Aspect")) continue;
+            boolean springManagedAspect = typeAnnotations.stream()
+                    .anyMatch(name -> SPRING_STEREOTYPES.contains(name) && !"Aspect".equals(name));
+            for (var annotation : raw.methodAnnotations()) {
+                AdviceKind.fromAnnotation(annotation.name()).ifPresent(kind -> advice.add(new AspectAdvice(
+                        raw.id().declaringType(), raw.id().name(), kind,
+                        firstAttribute(annotation, "value", "pointcut").orElse(""),
+                        raw.location(), springManagedAspect)));
+            }
+        }
+        advice.sort(Comparator.comparing(AspectAdvice::id).thenComparing(item -> item.kind().name()));
+        return List.copyOf(advice);
+    }
+
+    /** Types returned by a {@code @Bean} factory method, which registers them without a stereotype. */
+    private static Set<String> beanFactoryTypes(MappedProject project) {
+        var types = new TreeSet<String>();
+        for (var raw : project.rawMethods().values()) {
+            if (annotation(raw.methodAnnotations(), "Bean").isEmpty()) continue;
+            types.add(simpleName(raw.returnType()));
+        }
+        return Collections.unmodifiableSet(types);
+    }
+
+    private static ProxyProfile proxyProfile(
+            RawMethod raw,
+            TypeInfo declaringType,
+            List<AspectAdvice> aspects,
+            Set<String> beanFactoryTypes
+    ) {
+        var annotationNames = new TreeSet<String>();
+        raw.methodAnnotations().forEach(annotation -> annotationNames.add(annotation.name()));
+        Set<String> typeAnnotations = typeAnnotationNames(raw.typeAnnotations());
+        annotationNames.addAll(typeAnnotations);
+
+        var proxiedAnnotations = new TreeSet<String>();
+        annotationNames.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxiedAnnotations::add);
+
+        var target = new AspectPointcutMatcher.Target(
+                raw.id().declaringType(), raw.id().name(), Collections.unmodifiableSet(annotationNames));
+        var matchingAdvice = new ArrayList<String>();
+        for (var candidate : aspects) {
+            if (candidate.aspectType().equals(raw.id().declaringType())) continue;
+            if (AspectPointcutMatcher.matches(candidate.pointcut(), target)) {
+                matchingAdvice.add(candidate.displayName());
+            }
+        }
+
+        boolean springManaged = declaringType != null && declaringType.springManaged();
+        boolean finalType = declaringType != null && declaringType.finalType();
+        boolean beanFactoryCandidate = beanFactoryTypes.contains(simpleName(raw.id().declaringType()));
+        return new ProxyProfile(raw.visibility(), raw.staticMethod(), raw.finalMethod(), finalType,
+                springManaged, beanFactoryCandidate, proxiedAnnotations, List.copyOf(matchingAdvice));
+    }
+
+    private static Map<MethodId, MethodModel> resolveLocalCalls(
+            MappedProject project, List<AspectAdvice> aspects) {
+        Set<String> beanFactoryTypes = beanFactoryTypes(project);
         var byQualifiedTypeAndName = new HashMap<String, List<MethodId>>();
         var bySimpleTypeAndName = new HashMap<String, List<MethodId>>();
         for (var id : project.rawMethods().keySet()) {
@@ -344,7 +439,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                         .map(invocation -> invocation.withProducerListenerVisible(true)).toList()
                     : raw.invocations();
             resolved.put(raw.id(), new MethodModel(raw.id(), raw.location(), raw.annotationNames(), raw.catches(),
-                    invocations, raw.metricTags(), raw.metricNames(), calls));
+                    invocations, raw.metricTags(), raw.metricNames(), calls,
+                    proxyProfile(raw, project.types().get(raw.id().declaringType()), aspects, beanFactoryTypes)));
         }
         return Collections.unmodifiableMap(resolved);
     }
@@ -657,7 +753,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return result;
     }
 
-    private static TypeInfo typeInfo(String qualifiedName, TypeDeclaration<?> type) {
+    private static TypeInfo typeInfo(
+            String qualifiedName, TypeDeclaration<?> type, List<AnnotationDescriptor> typeAnnotations) {
         var superTypes = new LinkedHashSet<String>();
         boolean interfaceType = false;
         if (type instanceof ClassOrInterfaceDeclaration declaration) {
@@ -669,7 +766,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         } else if (type instanceof RecordDeclaration declaration) {
             declaration.getImplementedTypes().forEach(parent -> superTypes.add(parent.getNameWithScope()));
         }
-        return new TypeInfo(qualifiedName, simpleName(qualifiedName), interfaceType, Set.copyOf(superTypes));
+        var annotationNames = new TreeSet<String>();
+        typeAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
+        boolean finalType = type.getModifiers().stream()
+                .anyMatch(modifier -> modifier.getKeyword() == com.github.javaparser.ast.Modifier.Keyword.FINAL);
+        boolean springManaged = annotationNames.stream().anyMatch(SPRING_STEREOTYPES::contains);
+        return new TypeInfo(qualifiedName, simpleName(qualifiedName), interfaceType, Set.copyOf(superTypes),
+                Set.copyOf(annotationNames), finalType, springManaged);
     }
 
     private static String qualifiedTypeName(String packageName, TypeDeclaration<?> type) {
@@ -784,7 +887,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         }
     }
 
-    private record TypeInfo(String qualifiedName, String simpleName, boolean interfaceType, Set<String> superTypes) {}
+    private record TypeInfo(
+            String qualifiedName,
+            String simpleName,
+            boolean interfaceType,
+            Set<String> superTypes,
+            Set<String> annotations,
+            boolean finalType,
+            boolean springManaged
+    ) {}
 
     private record RawCall(SourceLocation location, String scope, String methodName, int argumentCount) {}
 
@@ -799,7 +910,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             List<MetricTagEvidence> metricTags,
             List<MetricNameEvidence> metricNames,
             List<RawCall> calls,
-            Map<String, String> variableTypes
+            Map<String, String> variableTypes,
+            MethodVisibility visibility,
+            boolean staticMethod,
+            boolean finalMethod,
+            String returnType
     ) {}
 
     private record MappedProject(

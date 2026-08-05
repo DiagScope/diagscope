@@ -29,6 +29,7 @@
     "totalNanos" : 0
   },
   "parseFailures" : [ ],
+  "aspects" : [ ],
   "flows" : [ {
     "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
     "type" : "KAFKA_LISTENER",

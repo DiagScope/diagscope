@@ -183,6 +183,12 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
   <div class="flow-grid" id="flow-grid"></div>
 </section>
 
+<section class="block" id="aspects-block" hidden>
+  <h2>Indirect instrumentation</h2>
+  <p class="muted small">Advice attached by Spring AOP. It never appears at the call site and only runs for calls that pass through the proxy.</p>
+  <ul class="plain-list small" id="aspects-list"></ul>
+</section>
+
 <section class="block" id="parse-failures-block" hidden>
   <h2>Parse failures</h2>
   <ul class="plain-list small" id="parse-failures"></ul>
@@ -522,6 +528,18 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
     }).join('') : '<p class="empty">No supported entrypoints were found.</p>';
   }
 
+  function renderAspects() {
+    var aspects = report.aspects || [];
+    var block = document.getElementById('aspects-block');
+    block.hidden = aspects.length === 0;
+    document.getElementById('aspects-list').innerHTML = aspects.map(function (advice) {
+      return '<li><span class="badge type-badge">' + esc(advice.annotation) + '</span> <code>' +
+        esc(advice.id) + '</code> <span class="muted">' +
+        esc(advice.pointcut ? advice.pointcut : '(no pointcut expression)') + '</span> <span class="muted">(' +
+        esc(location(advice.location)) + ')</span></li>';
+    }).join('');
+  }
+
   function renderParseFailures() {
     var failures = report.parseFailures || [];
     var block = document.getElementById('parse-failures-block');
@@ -549,6 +567,7 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
     renderChips();
     renderFindings();
     renderFlows();
+    renderAspects();
     renderParseFailures();
     openFromHash();
   }

@@ -28,6 +28,7 @@ public final class MarkdownReporter implements AnalysisReporter {
         var builder = new StringBuilder(8192);
         appendSummary(builder, result);
         appendFindings(builder, result);
+        appendAspects(builder, result);
         appendFlows(builder, result);
         output.write(builder.toString().getBytes(StandardCharsets.UTF_8));
     }
@@ -121,6 +122,28 @@ public final class MarkdownReporter implements AnalysisReporter {
             }
         }
         builder.append("\n</details>\n\n");
+    }
+
+    /**
+     * Lists the advice that instruments the code without appearing at any call site, so a reader can
+     * tell which behaviour is attached by a proxy rather than written in the method.
+     */
+    private static void appendAspects(StringBuilder builder, AnalysisResult result) {
+        if (result.aspects().isEmpty()) {
+            return;
+        }
+        builder.append("## Indirect instrumentation (Spring AOP)\n\n")
+                .append("Advice runs around your methods without being visible at the call site. It only")
+                .append(" applies to calls that go through the Spring proxy.\n\n")
+                .append("| Advice | Kind | Pointcut | Declared at |\n| --- | --- | --- | --- |\n");
+        for (var advice : result.aspects()) {
+            builder.append("| `").append(escape(advice.id()))
+                    .append("` | `").append(advice.kind().annotation())
+                    .append("` | `").append(escape(advice.pointcut().isBlank() ? "(none)" : advice.pointcut()))
+                    .append("` | `").append(escape(advice.location().file().toString())).append(':')
+                    .append(advice.location().startLine()).append("` |\n");
+        }
+        builder.append('\n');
     }
 
     private static void appendFlows(StringBuilder builder, AnalysisResult result) {

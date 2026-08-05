@@ -8,11 +8,14 @@ import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
+import dev.diagscope.core.application.rule.NonProxyableAdviceTargetRule;
 import dev.diagscope.core.application.rule.PrintStackTraceRule;
 import dev.diagscope.core.application.rule.RuleEngine;
+import dev.diagscope.core.application.rule.SelfInvocationProxyBypassRule;
 import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
+import dev.diagscope.core.application.rule.UnmanagedAdviceTargetRule;
 import dev.diagscope.javaparser.JavaParserProjectAnalyzer;
 import dev.diagscope.javaparser.LocalFlowBuilder;
 import picocli.CommandLine;
@@ -37,7 +40,10 @@ public final class DiagScopeMain {
                 new HighCardinalityMetricTagRule(),
                 new DynamicMetricNameRule(),
                 new PrintStackTraceRule(),
-                new SystemOutputRule()
+                new SystemOutputRule(),
+                new SelfInvocationProxyBypassRule(),
+                new NonProxyableAdviceTargetRule(),
+                new UnmanagedAdviceTargetRule()
         ));
         return new DiagnosticCoverageService(
                 new JavaParserProjectAnalyzer(),

@@ -14,7 +14,8 @@ public record AnalyzedProject(
         Map<MethodId, MethodModel> methods,
         List<Entrypoint> entrypoints,
         long discoveredSourceFiles,
-        List<ParseFailure> parseFailures
+        List<ParseFailure> parseFailures,
+        List<AspectAdvice> aspects
 ) {
     public AnalyzedProject {
         Objects.requireNonNull(name, "name");
@@ -23,12 +24,27 @@ public record AnalyzedProject(
         Objects.requireNonNull(methods, "methods");
         Objects.requireNonNull(entrypoints, "entrypoints");
         Objects.requireNonNull(parseFailures, "parseFailures");
+        Objects.requireNonNull(aspects, "aspects");
         if (discoveredSourceFiles < 0) {
             throw new IllegalArgumentException("discoveredSourceFiles must not be negative");
         }
         methods = Collections.unmodifiableMap(new LinkedHashMap<>(methods));
         entrypoints = List.copyOf(entrypoints);
         parseFailures = List.copyOf(parseFailures);
+        aspects = List.copyOf(aspects);
+    }
+
+    /** Project without discovered aspects, used by adapters and tests that do not model them. */
+    public AnalyzedProject(
+            String name,
+            Path root,
+            ProjectLayout layout,
+            Map<MethodId, MethodModel> methods,
+            List<Entrypoint> entrypoints,
+            long discoveredSourceFiles,
+            List<ParseFailure> parseFailures
+    ) {
+        this(name, root, layout, methods, entrypoints, discoveredSourceFiles, parseFailures, List.of());
     }
 
     /** Build tool that declares this project. */
