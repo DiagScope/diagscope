@@ -317,3 +317,12 @@ Before adding another rule:
 6. demonstrate useful flow context or a genuinely uncovered diagnostic risk.
 
 A broad low-confidence heuristic is not automatically more valuable than a narrow high-signal rule.
+
+## Explanations and confidence in report output
+
+Every finding is enriched at report time from the rule catalog (`RuleCatalog` in `diagscope-core`):
+
+- `explanation.title`, `explanation.whatItMeans`, `explanation.whyItMatters`, `explanation.howDetected`
+- `confidenceRationale` — what `HIGH`, `MEDIUM` or `LOW` means for triage of that finding
+
+Markdown renders them as **What this means / Why it matters / How it was detected** plus a `Confidence means:` line; the HTML report shows the same block above the evidence table; `result.json` carries both fields on each finding. The catalog is presentation-only text: it is not part of the fingerprint, so wording can change without invalidating baselines or suppressions. Rules without catalog entries fall back to a neutral explanation.

@@ -6,6 +6,7 @@ import dev.diagscope.cli.BuildInfo;
 import dev.diagscope.cli.ReportFormat;
 import dev.diagscope.core.application.AnalysisResult;
 import dev.diagscope.core.domain.CallEdge;
+import dev.diagscope.core.application.rule.RuleCatalog;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
 import dev.diagscope.core.domain.FlowMethod;
@@ -145,10 +146,23 @@ public final class JsonReporter implements AnalysisReporter {
         item.put("location", location(finding.location()));
         item.put("message", finding.message());
         item.put("recommendation", finding.recommendation());
+        item.put("explanation", explanation(finding));
+        item.put("confidenceRationale", RuleCatalog.confidenceRationale(finding.confidence()));
         item.put("relatedFlows", finding.relatedFlows().stream().map(JsonReporter::relatedFlow).toList());
         item.put("affectedMethods", finding.affectedMethods());
         item.put("evidence", new LinkedHashMap<>(finding.evidence()));
         return item;
+    }
+
+    /** Presentation-only rule documentation; never part of the finding fingerprint. */
+    private static Map<String, Object> explanation(Finding finding) {
+        var doc = RuleCatalog.explain(finding.ruleId());
+        return orderedMap(
+                "title", doc.title(),
+                "whatItMeans", doc.whatItMeans(),
+                "whyItMatters", doc.whyItMatters(),
+                "howDetected", doc.howDetected()
+        );
     }
 
     private static Map<String, Object> relatedFlow(RelatedFlow flow) {

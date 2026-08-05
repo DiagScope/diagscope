@@ -351,6 +351,13 @@
     },
     "message" : "Listener handles RuntimeException itself and returns normally, so retry, error handler and dead-letter routing never see the failure.",
     "recommendation" : "Rethrow the failure (or wrap it) so the container error handler, @RetryableTopic or the DLT can act on it.",
+    "explanation" : {
+      "title" : "Kafka listener swallows the failure",
+      "whatItMeans" : "A listener catches an exception and does not rethrow it.",
+      "whyItMatters" : "The container never sees the error, so error handlers, retries, and dead-letter routing are all skipped and the record is silently dropped.",
+      "howDetected" : "A catch block inside a @KafkaListener/@KafkaHandler method that neither rethrows nor records the failure."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {
       "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
       "name" : "Kafka topic=payments",
@@ -380,6 +387,13 @@
     },
     "message" : "Exception is caught and ignored.",
     "recommendation" : "Log, propagate, preserve the cause, or use an explicit DiagScope suppression with a reason.",
+    "explanation" : {
+      "title" : "Exception caught and ignored",
+      "whatItMeans" : "An exception is caught in a block that does nothing with it: no log, no rethrow, no recovery action recorded.",
+      "whyItMatters" : "The failure disappears at this line. The caller keeps running as if the operation succeeded, and no trace of the original error reaches logs or traces.",
+      "howDetected" : "The catch block body is empty (or only contains comments) and carries no DiagScope suppression."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {
       "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
       "name" : "Kafka topic=payments",
@@ -407,6 +421,13 @@
     },
     "message" : "Metric tag may have unbounded cardinality: paymentId",
     "recommendation" : "Keep unique identifiers in logs or traces and use bounded dimensions in metrics.",
+    "explanation" : {
+      "title" : "High-cardinality metric tag",
+      "whatItMeans" : "A metric tag value comes from unbounded data such as an id, a user input, or a message payload.",
+      "whyItMatters" : "Each distinct value creates a new time series, which inflates cost and can degrade or break the metrics backend exactly during an incident.",
+      "howDetected" : "The tag value is not a literal, constant, or enum, and resolves to a caller-supplied or dynamically computed expression."
+    },
+    "confidenceRationale" : "MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.",
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
@@ -438,6 +459,13 @@
     },
     "message" : "KafkaTemplate.send() result is ignored by this flow.",
     "recommendation" : "Verify whether the flow requires broker acknowledgement or explicit asynchronous failure handling.",
+    "explanation" : {
+      "title" : "Kafka send result ignored",
+      "whatItMeans" : "The asynchronous result of a Kafka producer send is discarded.",
+      "whyItMatters" : "A broker-side failure completes the future exceptionally and is never observed, so the message is lost while the code reports success.",
+      "howDetected" : "The send() result is neither assigned, chained with a completion callback, awaited, nor returned, and no producer listener was detected."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
@@ -468,6 +496,13 @@
     },
     "message" : "Exception is converted to a normal return value without preserving diagnostic evidence.",
     "recommendation" : "Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.",
+    "explanation" : {
+      "title" : "Failure converted into a normal value",
+      "whatItMeans" : "An exception is caught and turned into a benign result such as null, an empty collection, false, or a default value.",
+      "whyItMatters" : "Downstream code cannot distinguish 'no data' from 'the call failed', so the incident surfaces later as wrong data instead of as an error.",
+      "howDetected" : "The catch block returns a constant or empty value and never logs, rethrows, or records the cause."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {
       "id" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
@@ -495,6 +530,13 @@
     },
     "message" : "System output is used instead of application logging.",
     "recommendation" : "Use the configured logger so the message participates in structured production telemetry.",
+    "explanation" : {
+      "title" : "Diagnostics written to standard output",
+      "whatItMeans" : "Diagnostic text is written with System.out or System.err instead of the logger.",
+      "whyItMatters" : "The message escapes log routing, sampling, and correlation, so it cannot be searched or alerted on when the incident happens.",
+      "howDetected" : "A direct call to System.out/System.err print methods on a reachable path."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {
       "id" : "SCHEDULED:example.ReconciliationJob.execute()",
       "name" : "Scheduled cron=0 */5 * * * *",

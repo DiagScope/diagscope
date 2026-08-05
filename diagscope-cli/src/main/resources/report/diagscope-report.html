@@ -94,6 +94,9 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
 .location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); margin: 2px 0; }
 .finding-message { margin: 4px 0 6px; }
 .recommendation { color: var(--paper); }
+.explain { margin-bottom: 14px; }
+.explain p { margin: 4px 0; color: var(--paper); }
+.explain .confidence-note { color: var(--mute); }
 .related-flows { margin-top: 6px; }
 .drill { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
@@ -343,7 +346,21 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
     var methods = (finding.affectedMethods || []).map(function (method) {
       return '<li><code>' + esc(method) + '</code></li>';
     }).join('');
-    return '<div><h3>Why this was reported</h3>' +
+    var doc = finding.explanation || {};
+    var narrative = '';
+    if (doc.whatItMeans || doc.whyItMatters || doc.howDetected) {
+      narrative = '<div class="explain">' +
+        (doc.title ? '<h3>' + esc(doc.title) + '</h3>' : '<h3>What this finding means</h3>') +
+        (doc.whatItMeans ? '<p><strong>What this means:</strong> ' + esc(doc.whatItMeans) + '</p>' : '') +
+        (doc.whyItMatters ? '<p><strong>Why it matters:</strong> ' + esc(doc.whyItMatters) + '</p>' : '') +
+        (doc.howDetected ? '<p><strong>How it was detected:</strong> ' + esc(doc.howDetected) + '</p>' : '') +
+        (finding.confidenceRationale
+          ? '<p class="confidence-note"><strong>Confidence:</strong> ' + esc(finding.confidenceRationale) + '</p>'
+          : '') +
+        '</div>';
+    }
+    return narrative +
+      '<div><h3>Why this was reported</h3>' +
       '<table class="kv"><tbody>' + rows.join('') + '</tbody></table></div>' +
       (finding.recommendation
         ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>'
