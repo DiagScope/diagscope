@@ -1,64 +1,15 @@
 # DiagScope
 
-**Diagnostic coverage analysis for Java and Spring Boot applications.**
+**Will this code explain itself when it fails in production?**
 
-DiagScope is a source-only static analyzer that detects code patterns capable of removing or weakening the diagnostic evidence needed during production incidents. It complements runtime observability platforms such as Datadog, Grafana, New Relic, and OpenTelemetry by asking an earlier question:
+DiagScope is a static analyzer for Java and Spring Boot projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
 
-> If this flow fails in production, will the code leave enough evidence to explain what happened?
-
-## Release status
-
-The current development line is **`0.1.0-alpha.1`** (`0.1.0-alpha.1-SNAPSHOT` in Maven while the release is being validated).
-
-Alpha 1 is an executable validation build. It is suitable for controlled scans and feedback collection, but it is not yet a production CI quality gate. Findings must be reviewed with their confidence and known analysis boundaries.
-
-## Current scope
-
-The alpha analyzes conventional Maven and Gradle projects, including multi-module builds, in a single execution. It discovers Java sources under `src/main/java`, parses each source file once, builds parser-neutral evidence and indexes, detects likely Spring MVC, Kafka listener, and scheduled entrypoints, and follows bounded local calls.
-
-Current deterministic rules:
-
-- `SILENT_CATCH`;
-- `SILENT_FAILURE_CONVERSION`;
-- `KAFKA_SEND_RESULT_IGNORED`;
-- `HIGH_CARDINALITY_METRIC_TAG`;
-- `PRINT_STACK_TRACE`;
-- `SYSTEM_OUTPUT`.
-
-Flow reachability is path-aware. Every reached method has a path and confidence, call edges retain resolution reasons and boundaries, and a finding cannot be more confident than the path required to reach its evidence.
-
-### Honest alpha limitations
-
-- Entry-point detection is annotation-name based; route, Kafka topic, and schedule-expression extraction are not complete.
-- Local call resolution is conservative and syntax-first. It does not provide complete Java type or framework semantics.
-- Overloads, interfaces with multiple implementations, inherited methods, fluent APIs, external libraries, Spring proxies, and reflection may stop or weaken a flow.
-- Logging, Kafka, and Micrometer recognition still use conservative heuristics and may require manual review.
-- Parse failures are counted and reported with a source path and concise parser diagnostic; scans may still contain partial results from other files.
-- Build-script-driven source sets, configuration/baselines, SARIF, Maven-plugin execution, and cross-service topology are outside Alpha 1.
-
-See [supported and unsupported analysis](docs/PROJECT_OVERVIEW.md#supported-alpha-analysis) before interpreting results.
-
-## Architecture
-
-```text
-diagscope/
-├── diagscope-core
-├── diagscope-javaparser
-├── diagscope-cli
-└── diagscope-test-fixtures
-```
-
-- **diagscope-core** — immutable domain model, use cases, ports, path-aware flows, rule engine, findings, and analysis statistics.
-- **diagscope-javaparser** — JavaParser output adapter, source indexing, typed-evidence extraction, conservative call resolution, and bounded local-flow construction.
-- **diagscope-cli** — Picocli input adapter, composition root, and Markdown/JSON output adapters.
-- **diagscope-test-fixtures** — small scanner-only Java/Spring-style projects with positive, negative, and boundary cases.
-
-The dependency direction always points toward `diagscope-core`. The core has no parser, CLI, JSON, logging, or dependency-injection framework dependency.
+It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a Kafka listener, a scheduled job — so you see *which production path* goes blind when something breaks.
 
 ## Requirements
 
-- JDK 25;
-- Maven 3.9.x.
+- JDK 25
+- Maven 3.9+
 
 ## Build
 
@@ -66,74 +17,157 @@ The dependency direction always points toward `diagscope-core`. The core has no 
 mvn clean verify
 ```
 
-## Run
+This produces the runnable CLI at `diagscope-cli/target/diagscope.jar`.
+
+## Usage
+
+Scan a project:
 
 ```bash
-java -jar diagscope-cli/target/diagscope.jar \
-  scan --project /path/to/spring-project
+java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/your-project
 ```
 
-Generated files:
+Maven and Gradle projects are both supported, including multi-module builds. Modules are discovered automatically from `pom.xml`, `build.gradle`, and `build.gradle.kts`.
+
+By default all three reports are written to `<your-project>/target/diagscope/`:
 
 ```text
 target/diagscope/
-├── report.md
-└── result.json
+├── report.md      # human review, code review, pull requests
+├── result.json    # automation and tooling
+└── report.html    # self-contained interactive report
 ```
 
-Run the bundled validation fixture:
+### Common commands
 
 ```bash
-./scripts/run-fixture.sh
+# Only the HTML report, in a custom directory
+java -jar diagscope.jar scan --project . --output build/diagscope --format HTML
+
+# Only REST endpoints, following calls up to 5 levels deep
+java -jar diagscope.jar scan --project . --entrypoint REST --max-depth 5
+
+# Limit parser workers (useful in CI containers)
+java -jar diagscope.jar scan --project . --parallelism 2
 ```
 
-## Performance contract
+### Options
 
-Performance is a product requirement, subject to correctness and deterministic output:
+| Option | Meaning | Default |
+|---|---|---|
+| `-p`, `--project` | Project directory to analyze (required) | — |
+| `-o`, `--output` | Output directory; a relative path resolves inside the project | `target/diagscope` |
+| `--format` | `MARKDOWN`, `JSON`, `HTML`, or a comma-separated combination | all three |
+| `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `SCHEDULED` | all |
+| `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
+| `--parallelism` | Parser worker count; `0` picks automatically | `0` |
 
-1. discover source files once;
-2. parse each file once with a bounded worker pool;
-3. map each AST to typed evidence in its worker and discard the AST before deterministic aggregation;
-4. reuse immutable parser-neutral models across rules;
-5. bound flow depth and preserve every truncated or unresolved boundary;
-6. keep report serialization outside the analysis critical path;
-7. measure analysis phases and compare the exact finding set after optimization;
-8. use repeatable corpora and JFR before changing concurrency, caching, or data structures.
+Exit code `0` means the scan completed, `1` means the scan failed, `2` means invalid arguments. Findings do not fail the command — DiagScope reports, you decide.
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+Full reference: [docs/CLI.md](docs/CLI.md).
 
-## Validation gate
+## Example report
 
-Alpha 1 must be tested against three real repositories before the project expands scope. The continuation target is:
+```markdown
+# DiagScope Report
 
-- at least 10 reviewable findings;
-- at least 80% judged valid by repository maintainers;
-- at most 20% judged noise;
-- at least 3 valid problems not previously noticed by the team;
-- repeat-scan interest from at least one team;
-- recorded scan time and memory for every validation repository.
+`payments-api` — 5 finding(s) across 3 flow(s).
 
-Until this gate is met, work remains focused on precision, confidence honesty, determinism, and measured performance.
+| Metric | Value |
+| --- | --- |
+| Build system | Maven |
+| Findings | 5 |
+| Errors | 3 |
+| Warnings | 2 |
+| Flows | 3 |
+| Flow boundaries | 6 |
+| Parse failures | 0 |
+
+## Findings
+
+### ❌ SILENT_FAILURE_CONVERSION — `src/main/java/example/PaymentService.java:15`
+
+Exception is converted to a normal return value without preserving diagnostic evidence.
+
+**Suggested action:** Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.
+
+- Severity: `ERROR` · Confidence: `HIGH`
+- Affected flows: POST /payments/{id}/capture (`HIGH`)
+- Fingerprint: `sha256:9ed6a377b9b7224a3c9e7f2575...`
+
+<details><summary>Evidence</summary>
+
+- `method`: `example.PaymentService.capture(String)`
+- `returnedExpression`: `false`
+
+</details>
+
+## Flow overview
+
+| Entrypoint | Type | Confidence | Methods | Boundaries |
+| --- | --- | --- | --- | --- |
+| POST /payments/{id}/capture | `REST` | `HIGH` | 4 | 5 |
+| Kafka topic=payments | `KAFKA_LISTENER` | `HIGH` | 2 | 0 |
+| Scheduled cron=0 */5 * * * * | `SCHEDULED` | `HIGH` | 1 | 1 |
+```
+
+The HTML report shows the same content with severity filters, per-finding code snippets, and flow navigation. It is a single self-contained file — open it in a browser or attach it to a ticket.
+
+## Reading the report
+
+**Severity** — how bad it is if this code runs during an incident.
+
+| Severity | Meaning |
+|---|---|
+| ❌ `ERROR` | Evidence of a failure is destroyed. An incident here starts with nothing to investigate. |
+| ⚠️ `WARNING` | Evidence is weakened or a failure path is unobserved. Worth reviewing. |
+| ℹ️ `INFO` | Informational; low operational impact. |
+
+**Confidence** — how sure the analyzer is, based only on what the source code proves.
+
+| Confidence | Meaning |
+|---|---|
+| `HIGH` | The pattern is syntactically unambiguous and the flow reaching it is direct. |
+| `MEDIUM` | The pattern is likely, or the path to it goes through a single-implementation interface or an inferred type. Review it. |
+| `LOW` | Weak evidence or a long, uncertain path. Treat as a hint. |
+
+A finding is never more confident than the path that reaches it. If a flow becomes uncertain halfway, every finding after that point inherits the lower confidence — the tool never overstates what it knows.
+
+**Affected flows** — the entrypoints that can actually reach this code. This is the operational question: a swallowed exception in a payment capture endpoint matters more than the same code in a dev-only utility.
+
+**Fingerprint** — a stable identity built from the rule, the file, and the evidence, deliberately excluding line numbers. Moving code around does not create a "new" finding, so you can diff scans between commits and see only real changes.
+
+**Flow boundaries** — points where the analyzer stopped: an external library, an ambiguous overload, an interface with several implementations, or the depth limit. **Boundaries are not defects.** They tell you where the report is silent, so you know what was *not* checked instead of assuming it was clean.
+
+**Parse failures** — files the parser could not read, reported with the path and reason. Everything else is still analyzed.
+
+## Rules
+
+| Rule | What it catches |
+|---|---|
+| `SILENT_CATCH` | A catch block that handles nothing and logs nothing |
+| `SILENT_FAILURE_CONVERSION` | An exception turned into `false`, `null`, or `Optional.empty()` with the cause discarded |
+| `KAFKA_SEND_RESULT_IGNORED` | `KafkaTemplate.send()` whose completion stage is never observed |
+| `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an ID, UUID, email, or token |
+| `PRINT_STACK_TRACE` | `printStackTrace()` instead of structured logging |
+| `SYSTEM_OUTPUT` | `System.out` / `System.err` instead of the application logger |
+
+To intentionally keep a pattern, suppress it explicitly with a reason:
+
+```java
+catch (CleanupException ignored) {
+    // diagscope:ignore SILENT_CATCH -- Best-effort cleanup after the response was committed.
+}
+```
+
+Rule details and limitations: [docs/RULES.md](docs/RULES.md).
+
+## What DiagScope does not do
+
+It reads source code only — it does not run your application, resolve the full type system, or follow calls into external libraries, reflection, or proxies. It does not replace SonarQube, SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this flow fails, will anyone be able to tell what happened?*
 
 ## Documentation
 
-- [Project overview and support matrix](docs/PROJECT_OVERVIEW.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Alpha consolidation record](docs/ALPHA_CONSOLIDATION.md)
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [Rules](docs/RULES.md)
-- [Performance](docs/PERFORMANCE.md)
-- [Testing strategy](docs/TESTING_STRATEGY.md)
-- [CLI reference](docs/CLI.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Development guide](docs/DEVELOPMENT_GUIDE.md)
-- [Code guidelines](docs/CODE_GUIDELINES.md)
-- [Glossary](docs/GLOSSARY.md)
-- [Architecture decisions](docs/decisions/)
-- [Project memory for a fresh Codex thread](PROJECT_MEMORY.md)
-
-## Positioning
-
-DiagScope does not replace SonarQube, SpotBugs, Checkstyle, an IDE inspection, or a runtime observability platform. Its intended advantage is connecting diagnostic risks to operationally relevant entrypoint flows while being explicit about incomplete static resolution.
-
-LLMs may eventually explain deterministic findings, but they never decide whether a finding exists or whether CI passes.
+- [Project overview](docs/PROJECT_OVERVIEW.md) · [CLI reference](docs/CLI.md) · [Rules](docs/RULES.md)
+- [Architecture](docs/ARCHITECTURE.md) · [Performance](docs/PERFORMANCE.md) · [Testing strategy](docs/TESTING_STRATEGY.md)
+- [Development guide](docs/DEVELOPMENT_GUIDE.md) · [Roadmap](docs/ROADMAP.md)
