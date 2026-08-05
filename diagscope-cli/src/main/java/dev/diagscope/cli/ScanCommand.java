@@ -43,7 +43,7 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--parallelism", defaultValue = "${sys:diagscope.parallelism:-0}", description = "Parser workers; 0 selects an automatic bounded value")
     private int parallelism;
 
-    @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON", description = "MARKDOWN, JSON, or both")
+    @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML", description = "MARKDOWN, JSON, HTML, or any combination")
     private EnumSet<ReportFormat> formats;
 
     @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,SCHEDULED", description = "Entrypoint types to analyze")

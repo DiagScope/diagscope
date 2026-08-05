@@ -33,7 +33,8 @@ public final class JsonReporter implements AnalysisReporter {
         mapper.writeValue(output, toDocument(result));
     }
 
-    private static Map<String, Object> toDocument(AnalysisResult result) {
+    /** Shared with {@link HtmlReporter} so both reporters expose the same versioned payload. */
+    static Map<String, Object> toDocument(AnalysisResult result) {
         var document = new LinkedHashMap<String, Object>();
         document.put("schemaVersion", SCHEMA_VERSION);
         document.put("tool", orderedMap(

@@ -1,6 +1,7 @@
 package dev.diagscope.cli;
 
 import dev.diagscope.cli.report.AnalysisReporter;
+import dev.diagscope.cli.report.HtmlReporter;
 import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
@@ -45,6 +46,7 @@ public final class DiagScopeMain {
         Map<ReportFormat, AnalysisReporter> reporters = new EnumMap<>(ReportFormat.class);
         reporters.put(ReportFormat.MARKDOWN, new MarkdownReporter());
         reporters.put(ReportFormat.JSON, new JsonReporter());
+        reporters.put(ReportFormat.HTML, new HtmlReporter());
 
         return new CommandLine(new RootCommand())
                 .addSubcommand("scan", new ScanCommand(useCase, reporters))

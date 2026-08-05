@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiagScope report</title>
+<style>
+:root {
+  --ink: #0a1220; --ink-2: #111c30; --ink-3: #182742; --line: #263351;
+  --paper: #e9edf3; --mute: #8492ac;
+  --error: #e2725b; --warning: #f2b84b; --info: #59a7d6; --ok: #59d6c4;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; background: var(--ink); color: var(--paper);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.55; padding: 32px; max-width: 1080px;
+}
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+h1 { margin: 0; font-size: 1.6rem; }
+h2 { font-size: 1.15rem; margin: 0 0 16px; }
+.muted { color: var(--mute); }
+.small { font-size: 0.85rem; }
+.top { margin-bottom: 24px; }
+.disclaimer {
+  font-size: 0.82rem; color: var(--mute); border: 1px dashed var(--line);
+  border-radius: 8px; padding: 8px 12px; display: inline-block; margin-top: 10px;
+}
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.card {
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; display: flex; flex-direction: column; gap: 4px;
+}
+.card-value { font-size: 1.4rem; font-weight: 600; }
+.card-label { font-size: 0.78rem; color: var(--mute); }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 28px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  background: var(--ink-2); border: 1px solid var(--line); color: var(--paper);
+  border-radius: 20px; padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
+}
+.chip.active { border-color: var(--ok); color: var(--ok); }
+.flow-card { cursor: pointer; transition: border-color .15s; }
+.flow-card:hover, .flow-card:focus-visible { border-color: var(--ok); }
+.flow-card.active { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+.permalink { color: var(--mute); text-decoration: none; float: right; font-size: 0.85rem; }
+.permalink:hover { color: var(--ok); }
+.finding:target { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+#finding-search {
+  background: var(--ink-2); border: 1px solid var(--line); color: var(--paper);
+  border-radius: 8px; padding: 8px 12px; flex: 1; min-width: 220px; font-size: 0.9rem;
+}
+.block { border-top: 1px solid var(--line); padding: 28px 0; }
+.plain-list { list-style: none; margin: 0; padding: 0; }
+.plain-list li { padding: 4px 0; overflow-wrap: anywhere; }
+.badge {
+  display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 0.74rem;
+  text-transform: uppercase; letter-spacing: 0.02em; margin-right: 6px;
+}
+.badge.outline { background: transparent; border: 1px solid var(--line); color: var(--mute); }
+.badge.type-badge { background: var(--ink-3); color: var(--paper); }
+.sev-error { background: rgba(226, 114, 91, 0.15); color: var(--error); }
+.sev-warning { background: rgba(242, 184, 75, 0.15); color: var(--warning); }
+.sev-info { background: rgba(89, 167, 214, 0.15); color: var(--info); }
+.conf-high { background: rgba(89, 214, 196, 0.12); color: var(--ok); }
+.conf-medium { background: rgba(242, 184, 75, 0.12); color: var(--warning); }
+.conf-low { background: rgba(226, 114, 91, 0.12); color: var(--error); }
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.flow-card { background: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.flow-head { margin-bottom: 8px; }
+.flow-name { font-weight: 600; margin: 4px 0; }
+.finding {
+  background: var(--ink-2); border: 1px solid var(--line); border-left: 3px solid var(--line);
+  border-radius: 8px; padding: 16px; margin-bottom: 12px;
+}
+.finding.sev-error { border-left-color: var(--error); }
+.finding.sev-warning { border-left-color: var(--warning); }
+.finding.sev-info { border-left-color: var(--info); }
+.rule-id { font-weight: 600; }
+.location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); }
+.recommendation { color: var(--paper); }
+.related-flows { margin-top: 8px; }
+.evidence { margin-top: 10px; }
+.evidence summary { cursor: pointer; color: var(--mute); font-size: 0.85rem; }
+.empty { color: var(--mute); font-style: italic; }
+.dropzone {
+  border: 1px dashed var(--line); border-radius: 8px; padding: 10px 14px;
+  font-size: 0.82rem; color: var(--mute); margin-top: 12px; display: flex;
+  gap: 10px; align-items: center; flex-wrap: wrap;
+}
+.dropzone.over { border-color: var(--ok); color: var(--ok); }
+.dropzone input { font-size: 0.8rem; color: var(--mute); }
+.foot { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 12px; color: var(--mute); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>DiagScope report</h1>
+  <p class="muted" id="report-subtitle"></p>
+  <p class="disclaimer">Presentation view — not a stable contract. See <code>result.json</code> for the versioned, tool-consumable report.</p>
+  <div class="dropzone" id="dropzone">
+    <span>Drop another <code>result.json</code> here to inspect a different scan, or</span>
+    <input type="file" id="file-input" accept="application/json,.json">
+  </div>
+</header>
+
+<section class="cards" id="cards"></section>
+
+<section class="filter-bar">
+  <div class="chips" id="severity-chips"></div>
+  <div class="chips" id="confidence-chips"></div>
+  <input id="finding-search" type="search" placeholder="Filter by rule, file, or message…">
+</section>
+
+<section class="block">
+  <h2>Findings</h2>
+  <div id="findings-list"></div>
+</section>
+
+<section class="block">
+  <h2>Flow overview</h2>
+  <div class="flow-grid" id="flow-grid"></div>
+</section>
+
+<section class="block" id="parse-failures-block" hidden>
+  <h2>Parse failures</h2>
+  <ul class="plain-list small" id="parse-failures"></ul>
+</section>
+
+<footer class="foot">DiagScope — static diagnostic coverage for Java applications. This file has no external dependencies and makes no network requests.</footer>
+
+<script id="diagscope-data" type="application/json">__DIAGSCOPE_DATA__</script>
+<script>
+(function () {
+  var SEVERITIES = ['ERROR', 'WARNING', 'INFO'];
+  var CONFIDENCES = ['HIGH', 'MEDIUM', 'LOW'];
+  var state = { severity: 'ALL', confidence: 'ALL', flow: null, query: '' };
+  var report = null;
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (character) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+    });
+  }
+
+  function title(value) {
+    var text = String(value || '').toLowerCase();
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  function sevClass(severity) { return 'sev-' + String(severity || '').toLowerCase(); }
+  function confClass(confidence) { return 'conf-' + String(confidence || '').toLowerCase(); }
+
+  function location(loc) {
+    if (!loc) { return ''; }
+    return loc.file + ':' + loc.startLine;
+  }
+
+  function millis(nanos) { return Math.round((nanos || 0) / 1e6) + ' ms'; }
+
+  function boundaryCount() {
+    return (report.flows || []).reduce(function (total, flow) {
+      return total + (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length);
+    }, 0);
+  }
+
+  function renderHeader() {
+    var tool = report.tool || {};
+    var project = report.project || {};
+    document.getElementById('report-subtitle').textContent =
+      [project.name, tool.name + ' ' + (tool.version || ''), report.generatedAt].filter(Boolean).join(' · ');
+    document.title = 'DiagScope report — ' + (project.name || 'scan');
+  }
+
+  function renderCards() {
+    var statistics = report.statistics || {};
+    var configuration = report.configuration || {};
+    var cards = [
+      [statistics.sourceFiles, 'Source files'],
+      [statistics.parsedMethods, 'Methods'],
+      [statistics.flows, 'Flows'],
+      [boundaryCount(), 'Flow boundaries'],
+      [statistics.findings, 'Findings'],
+      [statistics.parseFailures, 'Parse failures'],
+      [millis(statistics.totalNanos), 'Total time'],
+      [configuration.maxFlowDepth, 'Max flow depth']
+    ];
+    document.getElementById('cards').innerHTML = cards.map(function (card) {
+      return '<div class="card"><span class="card-value">' + esc(card[0] == null ? 0 : card[0]) +
+        '</span><span class="card-label">' + esc(card[1]) + '</span></div>';
+    }).join('');
+  }
+
+  function countBy(key, value) {
+    return (report.findings || []).filter(function (finding) { return finding[key] === value; }).length;
+  }
+
+  function renderChips() {
+    var findings = report.findings || [];
+    document.getElementById('severity-chips').innerHTML =
+      '<button class="chip active" data-filter-severity="ALL">All (' + findings.length + ')</button>' +
+      SEVERITIES.map(function (severity) {
+        return '<button class="chip ' + sevClass(severity) + '" data-filter-severity="' + severity + '">' +
+          title(severity) + ' (' + countBy('severity', severity) + ')</button>';
+      }).join('');
+    document.getElementById('confidence-chips').innerHTML =
+      '<button class="chip active" data-filter-confidence="ALL">Any confidence</button>' +
+      CONFIDENCES.map(function (confidence) {
+        return '<button class="chip ' + confClass(confidence) + '" data-filter-confidence="' + confidence + '">' +
+          title(confidence) + ' (' + countBy('confidence', confidence) + ')</button>';
+      }).join('');
+  }
+
+  function findingHtml(finding) {
+    var flows = (finding.relatedFlows || []).map(function (flow) {
+      return '<span class="badge outline">' + esc(flow.name) + ' (' + esc(String(flow.confidence).toLowerCase()) + ')</span>';
+    }).join('');
+    var evidence = Object.keys(finding.evidence || {}).map(function (key) {
+      return '<li><code>' + esc(key) + '</code>: ' + esc(finding.evidence[key]) + '</li>';
+    }).join('');
+    var id = 'finding-' + esc(finding.fingerprint);
+    return '<article id="' + id + '" class="finding ' + sevClass(finding.severity) + '">' +
+      '<div class="finding-head">' +
+        '<span class="badge ' + sevClass(finding.severity) + '">' + esc(title(finding.severity)) + '</span>' +
+        '<span class="rule-id">' + esc(finding.ruleId) + '</span>' +
+        '<span class="badge ' + confClass(finding.confidence) + '">confidence: ' + esc(String(finding.confidence).toLowerCase()) + '</span>' +
+        '<a class="permalink" href="#' + id + '" title="Permalink to this finding">#</a>' +
+      '</div>' +
+      '<p class="location">' + esc(location(finding.location)) + '</p>' +
+      '<p>' + esc(finding.message) + '</p>' +
+      (finding.recommendation ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>' : '') +
+      (flows ? '<div class="related-flows">' + flows + '</div>' : '') +
+      (evidence ? '<details class="evidence"><summary>Evidence</summary><ul class="plain-list small">' + evidence + '</ul></details>' : '') +
+    '</article>';
+  }
+
+  function matches(finding) {
+    if (state.severity !== 'ALL' && finding.severity !== state.severity) { return false; }
+    if (state.confidence !== 'ALL' && finding.confidence !== state.confidence) { return false; }
+    if (state.flow && !(finding.relatedFlows || []).some(function (flow) { return flow.id === state.flow; })) { return false; }
+    if (state.query) {
+      var haystack = [finding.ruleId, finding.message, finding.recommendation, location(finding.location)]
+        .join(' ').toLowerCase();
+      if (haystack.indexOf(state.query) === -1) { return false; }
+    }
+    return true;
+  }
+
+  function renderFindings() {
+    var visible = (report.findings || []).filter(matches);
+    document.getElementById('findings-list').innerHTML = visible.length
+      ? visible.map(findingHtml).join('')
+      : '<p class="empty">No findings match the current filters.</p>';
+  }
+
+  function renderFlows() {
+    var flows = report.flows || [];
+    document.getElementById('flow-grid').innerHTML = flows.length ? flows.map(function (flow) {
+      var boundaries = (flow.boundaries || []).slice(0, 5).map(function (boundary) {
+        return '<li><span class="badge outline">' + esc(boundary.resolutionReason) + '</span> ' +
+          esc(boundary.call) + ' <span class="muted">(' + esc(location(boundary.location)) + ')</span></li>';
+      }).join('');
+      var hidden = (flow.boundaries || []).length - 5;
+      return '<article class="flow-card' + (state.flow === flow.id ? ' active' : '') + '" data-flow-id="' + esc(flow.id) +
+        '" tabindex="0" role="button" aria-pressed="' + (state.flow === flow.id) + '">' +
+        '<div class="flow-head"><span class="badge type-badge">' + esc(flow.type) + '</span>' +
+        '<span class="badge ' + confClass(flow.confidence) + '">confidence: ' + esc(String(flow.confidence).toLowerCase()) + '</span></div>' +
+        '<p class="flow-name">' + esc(flow.name) + '</p>' +
+        '<p class="muted small">' + esc(flow.method) + '</p>' +
+        '<p class="small">' + (flow.methods || []).length + ' method(s) reached · ' +
+        (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length) + ' boundary(ies)</p>' +
+        (boundaries ? '<ul class="plain-list small">' + boundaries +
+          (hidden > 0 ? '<li class="muted">+ ' + hidden + ' more</li>' : '') + '</ul>' : '') +
+      '</article>';
+    }).join('') : '<p class="empty">No supported entrypoints were found.</p>';
+  }
+
+  function renderParseFailures() {
+    var failures = report.parseFailures || [];
+    var block = document.getElementById('parse-failures-block');
+    block.hidden = failures.length === 0;
+    document.getElementById('parse-failures').innerHTML = failures.map(function (failure) {
+      return '<li><code>' + esc(failure.file) + '</code>: ' + esc(failure.message) + '</li>';
+    }).join('');
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderCards();
+    renderChips();
+    renderFindings();
+    renderFlows();
+    renderParseFailures();
+    if (window.location.hash) {
+      var target = document.querySelector(window.location.hash);
+      if (target) { target.scrollIntoView(); }
+    }
+  }
+
+  document.addEventListener('click', function (event) {
+    var severityChip = event.target.closest('[data-filter-severity]');
+    if (severityChip) {
+      state.severity = severityChip.getAttribute('data-filter-severity');
+      renderChips();
+      syncChips();
+      renderFindings();
+      return;
+    }
+    var confidenceChip = event.target.closest('[data-filter-confidence]');
+    if (confidenceChip) {
+      state.confidence = confidenceChip.getAttribute('data-filter-confidence');
+      renderChips();
+      syncChips();
+      renderFindings();
+      return;
+    }
+    var flowCard = event.target.closest('[data-flow-id]');
+    if (flowCard) {
+      var id = flowCard.getAttribute('data-flow-id');
+      state.flow = state.flow === id ? null : id;
+      renderFlows();
+      renderFindings();
+    }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') { return; }
+    var flowCard = event.target.closest && event.target.closest('[data-flow-id]');
+    if (flowCard) {
+      event.preventDefault();
+      flowCard.click();
+    }
+  });
+
+  function syncChips() {
+    document.querySelectorAll('[data-filter-severity]').forEach(function (chip) {
+      chip.classList.toggle('active', chip.getAttribute('data-filter-severity') === state.severity);
+    });
+    document.querySelectorAll('[data-filter-confidence]').forEach(function (chip) {
+      chip.classList.toggle('active', chip.getAttribute('data-filter-confidence') === state.confidence);
+    });
+  }
+
+  document.getElementById('finding-search').addEventListener('input', function (event) {
+    state.query = event.target.value.toLowerCase();
+    renderFindings();
+  });
+
+  function load(data) {
+    report = data;
+    state.flow = null;
+    renderAll();
+    syncChips();
+  }
+
+  function readFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        load(JSON.parse(String(reader.result)));
+      } catch (error) {
+        window.alert('That file is not a valid DiagScope result.json.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  var dropzone = document.getElementById('dropzone');
+  ['dragenter', 'dragover'].forEach(function (name) {
+    dropzone.addEventListener(name, function (event) { event.preventDefault(); dropzone.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (name) {
+    dropzone.addEventListener(name, function () { dropzone.classList.remove('over'); });
+  });
+  dropzone.addEventListener('drop', function (event) {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) { readFile(event.dataTransfer.files[0]); }
+  });
+  document.getElementById('file-input').addEventListener('change', function (event) {
+    if (event.target.files && event.target.files[0]) { readFile(event.target.files[0]); }
+  });
+
+  load(JSON.parse(document.getElementById('diagscope-data').textContent));
+}());
+</script>
+</body>
+</html>

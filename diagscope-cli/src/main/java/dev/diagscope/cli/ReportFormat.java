@@ -2,7 +2,8 @@ package dev.diagscope.cli;
 
 public enum ReportFormat {
     MARKDOWN("report.md"),
-    JSON("result.json");
+    JSON("result.json"),
+    HTML("report.html");
 
     private final String fileName;
 
