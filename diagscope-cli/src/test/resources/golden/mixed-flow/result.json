@@ -21,7 +21,7 @@
     "parsedMethods" : 7,
     "entrypoints" : 3,
     "flows" : 3,
-    "findings" : 5,
+    "findings" : 6,
     "parseFailures" : 0,
     "projectAnalysisNanos" : 0,
     "flowConstructionNanos" : 0,
@@ -339,6 +339,35 @@
     } ]
   } ],
   "findings" : [ {
+    "fingerprint" : "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd",
+    "fingerprintVersion" : 1,
+    "ruleId" : "KAFKA_LISTENER_ERROR_NOT_PROPAGATED",
+    "severity" : "WARNING",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "startLine" : 6,
+      "endLine" : 6
+    },
+    "message" : "Listener handles RuntimeException itself and returns normally, so retry, error handler and dead-letter routing never see the failure.",
+    "recommendation" : "Rethrow the failure (or wrap it) so the container error handler, @RetryableTopic or the DLT can act on it.",
+    "relatedFlows" : [ {
+      "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
+      "name" : "Kafka topic=payments",
+      "type" : "KAFKA_LISTENER",
+      "confidence" : "HIGH",
+      "depth" : 0,
+      "affectedMethod" : "example.PaymentListener.consume(String)",
+      "path" : [ "example.PaymentListener.consume(String)" ]
+    } ],
+    "affectedMethods" : [ "example.PaymentListener.consume(String)" ],
+    "evidence" : {
+      "entrypoint" : "Kafka topic=payments",
+      "exceptionType" : "RuntimeException",
+      "logged" : "false",
+      "method" : "example.PaymentListener.consume(String)"
+    }
+  }, {
     "fingerprint" : "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f",
     "fingerprintVersion" : 1,
     "ruleId" : "SILENT_CATCH",

@@ -192,6 +192,69 @@ so an instance created with `new` is never instrumented.
 Recommended response: confirm the class is a managed bean; if it is created manually, the annotation
 is decorative and should be removed or the object should be obtained from the context.
 
+## `KAFKA_ACK_NOT_INVOKED`
+
+Detects a Kafka listener that declares an `Acknowledgment` parameter — which means the container runs in
+a manual ack mode — while no method reachable from the listener calls `acknowledge()` or `nack(...)`.
+The offset is never committed, so the record is silently reprocessed or the partition stalls.
+
+- Default severity: `ERROR`.
+- Final confidence: `HIGH`, capped by reachability of the listener.
+
+Known limitation: an acknowledgement performed by a collaborator that local traversal cannot reach is
+not visible, so the rule may report a listener that does acknowledge behind an unresolved call.
+
+Recommended response: acknowledge on the success path and `nack(...)` on the failure path, or move the
+container to an automatic ack mode.
+
+## `KAFKA_LISTENER_ERROR_NOT_PROPAGATED`
+
+Detects a listener method that catches an exception and returns normally. Container error handlers,
+`@RetryableTopic` and dead-letter routing only run when the listener throws, so a handled-and-returned
+failure commits the offset as if the record had been processed.
+
+- Default severity: `WARNING`.
+- Final confidence: `HIGH` for `Exception`, `RuntimeException` and `Throwable`, `MEDIUM` for a narrower
+  exception type, then capped by reachability.
+
+Known limitation: a listener that deliberately absorbs a poison record is a legitimate design; use an
+explicit suppression comment for it.
+
+Recommended response: rethrow (or wrap) the failure so the recovery path configured on the container
+can act on it.
+
+## `TX_ROLLBACK_SUPPRESSED`
+
+Detects a catch block inside a `@Transactional` method that neither rethrows nor marks the transaction
+rollback-only. Spring rolls back on a thrown unchecked exception; a swallowed failure lets a partially
+applied write commit with no trace in the logs or in the response.
+
+- Default severity: `ERROR`.
+- Final confidence: `HIGH`, capped by reachability. A catch block that calls `setRollbackOnly()` (or a
+  transaction manager `rollback`) is not reported.
+
+Known limitation: `@Transactional(noRollbackFor = ...)` and programmatic transaction templates are not
+modelled; the rule reads the annotation on the method or its declaring class.
+
+Recommended response: rethrow, or call
+`TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()` when the flow must continue.
+
+## `JDBC_RESOURCE_NOT_CLOSED`
+
+Detects `getConnection()`, `createStatement()`, `prepareStatement()`, `prepareCall()` and
+`executeQuery()` results assigned to a variable that is neither a try-with-resources resource nor closed
+in the same method. The failure surfaces later as pool exhaustion in an unrelated flow.
+
+- Default severity: `ERROR`.
+- Final confidence: `HIGH` when the result is assigned to a named variable, `MEDIUM` otherwise, then
+  capped by reachability.
+
+Known limitation: a resource handed to a collaborator that closes it is reported; annotate those call
+sites with an explicit suppression.
+
+Recommended response: acquire the resource in try-with-resources, or close it in a `finally` block on
+every path.
+
 ## Rule admission criteria
 
 Before adding another rule:
