@@ -28,7 +28,7 @@ public final class DiagScopeMain {
         System.exit(exitCode);
     }
 
-    static CommandLine createCommandLine() {
+    static dev.diagscope.core.application.port.in.ScanProjectUseCase createScanUseCase() {
         var ruleEngine = new RuleEngine(List.of(
                 new SilentCatchRule(),
                 new SilentFailureConversionRule(),
@@ -37,19 +37,21 @@ public final class DiagScopeMain {
                 new PrintStackTraceRule(),
                 new SystemOutputRule()
         ));
-        var useCase = new DiagnosticCoverageService(
+        return new DiagnosticCoverageService(
                 new JavaParserProjectAnalyzer(),
                 new LocalFlowBuilder(),
                 ruleEngine
         );
+    }
 
+    static CommandLine createCommandLine() {
         Map<ReportFormat, AnalysisReporter> reporters = new EnumMap<>(ReportFormat.class);
         reporters.put(ReportFormat.MARKDOWN, new MarkdownReporter());
         reporters.put(ReportFormat.JSON, new JsonReporter());
         reporters.put(ReportFormat.HTML, new HtmlReporter());
 
         return new CommandLine(new RootCommand())
-                .addSubcommand("scan", new ScanCommand(useCase, reporters))
+                .addSubcommand("scan", new ScanCommand(createScanUseCase(), reporters))
                 .setCaseInsensitiveEnumValuesAllowed(true);
     }
 }

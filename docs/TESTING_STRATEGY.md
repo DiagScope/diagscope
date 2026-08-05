@@ -61,7 +61,15 @@ Repeated scans over the same source tree must produce identical:
 - related-flow order;
 - normalized Markdown and JSON content.
 
-Only explicitly documented timing or environment metadata may vary. Golden tests should normalize those fields rather than weakening assertions on semantic content.
+Only explicitly documented timing or environment metadata may vary. Golden tests normalize those fields rather than weakening assertions on semantic content.
+
+Normalized golden reports for the `mixed-flow` fixture live in `diagscope-cli/src/test/resources/golden/mixed-flow/` and are asserted by `GoldenReportTest`. Absolute paths, tool version, and timings are normalized; every other rendered byte is frozen. Regenerate an intentional change with:
+
+```bash
+mvn -pl diagscope-cli test -Dtest=GoldenReportTest -Ddiagscope.golden.update=true
+```
+
+and review the resulting diff before committing it.
 
 ## Report contract
 
@@ -104,3 +112,13 @@ The combined Phase 1 continuation gate is at least 10 reviewable findings, at le
 - A rule encountering unsupported evidence should skip it or lower confidence according to its policy.
 - Architectural tests should protect the core from adapter imports.
 - Any nondeterministic fingerprint or report order is a correctness defect.
+
+## Fixture catalog
+
+| Fixture | Purpose |
+|---|---|
+| `mixed-flow` | End-to-end Maven project used by CLI, reporter, and golden tests |
+| `silent-catch` | Minimal single-rule project |
+| `gradle-multi-module` | Gradle Groovy and Kotlin DSL modules, nested module discovery |
+| `edge-cases` | Default package, nested classes, records, enums, arity and same-arity overloads |
+| `kafka-patterns` | Every `KafkaTemplate.send` result shape: ignored, observed, blocking, assigned, returned, chained |

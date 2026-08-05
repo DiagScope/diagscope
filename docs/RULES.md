@@ -29,6 +29,23 @@ A directive must name the exact rule and include a reason after `--`. This synta
 
 Suppression is local to the supported source construct. Project-wide policies and baseline suppression are future-phase features.
 
+### When to lower confidence instead of suppressing
+
+Suppression removes the finding from the report and from any future review. It is the correct answer only
+when the code is provably intentional and the reason survives review. When the analyzer is merely uncertain,
+the honest answer is a lower-confidence finding, not silence. Alpha 1 lowers confidence rather than
+suppressing in these cases:
+
+| Case | Why not suppression | Alpha 1 behavior |
+|---|---|---|
+| Handling delegated to a helper method the analyzer cannot follow (unresolved, external, or ambiguous call) | The handling may or may not exist; hiding it would assert something unproven | Finding is kept, capped by the path confidence of the boundary that reached it |
+| Cause preserved through a custom result type or factory | Syntax alone cannot prove the cause survives | `MEDIUM` evidence confidence with the evidence expression reported |
+| Logger receiver only probably a logger (untyped or externally injected) | A wrong assumption in either direction is a precision bug | Conservative typed-receiver evidence, reduced confidence |
+| Handling reached through a single provable interface implementation | Runtime binding is not proven by source | Edge confidence is `MEDIUM`, and every descendant finding is capped by it |
+| Same-arity overloads or maximum-depth truncation | The path is unknown, not proven safe | The call stays an explicit flow boundary and no finding is invented past it |
+
+A reviewer who sees a low-confidence finding can act. A reviewer who sees nothing cannot.
+
 ## `SILENT_CATCH`
 
 Detects a catch body with no executable handling and no valid explicit suppression directive.

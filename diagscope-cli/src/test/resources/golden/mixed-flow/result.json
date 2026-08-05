@@ -1,0 +1,454 @@
+{
+  "schemaVersion" : "1.0-alpha.1",
+  "tool" : {
+    "name" : "DiagScope",
+    "version" : "<version>"
+  },
+  "project" : {
+    "name" : "mixed-flow",
+    "root" : "<project>",
+    "buildSystem" : "MAVEN",
+    "buildSystemName" : "Maven",
+    "modules" : [ "." ]
+  },
+  "configuration" : {
+    "maxFlowDepth" : 3,
+    "parallelism" : 1,
+    "enabledEntrypointTypes" : [ "KAFKA_LISTENER", "REST", "SCHEDULED" ]
+  },
+  "statistics" : {
+    "sourceFiles" : 6,
+    "parsedMethods" : 7,
+    "entrypoints" : 3,
+    "flows" : 3,
+    "findings" : 5,
+    "parseFailures" : 0,
+    "projectAnalysisNanos" : 0,
+    "flowConstructionNanos" : 0,
+    "ruleExecutionNanos" : 0,
+    "totalNanos" : 0
+  },
+  "parseFailures" : [ ],
+  "flows" : [ {
+    "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
+    "type" : "KAFKA_LISTENER",
+    "name" : "Kafka topic=payments",
+    "method" : "example.PaymentListener.consume(String)",
+    "location" : {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "startLine" : 4,
+      "endLine" : 7
+    },
+    "confidence" : "HIGH",
+    "methods" : [ {
+      "method" : "example.PaymentListener.consume(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentListener.java",
+        "startLine" : 4,
+        "endLine" : 7
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentListener.consume(String)" ]
+    }, {
+      "method" : "example.PaymentListener.process(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentListener.java",
+        "startLine" : 8,
+        "endLine" : 8
+      },
+      "depth" : 1,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentListener.consume(String)", "example.PaymentListener.process(String)" ]
+    } ],
+    "edges" : [ {
+      "caller" : "example.PaymentListener.consume(String)",
+      "callee" : "example.PaymentListener.process(String)",
+      "call" : "process()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentListener.java",
+        "startLine" : 6,
+        "endLine" : 6
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "resolutionReason" : "SAME_CLASS"
+    } ],
+    "boundaryCount" : 0,
+    "boundaries" : [ ]
+  }, {
+    "id" : "REST:example.PaymentController.capture(String)",
+    "type" : "REST",
+    "name" : "POST /payments/{id}/capture",
+    "method" : "example.PaymentController.capture(String)",
+    "location" : {
+      "file" : "src/main/java/example/PaymentController.java",
+      "startLine" : 8,
+      "endLine" : 9
+    },
+    "confidence" : "HIGH",
+    "methods" : [ {
+      "method" : "example.PaymentController.capture(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentController.java",
+        "startLine" : 8,
+        "endLine" : 9
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentController.capture(String)" ]
+    }, {
+      "method" : "example.PaymentService.capture(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentService.java",
+        "startLine" : 10,
+        "endLine" : 18
+      },
+      "depth" : 1,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)" ]
+    }, {
+      "method" : "example.PaymentMetrics.record(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 6,
+        "endLine" : 8
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)", "example.PaymentMetrics.record(String)" ]
+    }, {
+      "method" : "example.PaymentPublisher.publish(String)",
+      "location" : {
+        "file" : "src/main/java/example/PaymentPublisher.java",
+        "startLine" : 6,
+        "endLine" : 6
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "path" : [ "example.PaymentController.capture(String)", "example.PaymentService.capture(String)", "example.PaymentPublisher.publish(String)" ]
+    } ],
+    "edges" : [ {
+      "caller" : "example.PaymentController.capture(String)",
+      "callee" : "example.PaymentService.capture(String)",
+      "call" : "paymentService.capture()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentController.java",
+        "startLine" : 9,
+        "endLine" : 9
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "resolutionReason" : "DECLARED_RECEIVER"
+    }, {
+      "caller" : "example.PaymentService.capture(String)",
+      "callee" : "example.PaymentMetrics.record(String)",
+      "call" : "paymentMetrics.record()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentService.java",
+        "startLine" : 12,
+        "endLine" : 12
+      },
+      "depth" : 1,
+      "confidence" : "HIGH",
+      "resolutionReason" : "DECLARED_RECEIVER"
+    }, {
+      "caller" : "example.PaymentService.capture(String)",
+      "callee" : "example.PaymentPublisher.publish(String)",
+      "call" : "paymentPublisher.publish()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentService.java",
+        "startLine" : 13,
+        "endLine" : 13
+      },
+      "depth" : 1,
+      "confidence" : "HIGH",
+      "resolutionReason" : "DECLARED_RECEIVER"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag(/"paymentId/", paymentId).register(meterRegistry).increment()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag(/"paymentId/", paymentId).register()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentPublisher.publish(String)",
+      "callee" : null,
+      "call" : "kafkaTemplate.send()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentPublisher.java",
+        "startLine" : 6,
+        "endLine" : 6
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    } ],
+    "boundaryCount" : 5,
+    "boundaries" : [ {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag(/"paymentId/", paymentId).register(meterRegistry).increment()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag(/"paymentId/", paymentId).register()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder(/"payment.capture/").tag()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentMetrics.record(String)",
+      "callee" : null,
+      "call" : "Counter.builder()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentMetrics.java",
+        "startLine" : 7,
+        "endLine" : 7
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    }, {
+      "caller" : "example.PaymentPublisher.publish(String)",
+      "callee" : null,
+      "call" : "kafkaTemplate.send()",
+      "location" : {
+        "file" : "src/main/java/example/PaymentPublisher.java",
+        "startLine" : 6,
+        "endLine" : 6
+      },
+      "depth" : 2,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    } ]
+  }, {
+    "id" : "SCHEDULED:example.ReconciliationJob.execute()",
+    "type" : "SCHEDULED",
+    "name" : "Scheduled cron=0 */5 * * * *",
+    "method" : "example.ReconciliationJob.execute()",
+    "location" : {
+      "file" : "src/main/java/example/ReconciliationJob.java",
+      "startLine" : 4,
+      "endLine" : 5
+    },
+    "confidence" : "HIGH",
+    "methods" : [ {
+      "method" : "example.ReconciliationJob.execute()",
+      "location" : {
+        "file" : "src/main/java/example/ReconciliationJob.java",
+        "startLine" : 4,
+        "endLine" : 5
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "path" : [ "example.ReconciliationJob.execute()" ]
+    } ],
+    "edges" : [ {
+      "caller" : "example.ReconciliationJob.execute()",
+      "callee" : null,
+      "call" : "System.out.println()",
+      "location" : {
+        "file" : "src/main/java/example/ReconciliationJob.java",
+        "startLine" : 5,
+        "endLine" : 5
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    } ],
+    "boundaryCount" : 1,
+    "boundaries" : [ {
+      "caller" : "example.ReconciliationJob.execute()",
+      "callee" : null,
+      "call" : "System.out.println()",
+      "location" : {
+        "file" : "src/main/java/example/ReconciliationJob.java",
+        "startLine" : 5,
+        "endLine" : 5
+      },
+      "depth" : 0,
+      "confidence" : "HIGH",
+      "resolutionReason" : "EXTERNAL"
+    } ]
+  } ],
+  "findings" : [ {
+    "fingerprint" : "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f",
+    "fingerprintVersion" : 1,
+    "ruleId" : "SILENT_CATCH",
+    "severity" : "ERROR",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "startLine" : 6,
+      "endLine" : 6
+    },
+    "message" : "Exception is caught and ignored.",
+    "recommendation" : "Log, propagate, preserve the cause, or use an explicit DiagScope suppression with a reason.",
+    "relatedFlows" : [ {
+      "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
+      "name" : "Kafka topic=payments",
+      "confidence" : "HIGH"
+    } ],
+    "evidence" : {
+      "exceptionType" : "RuntimeException",
+      "method" : "example.PaymentListener.consume(String)"
+    }
+  }, {
+    "fingerprint" : "sha256:92c8bcf1b244e056cedf1c9e058cd10b30cc900e47081355c600bd74f71ade6c",
+    "fingerprintVersion" : 1,
+    "ruleId" : "HIGH_CARDINALITY_METRIC_TAG",
+    "severity" : "ERROR",
+    "confidence" : "MEDIUM",
+    "location" : {
+      "file" : "src/main/java/example/PaymentMetrics.java",
+      "startLine" : 7,
+      "endLine" : 7
+    },
+    "message" : "Metric tag may have unbounded cardinality: paymentId",
+    "recommendation" : "Keep unique identifiers in logs or traces and use bounded dimensions in metrics.",
+    "relatedFlows" : [ {
+      "id" : "REST:example.PaymentController.capture(String)",
+      "name" : "POST /payments/{id}/capture",
+      "confidence" : "MEDIUM"
+    } ],
+    "evidence" : {
+      "method" : "example.PaymentMetrics.record(String)",
+      "micrometerConfirmed" : "true",
+      "tag" : "paymentId",
+      "value" : "paymentId"
+    }
+  }, {
+    "fingerprint" : "sha256:4e889ac8704ee2e9cc7cb3bc5a80d5c922f3066d4df55abcb109fa506879c255",
+    "fingerprintVersion" : 1,
+    "ruleId" : "KAFKA_SEND_RESULT_IGNORED",
+    "severity" : "WARNING",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/PaymentPublisher.java",
+      "startLine" : 6,
+      "endLine" : 6
+    },
+    "message" : "KafkaTemplate.send() result is ignored by this flow.",
+    "recommendation" : "Verify whether the flow requires broker acknowledgement or explicit asynchronous failure handling.",
+    "relatedFlows" : [ {
+      "id" : "REST:example.PaymentController.capture(String)",
+      "name" : "POST /payments/{id}/capture",
+      "confidence" : "HIGH"
+    } ],
+    "evidence" : {
+      "method" : "example.PaymentPublisher.publish(String)",
+      "receiverType" : "KafkaTemplate",
+      "resultUsage" : "IGNORED",
+      "scope" : "kafkaTemplate"
+    }
+  }, {
+    "fingerprint" : "sha256:9ed6a377b9b7224a3c9e7f257564d66390481e9372fbd338184c11bc18169a49",
+    "fingerprintVersion" : 1,
+    "ruleId" : "SILENT_FAILURE_CONVERSION",
+    "severity" : "ERROR",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/PaymentService.java",
+      "startLine" : 15,
+      "endLine" : 17
+    },
+    "message" : "Exception is converted to a normal return value without preserving diagnostic evidence.",
+    "recommendation" : "Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.",
+    "relatedFlows" : [ {
+      "id" : "REST:example.PaymentController.capture(String)",
+      "name" : "POST /payments/{id}/capture",
+      "confidence" : "HIGH"
+    } ],
+    "evidence" : {
+      "method" : "example.PaymentService.capture(String)",
+      "returnedExpression" : "false"
+    }
+  }, {
+    "fingerprint" : "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483",
+    "fingerprintVersion" : 1,
+    "ruleId" : "SYSTEM_OUTPUT",
+    "severity" : "WARNING",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/ReconciliationJob.java",
+      "startLine" : 5,
+      "endLine" : 5
+    },
+    "message" : "System output is used instead of application logging.",
+    "recommendation" : "Use the configured logger so the message participates in structured production telemetry.",
+    "relatedFlows" : [ {
+      "id" : "SCHEDULED:example.ReconciliationJob.execute()",
+      "name" : "Scheduled cron=0 */5 * * * *",
+      "confidence" : "HIGH"
+    } ],
+    "evidence" : {
+      "method" : "example.ReconciliationJob.execute()"
+    }
+  } ]
+}

@@ -17,7 +17,7 @@ Do not implement a future phase before the current phase meets its own continuat
 Alpha 1 scope:
 
 - four-module Java 25 build;
-- one Maven module per scan;
+- Maven and Gradle projects, including multi-module builds, per scan;
 - direct REST, Kafka-listener, and scheduled entrypoints;
 - bounded path-aware local-flow analysis;
 - six deterministic rules;

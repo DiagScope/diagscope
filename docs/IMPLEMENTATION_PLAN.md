@@ -34,14 +34,14 @@ The immediate objective is not more feature breadth. It is to prove precision, c
 - [x] complete a direct typed-evidence positive, negative, and near-boundary matrix for all six rules;
 - [ ] complete adapter-level fixtures for every rule and supported syntax shape;
 - [x] run both bundled fixtures through the real analysis pipeline and `mixed-flow` through the packaged CLI;
-- [ ] add normalized Markdown and JSON golden tests;
+- [x] add normalized Markdown and JSON golden tests;
 - [x] verify repeated-scan fingerprints, order, paths, boundaries, confidence, and normalized report content;
 - [x] test records, enums, nested classes, and class-versus-method entrypoint annotations;
-- [ ] test default-package, inner-class, and overload boundaries;
+- [x] test default-package, inner-class, and overload boundaries;
 - [x] test a maximum-depth boundary after reduced-confidence interface resolution;
 - [x] add explicit cycle coverage and exercise every resolution reason through focused graph or adapter tests;
 - [x] expose parse failures with source path and concise reason in both reports;
-- [ ] verify atomic report writes and invalid-format behavior;
+- [x] verify atomic report writes and invalid-format behavior;
 - [x] verify all documented CLI exit codes and no-output behavior for invalid or unsupported input;
 - [x] make benchmark scripts portable across Linux and macOS;
 - [x] remove unused symbol-solver and logging dependencies and avoid a generated dependency-reduced POM.
@@ -53,15 +53,15 @@ The immediate objective is not more feature breadth. It is to prove precision, c
 - [x] validate explicit suppression parsing against a one-character reason, a wrong rule, and a missing reason;
 - [x] distinguish a preserved cause or stable failure code from silent conversion;
 - [x] validate a declared logger receiver and original throwable evidence conservatively;
-- [ ] document cases that require lower confidence rather than suppression.
+- [x] document cases that require lower confidence rather than suppression.
 
 ### Kafka
 
 - [x] classify ignored, stored, returned, callback-observed, argument, and generic chained results;
 - [x] classify direct `get`/`join` observation shapes;
-- [ ] add wrapped completion-stage rule tests;
+- [x] add wrapped completion-stage rule tests;
 - [ ] identify syntax-visible `ProducerListener` context without claiming global absence;
-- [ ] test fluent and wrapped send patterns;
+- [x] test fluent and wrapped send patterns;
 - [x] preserve the narrow report claim: the result is not observed in this local path.
 
 ### Metrics
@@ -97,7 +97,7 @@ Only evidence from real repositories should prioritize these items:
 - richer overload and generic method identity;
 - explicit complete-classpath symbol solving;
 - inherited and meta-annotated entrypoints;
-- additional source roots or Maven reactors.
+- additional source roots declared inside build scripts (`sourceSets`, `build-helper`).
 
 Every added resolver must preserve terminal-boundary reporting, path-local confidence, cycle safety, and benchmark equivalence.
 
