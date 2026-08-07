@@ -735,7 +735,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 false,
                 isTryResource(call),
                 assignedVariable(call),
-                insideFinally(call)
+                insideFinally(call),
+                insideLoop(call)
         );
     }
 
@@ -773,6 +774,25 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             if (parent instanceof com.github.javaparser.ast.stmt.TryStmt tryStmt
                     && tryStmt.getFinallyBlock().map(block -> block.isAncestorOf(call)).orElse(false)) {
                 return true;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    /** True when the call runs inside a for/while/do-while body, so it repeats per iteration. */
+    private static boolean insideLoop(MethodCallExpr call) {
+        Node current = call;
+        while (current.getParentNode().isPresent()) {
+            Node parent = current.getParentNode().orElseThrow();
+            if (parent instanceof com.github.javaparser.ast.stmt.ForStmt
+                    || parent instanceof com.github.javaparser.ast.stmt.ForEachStmt
+                    || parent instanceof com.github.javaparser.ast.stmt.WhileStmt
+                    || parent instanceof com.github.javaparser.ast.stmt.DoStmt) {
+                return true;
+            }
+            if (parent instanceof com.github.javaparser.ast.body.MethodDeclaration) {
+                return false;
             }
             current = parent;
         }

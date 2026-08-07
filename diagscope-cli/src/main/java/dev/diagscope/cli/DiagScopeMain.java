@@ -5,6 +5,15 @@ import dev.diagscope.cli.report.HtmlReporter;
 import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
+import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
+import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
+import dev.diagscope.core.application.rule.GenericExceptionMessageRule;
+import dev.diagscope.core.application.rule.HttpClientErrorDiscardedRule;
+import dev.diagscope.core.application.rule.LogWithoutThrowableRule;
+import dev.diagscope.core.application.rule.MetricCreatedInLoopRule;
+import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
+import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
+import dev.diagscope.core.application.rule.SensitivePayloadLoggedRule;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
@@ -57,7 +66,16 @@ public final class DiagScopeMain {
                 new SystemOutputRule(),
                 new SelfInvocationProxyBypassRule(),
                 new NonProxyableAdviceTargetRule(),
-                new UnmanagedAdviceTargetRule()
+                new UnmanagedAdviceTargetRule(),
+                new LogWithoutThrowableRule(),
+                new GenericExceptionMessageRule(),
+                new AsyncResultUnobservedRule(),
+                new HttpClientErrorDiscardedRule(),
+                new ScheduledTaskSwallowsFailureRule(),
+                new RetryWithoutDiagnosticsRule(),
+                new FallbackHidesFailureRule(),
+                new MetricCreatedInLoopRule(),
+                new SensitivePayloadLoggedRule()
         ));
         return new DiagnosticCoverageService(
                 new JavaParserProjectAnalyzer(),
