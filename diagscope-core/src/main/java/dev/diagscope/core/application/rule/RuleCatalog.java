@@ -196,6 +196,59 @@ public final class RuleCatalog {
                 "The persistence context and its connection stay held, leaking memory and pool"
                         + " capacity until the process degrades.",
                 "A createEntityManager() result with no matching close() call in the same method.");
+        put(catalog, LogWithoutThrowableRule.ID, "Failure logged without the exception",
+                "An error or warning is logged in a method that handles exceptions, but the throwable"
+                        + " is not passed to the logger.",
+                "The log line states that something failed and gives no stack trace or cause, so the"
+                        + " investigation restarts from zero.",
+                "A logger error/warn call whose arguments do not reference the caught exception, in a"
+                        + " method that contains catch blocks.");
+        put(catalog, GenericExceptionMessageRule.ID, "Failure message without context",
+                "The logged failure message is a bare word such as \"error\" or \"falha\".",
+                "The message cannot be searched, grouped, or correlated with a request, so alerting"
+                        + " and triage fall back to reading code.",
+                "The first logger argument is a string literal matching a known context-free phrase.");
+        put(catalog, AsyncResultUnobservedRule.ID, "Asynchronous result never observed",
+                "Work is submitted to an executor or a CompletableFuture and the returned handle is"
+                        + " discarded.",
+                "An exception inside the task completes the future exceptionally and nobody reads it,"
+                        + " so the failure never appears anywhere.",
+                "An async submission whose result is neither assigned, chained, awaited, nor"
+                        + " returned.");
+        put(catalog, HttpClientErrorDiscardedRule.ID, "HTTP client error replaced without the cause",
+                "A reactive or future error operator substitutes a value for the failure and never"
+                        + " references the throwable.",
+                "The remote call failed but the flow continues with a placeholder, so the outage looks"
+                        + " like empty data downstream.",
+                "An error-handling operator (onErrorReturn, onErrorResume, exceptionally, onStatus)"
+                        + " whose arguments do not mention the error.");
+        put(catalog, ScheduledTaskSwallowsFailureRule.ID, "Scheduled task swallows the failure",
+                "A @Scheduled method catches an exception and neither logs nor rethrows it.",
+                "The job keeps its green schedule while doing nothing useful; the outage is only"
+                        + " noticed through missing downstream data.",
+                "A catch block in a @Scheduled method with no log and no rethrow.");
+        put(catalog, RetryWithoutDiagnosticsRule.ID, "Retry without diagnostics",
+                "A retried operation records nothing about the attempts it consumes.",
+                "Retry storms stay invisible until the budget is exhausted, and the eventual error"
+                        + " hides how many times the dependency already failed.",
+                "A @Retryable/@Retry method whose body contains no logger call and no metric.");
+        put(catalog, FallbackHidesFailureRule.ID, "Fallback hides the failure",
+                "A recovery or fallback method returns a default value without recording what it is"
+                        + " compensating for.",
+                "Degraded responses become indistinguishable from healthy ones, so the dependency"
+                        + " failure never shows up in dashboards.",
+                "A @Recover or fallback-named method with no logger call and no metric.");
+        put(catalog, MetricCreatedInLoopRule.ID, "Metric instrument created in a loop",
+                "A counter, timer, or gauge is resolved inside a loop body.",
+                "Instrument creation per iteration multiplies time series and adds overhead on the hot"
+                        + " path, which can degrade the metrics backend during an incident.",
+                "A metric registration call whose enclosing statement is a for/while/do-while body.");
+        put(catalog, SensitivePayloadLoggedRule.ID, "Sensitive payload written to logs",
+                "A log statement includes an argument named like a secret or personal identifier.",
+                "The value is persisted in log storage, where it is broadly readable and long lived,"
+                        + " turning a debugging aid into a compliance incident.",
+                "A logger call with an argument matching sensitive terms such as password, token, cpf,"
+                        + " or authorization.");
         put(catalog, JdbcTemplateConnectionEscapeRule.ID, "Raw connection escapes Spring management",
                 "A raw Connection is taken from a JdbcTemplate or DataSourceUtils and used directly.",
                 "The connection loses its binding to the active transaction and Spring's exception"

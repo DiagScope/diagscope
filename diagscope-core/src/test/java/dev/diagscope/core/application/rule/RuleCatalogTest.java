@@ -26,7 +26,16 @@ class RuleCatalogTest {
             SystemOutputRule.ID,
             SelfInvocationProxyBypassRule.ID,
             NonProxyableAdviceTargetRule.ID,
-            UnmanagedAdviceTargetRule.ID);
+            UnmanagedAdviceTargetRule.ID,
+            LogWithoutThrowableRule.ID,
+            GenericExceptionMessageRule.ID,
+            AsyncResultUnobservedRule.ID,
+            HttpClientErrorDiscardedRule.ID,
+            ScheduledTaskSwallowsFailureRule.ID,
+            RetryWithoutDiagnosticsRule.ID,
+            FallbackHidesFailureRule.ID,
+            MetricCreatedInLoopRule.ID,
+            SensitivePayloadLoggedRule.ID);
 
     @Test
     void every_shipped_rule_has_a_detailed_explanation() {
