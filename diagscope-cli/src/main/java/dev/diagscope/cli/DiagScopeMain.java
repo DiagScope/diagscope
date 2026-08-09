@@ -14,7 +14,10 @@ import dev.diagscope.core.application.rule.LogWithoutThrowableRule;
 import dev.diagscope.core.application.rule.MetricCreatedInLoopRule;
 import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
 import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
+import dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule;
+import dev.diagscope.core.application.rule.MdcContextLostRule;
 import dev.diagscope.core.application.rule.SensitivePayloadLoggedRule;
+import dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
@@ -76,7 +79,10 @@ public final class DiagScopeMain {
                 new RetryWithoutDiagnosticsRule(),
                 new FallbackHidesFailureRule(),
                 new MetricCreatedInLoopRule(),
-                new SensitivePayloadLoggedRule()
+                new SensitivePayloadLoggedRule(),
+                new MdcContextLostRule(),
+                new DuplicateDiagnosticSignalRule(),
+                new TransactionalPropagationMismatchRule()
         ));
         return new DiagnosticCoverageService(
                 new JavaParserProjectAnalyzer(),

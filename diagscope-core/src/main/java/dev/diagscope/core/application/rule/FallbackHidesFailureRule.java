@@ -27,6 +27,7 @@ public final class FallbackHidesFailureRule implements DiagnosticRule {
         for (var flowMethod : flow.methods()) {
             MethodModel method = flowMethod.method();
             if (!isFallback(method)) continue;
+            if (DiagnosticSignals.isInstrumented(method)) continue;
             if (DiagnosticSignals.logsAnything(method) || DiagnosticSignals.recordsMetric(method)) {
                 continue;
             }

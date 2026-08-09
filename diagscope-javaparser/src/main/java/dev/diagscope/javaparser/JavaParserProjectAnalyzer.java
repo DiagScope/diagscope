@@ -440,9 +440,28 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     : raw.invocations();
             resolved.put(raw.id(), new MethodModel(raw.id(), raw.location(), raw.annotationNames(), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
-                    proxyProfile(raw, project.types().get(raw.id().declaringType()), aspects, beanFactoryTypes)));
+                    proxyProfile(raw, project.types().get(raw.id().declaringType()), aspects, beanFactoryTypes),
+                    annotationAttributes(raw)));
         }
         return Collections.unmodifiableMap(resolved);
+    }
+
+    /**
+     * Flattens the annotation attributes that apply to a method. Type-level declarations are the
+     * defaults; a method-level annotation of the same name overrides them, exactly like Spring
+     * resolves {@code @Transactional}.
+     */
+    private static Map<String, Map<String, String>> annotationAttributes(RawMethod raw) {
+        var attributes = new LinkedHashMap<String, Map<String, String>>();
+        for (var annotation : raw.typeAnnotations()) {
+            if (annotation.attributes().isEmpty()) continue;
+            attributes.put(annotation.name(), annotation.attributes());
+        }
+        for (var annotation : raw.methodAnnotations()) {
+            if (annotation.attributes().isEmpty()) continue;
+            attributes.put(annotation.name(), annotation.attributes());
+        }
+        return Collections.unmodifiableMap(attributes);
     }
 
     private static Resolution resolveCall(
@@ -680,7 +699,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         Optional<Expression> returned = returns.stream().findFirst().flatMap(ReturnStmt::getExpression);
         String exceptionVariable = clause.getParameter().getNameAsString();
         boolean preservesCause = returned.stream().anyMatch(expression -> expression.findAll(NameExpr.class).stream()
-                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString())));
+                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString())))
+                || body.findAll(ThrowStmt.class).stream()
+                        .anyMatch(statement -> statement.getExpression().findAll(NameExpr.class).stream()
+                                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString())));
         boolean stableFailureCode = returned.stream().anyMatch(JavaParserProjectAnalyzer::containsStableFailureCode);
         boolean suppression = body.getAllContainedComments().stream().map(Comment::getContent)
                 .anyMatch(content -> SILENT_CATCH_SUPPRESSION.matcher(content.trim()).find());

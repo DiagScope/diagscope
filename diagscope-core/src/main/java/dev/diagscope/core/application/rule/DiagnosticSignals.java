@@ -5,6 +5,7 @@ import dev.diagscope.core.domain.MethodModel;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -128,6 +129,71 @@ public final class DiagnosticSignals {
         return !method.metricNames().isEmpty()
                 || !method.metricTags().isEmpty()
                 || method.invocations().stream().anyMatch(DiagnosticSignals::isMetricRegistration);
+    }
+
+    /** Annotations that are, by themselves, deliberate instrumentation of the method. */
+    public static final Set<String> INSTRUMENTATION_ANNOTATIONS = Set.of(
+            "Observed", "Timed", "Counted", "NewSpan", "WithSpan", "ContinueSpan");
+
+    private static final Set<String> ASYNC_DISPATCH_METHODS = Set.of(
+            "submit", "execute", "supplyAsync", "runAsync", "invokeAll", "invokeAny", "schedule",
+            "scheduleAtFixedRate", "scheduleWithFixedDelay", "start", "thenApplyAsync",
+            "thenAcceptAsync", "thenRunAsync", "thenComposeAsync");
+
+    private static final Set<String> MDC_WRITE_METHODS = Set.of("put", "putCloseable", "setContextMap");
+
+    private static final Set<String> MDC_CLEAR_METHODS = Set.of("remove", "clear");
+
+    /**
+     * Returns the instrumentation annotation carried by the method, if any.
+     *
+     * <p>{@code @Observed}, {@code @Timed}, {@code @Counted} and {@code @NewSpan} are positive
+     * evidence: the method already emits a metric or a span, so a rule that only complains about a
+     * missing manual signal would be reporting noise.</p>
+     */
+    public static Optional<String> instrumentationAnnotation(MethodModel method) {
+        return INSTRUMENTATION_ANNOTATIONS.stream()
+                .filter(annotation -> hasAnnotation(method, annotation))
+                .sorted()
+                .findFirst();
+    }
+
+    /** True when the method is instrumented by an annotation such as {@code @Timed}. */
+    public static boolean isInstrumented(MethodModel method) {
+        return instrumentationAnnotation(method).isPresent();
+    }
+
+    /** True when the invocation targets the logging MDC (or an equivalent context map). */
+    public static boolean isMdcCall(InvocationEvidence invocation) {
+        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        return hint.contains("mdc") || hint.contains("threadcontext");
+    }
+
+    /** True when the invocation writes a key into the MDC. */
+    public static boolean writesMdc(InvocationEvidence invocation) {
+        return isMdcCall(invocation) && MDC_WRITE_METHODS.contains(invocation.methodName());
+    }
+
+    /** True when the invocation removes MDC state. */
+    public static boolean clearsMdc(InvocationEvidence invocation) {
+        return isMdcCall(invocation) && MDC_CLEAR_METHODS.contains(invocation.methodName());
+    }
+
+    /** True when the invocation hands work to another thread. */
+    public static boolean isAsyncDispatch(InvocationEvidence invocation) {
+        if (!ASYNC_DISPATCH_METHODS.contains(invocation.methodName())) return false;
+        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        return hint.contains("executor") || hint.contains("completablefuture") || hint.contains("pool")
+                || hint.contains("scheduler") || hint.contains("thread") || hint.contains("async");
+    }
+
+    /** True when the expression carries the MDC context across a thread boundary. */
+    public static boolean propagatesMdc(String expression) {
+        if (expression == null) return false;
+        String normalized = expression.toLowerCase(Locale.ROOT);
+        return normalized.contains("getcopyofcontextmap") || normalized.contains("setcontextmap")
+                || normalized.contains("contextmap") || normalized.contains("wrap")
+                || normalized.contains("taskdecorator") || normalized.contains("mdc");
     }
 
     private static String stripStringLiterals(String expression) {
