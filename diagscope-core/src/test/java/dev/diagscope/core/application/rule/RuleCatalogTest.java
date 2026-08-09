@@ -35,7 +35,10 @@ class RuleCatalogTest {
             RetryWithoutDiagnosticsRule.ID,
             FallbackHidesFailureRule.ID,
             MetricCreatedInLoopRule.ID,
-            SensitivePayloadLoggedRule.ID);
+            SensitivePayloadLoggedRule.ID,
+            MdcContextLostRule.ID,
+            DuplicateDiagnosticSignalRule.ID,
+            TransactionalPropagationMismatchRule.ID);
 
     @Test
     void every_shipped_rule_has_a_detailed_explanation() {

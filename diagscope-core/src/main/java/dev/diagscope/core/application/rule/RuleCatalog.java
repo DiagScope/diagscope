@@ -256,6 +256,27 @@ public final class RuleCatalog {
                         + " outside the intended transaction.",
                 "A call that extracts the underlying Connection from a Spring datasource"
                         + " abstraction.");
+        put(catalog, MdcContextLostRule.ID, "Logging context (MDC) lost",
+                "The method fills the MDC and then either hands work to another thread without"
+                        + " copying the context, or never removes the keys it wrote.",
+                "Logs on the other side of the thread hop lose the correlation id, and keys left"
+                        + " behind on a pooled thread attach the wrong identity to the next request.",
+                "An MDC.put in the method combined with an async dispatch whose arguments do not"
+                        + " carry the context, or with no MDC.remove/clear anywhere in the method.");
+        put(catalog, DuplicateDiagnosticSignalRule.ID, "Duplicate or contradictory failure record",
+                "The same failure is logged in a catch block and then rethrown, so it is reported"
+                        + " again upstream — and when the cause is dropped, the two records differ.",
+                "Error counts double, the same incident appears as several distinct failures, and"
+                        + " the record without a cause points triage at the wrong layer.",
+                "A catch block that both logs and throws; the cause is tracked separately to tell a"
+                        + " duplicate apart from a contradictory record.");
+        put(catalog, TransactionalPropagationMismatchRule.ID, "Transaction boundary does not exist",
+                "A @Transactional method is reached through an internal call, or a caller without an"
+                        + " active transaction calls a MANDATORY one.",
+                "The declared boundary is not created: work believed to be isolated joins the caller"
+                        + " transaction (or runs with none), and MANDATORY paths fail at runtime.",
+                "Resolved call edges combined with the propagation attribute read from"
+                        + " @Transactional on the caller and the callee.");
         return java.util.Collections.unmodifiableMap(catalog);
     }
 

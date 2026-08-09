@@ -25,6 +25,7 @@ public final class ScheduledTaskSwallowsFailureRule implements DiagnosticRule {
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
             if (!DiagnosticSignals.hasAnnotation(method, "Scheduled")) continue;
+            if (DiagnosticSignals.isInstrumented(method)) continue;
             for (var evidence : method.catches()) {
                 if (evidence.hasThrow() || evidence.hasLog()) continue;
                 var confidence = Confidence.min(Confidence.HIGH, flowMethod.confidence());

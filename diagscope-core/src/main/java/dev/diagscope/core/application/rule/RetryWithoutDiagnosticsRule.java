@@ -27,6 +27,7 @@ public final class RetryWithoutDiagnosticsRule implements DiagnosticRule {
             boolean retried = DiagnosticSignals.hasAnnotation(method, "Retryable")
                     || DiagnosticSignals.hasAnnotation(method, "Retry");
             if (!retried) continue;
+            if (DiagnosticSignals.isInstrumented(method)) continue;
             if (DiagnosticSignals.logsAnything(method) || DiagnosticSignals.recordsMetric(method)) {
                 continue;
             }

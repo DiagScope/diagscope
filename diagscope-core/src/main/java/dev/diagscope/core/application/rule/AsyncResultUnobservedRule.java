@@ -36,14 +36,18 @@ public final class AsyncResultUnobservedRule implements DiagnosticRule {
                 if (invocation.resultUsage() != InvocationResultUsage.IGNORED) continue;
                 if (!looksAsync(invocation.scope() + ' ' + invocation.receiverType()
                         + ' ' + invocation.methodName())) continue;
-                var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
+                var instrumentation = DiagnosticSignals.instrumentationAnnotation(method);
+                var confidence = Confidence.min(
+                        instrumentation.isPresent() ? Confidence.LOW : Confidence.MEDIUM,
+                        flowMethod.confidence());
                 findings.add(new Finding(
                         ID, Severity.ERROR, confidence, invocation.location(),
                         "Asynchronous result is discarded, so its failure is never observed.",
                         "Keep the returned future: chain whenComplete/exceptionally, await it, or"
                                 + " return it so the failure reaches a handler.",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
-                        Map.of("method", method.id().displayName(), "call", invocation.methodName())
+                        Map.of("method", method.id().displayName(), "call", invocation.methodName(),
+                                "instrumentation", instrumentation.map(name -> '@' + name).orElse("none"))
                 ));
             }
         }
