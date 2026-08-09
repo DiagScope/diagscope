@@ -64,9 +64,10 @@ Delivered:
 - an executive summary at the top of every report, with per-rule and per-confidence counts, clickable in HTML;
 - a drill-down HTML report with Evidence / Call paths / Flow impact / Source tabs, filters, and free-text search.
 
-Remaining work is precision-oriented rather than rule-count-oriented: validate these rules on real
-repositories, add Kotlin parity fixtures for every syntax family, and deepen resolution only where
-validation exposes a concrete false positive or false negative.
+Remaining work is precision-oriented rather than rule-count-oriented. Kotlin fixtures now exercise
+every registered rule and cover source-decidable hierarchy, overload, injection, composed-annotation,
+and additional-source-root shapes. The next gate is validating that precision on real repositories
+and deepening classpath/runtime-dependent resolution only where those scans expose a concrete gap.
 
 An LLM may summarize or explain a finding, but it never creates the authoritative finding or decides whether CI passes.
 
@@ -94,7 +95,8 @@ Delivered:
 
 Remaining:
 
-- meta-annotated and inherited advice targets;
+- Java parity for meta-annotated and inherited advice targets; Kotlin source-decidable targets are
+  delivered;
 - a flow-level diagnostic score that can aggregate existing positive instrumentation evidence;
 - interface-proxy versus CGLIB reasoning where the source makes the proxy mode provable.
 

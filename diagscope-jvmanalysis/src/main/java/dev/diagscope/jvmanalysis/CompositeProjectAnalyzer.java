@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -130,10 +131,12 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         if (call.scope().isBlank() || "this".equals(call.scope())) {
             return choose(call,
                     byQualifiedTypeAndName.get(caller.id().declaringType() + '#' + call.methodName()),
-                    ResolutionReason.SAME_CLASS);
+                    ResolutionReason.SAME_CLASS,
+                    invocationAt(caller, call).map(InvocationEvidence::argumentTypes).orElse(List.of()));
         }
 
-        String receiverType = invocationAt(caller, call).map(InvocationEvidence::receiverType).orElse("");
+        Optional<InvocationEvidence> invocation = invocationAt(caller, call);
+        String receiverType = invocation.map(InvocationEvidence::receiverType).orElse("");
         if (receiverType.isBlank() && looksLikeType(call.scope())) {
             receiverType = call.scope();
         }
@@ -141,7 +144,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             return call;
         }
         return choose(call, bySimpleTypeAndName.get(simpleName(receiverType) + '#' + call.methodName()),
-                ResolutionReason.DECLARED_RECEIVER);
+                ResolutionReason.DECLARED_RECEIVER,
+                invocation.map(InvocationEvidence::argumentTypes).orElse(List.of()));
     }
 
     private static Optional<InvocationEvidence> invocationAt(MethodModel method, MethodCall call) {
@@ -151,23 +155,85 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                 .findFirst();
     }
 
-    private static MethodCall choose(MethodCall original, List<MethodId> candidates, ResolutionReason success) {
+    private static MethodCall choose(
+            MethodCall original,
+            List<MethodId> candidates,
+            ResolutionReason success,
+            List<String> argumentTypes
+    ) {
         if (candidates == null) {
             return original;
         }
         List<MethodId> matching = candidates.stream()
                 .filter(candidate -> candidate.parameterTypes().size() == original.argumentCount())
-                .limit(2)
                 .toList();
         if (matching.size() == 1) {
             return new MethodCall(original.location(), original.scope(), original.methodName(),
                     original.argumentCount(), Optional.of(matching.getFirst()), success);
         }
         if (matching.size() > 1) {
+            List<MethodId> typed = bestTypedMatches(matching, argumentTypes);
+            if (typed.size() == 1) {
+                return new MethodCall(original.location(), original.scope(), original.methodName(),
+                        original.argumentCount(), Optional.of(typed.getFirst()), success);
+            }
             return new MethodCall(original.location(), original.scope(), original.methodName(),
                     original.argumentCount(), Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
         return original;
+    }
+
+    private static List<MethodId> bestTypedMatches(List<MethodId> candidates, List<String> argumentTypes) {
+        int bestScore = Integer.MIN_VALUE;
+        var best = new ArrayList<MethodId>();
+        for (MethodId candidate : candidates) {
+            int score = compatibilityScore(candidate.parameterTypes(), argumentTypes);
+            if (score < 0) continue;
+            if (score > bestScore) {
+                bestScore = score;
+                best.clear();
+            }
+            if (score == bestScore) best.add(candidate);
+        }
+        return List.copyOf(best);
+    }
+
+    private static int compatibilityScore(List<String> parameterTypes, List<String> argumentTypes) {
+        int score = 0;
+        for (int index = 0; index < argumentTypes.size(); index++) {
+            String argument = normalizedJvmType(argumentTypes.get(index));
+            if (argument.isBlank() || "null".equals(argument)) continue;
+            String parameter = normalizedJvmType(parameterTypes.get(index));
+            if (parameter.isBlank() || "Any".equals(parameter) || "Object".equals(parameter)
+                    || parameter.matches("[A-Z]")) continue;
+            if (parameter.equals(argument)) {
+                score += 3;
+            } else if (isNumericType(parameter) && isNumericType(argument)) {
+                score += 1;
+            } else {
+                return -1;
+            }
+        }
+        return score;
+    }
+
+    private static boolean isNumericType(String type) {
+        return Set.of("Byte", "Short", "Int", "Long", "Float", "Double").contains(type);
+    }
+
+    private static String normalizedJvmType(String type) {
+        String normalized = simpleName(type).replace("...", "").trim();
+        return switch (normalized) {
+            case "Integer", "int" -> "Int";
+            case "long" -> "Long";
+            case "boolean" -> "Boolean";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "short" -> "Short";
+            case "byte" -> "Byte";
+            case "char", "Character" -> "Char";
+            default -> normalized;
+        };
     }
 
     private static MethodModel copyWithCalls(MethodModel method, List<MethodCall> calls) {

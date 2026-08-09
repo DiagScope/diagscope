@@ -27,7 +27,7 @@ public final class DiagnosticSignals {
             Set.of("error", "warn", "fatal", "severe", "info", "debug", "trace", "log");
 
     private static final Pattern EXCEPTION_VARIABLE = Pattern.compile(
-            "(?i).*\\b(e|ex|exc|err|error|t|throwable|cause|exception|failure)\\b.*");
+            "(?is).*\\b(e|ex|exc|err|error|t|throwable|cause|exception|failure)\\b.*");
 
     private static final Pattern GENERIC_MESSAGE = Pattern.compile(
             "(?i)^[\\s\\p{Punct}]*(erro|error|errore|falha|failed|failure|fail|exception|problema"

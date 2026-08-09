@@ -70,17 +70,21 @@ This restriction is an architectural test:
 ### `diagscope-kotlinparser`
 
 - deterministic Kotlin source discovery and a per-scan Kotlin PSI environment;
-- Kotlin syntax-to-typed-evidence mapping;
-- Kotlin-local call resolution, including default and vararg arity;
+- Kotlin syntax-to-typed-evidence mapping, including trailing lambdas and source-inferred argument
+  types;
+- Kotlin-local call resolution for injected receiver chains, same-arity overloads, defaults, varargs,
+  generics, transitive interfaces, inherited methods, and interface defaults;
 - REST, Kafka, scheduled, catch, invocation, resource, Micrometer, and proxy evidence;
-- direct single-implementation interface resolution;
+- recursively composed and inherited entrypoints, proxy annotations, and advice targets;
 - explicit syntax failures and unresolved boundaries.
 
 ### `diagscope-jvmanalysis`
 
-- shared Maven/Gradle module and JVM source-root discovery;
+- shared Maven/Gradle module discovery, conventional roots, and safe literal production roots from
+  Gradle `sourceSets.main` and Maven plugin configuration;
 - deterministic composition of language-specific analysis fragments;
-- conservative Java/Kotlin cross-language call relinking after both indexes exist;
+- conservative Java/Kotlin cross-language call relinking after both indexes exist, including
+  source-typed same-arity overload selection;
 - parser-neutral syntax-level AspectJ pointcut matching and cross-language advice application.
 
 ### `diagscope-cli`
@@ -126,7 +130,12 @@ deduplicate and order findings
 serialize requested reports
 ```
 
-Java parsing and per-file mapping use bounded workers where source files are independent. The first Kotlin adapter uses one deterministic PSI session per scan because its files share a compiler application environment. Both return parser-neutral facts, and complete repository ASTs are not retained after mapping. Fragment aggregation, cross-language linking, graph traversal, rule ordering, finding merging, and report serialization preserve deterministic ordering.
+Java parsing and per-file mapping use bounded workers where source files are independent. The Kotlin
+adapter uses one deterministic PSI session per scan because its files share a compiler application
+environment. Both return parser-neutral facts, and complete repository ASTs are not retained after
+mapping. Fragment aggregation, cross-language linking, graph traversal, rule ordering, finding
+merging, and report serialization preserve deterministic ordering. Kotlin PSI parallelism remains a
+measurement-gated optimization rather than an assumed improvement.
 
 ## Detection versus interpretation
 
@@ -229,12 +238,13 @@ requires parser or presentation dependencies in the core.
 Alpha 1 is intentionally syntax-first. It does not claim complete Java, Kotlin, or Spring semantics. In particular, it does not yet guarantee:
 
 - complete classpath or JavaSymbolSolver resolution;
-- inherited, generic, polymorphic, reflective, or proxy-mediated call resolution;
-- complete interface resolution beyond a directly provable single implementation;
+- runtime-polymorphic, reflective, or proxy-mediated resolution when source has multiple viable
+  targets;
 - stable REST route, Kafka topic, or schedule-expression metadata;
 - semantic identification of every logger, `KafkaTemplate`, or Micrometer receiver;
 - runtime-only AspectJ designators and named pointcut expansion;
-- exact cross-language resolution for ambiguous overloads or varargs;
+- cross-language default arguments, varargs, or generic substitution that require compiler semantics;
+- dynamically computed build-script source roots;
 - cross-service flow construction.
 
 When the adapter cannot prove a local edge, it must stop, record a reason, and lower confidence where appropriate. Expanding resolution is adapter work; weakening the core dependency rule is not an acceptable shortcut.

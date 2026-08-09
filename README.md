@@ -27,9 +27,16 @@ Scan a project:
 java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/your-project
 ```
 
-Maven and Gradle projects are both supported, including multi-module and mixed Java/Kotlin builds. Modules and conventional `src/main/java` and `src/main/kotlin` roots are discovered automatically from `pom.xml`, `build.gradle`, and `build.gradle.kts`.
+Maven and Gradle projects are both supported, including multi-module and mixed Java/Kotlin builds.
+Conventional roots are discovered automatically; literal production roots declared by Gradle
+`sourceSets.main`, Maven `build-helper`, or Kotlin Maven `sourceDirs` are included as well.
 
-Kotlin support is currently syntax-first. REST, Kafka, and scheduled entrypoints, local and single-implementation interface calls, catch and invocation evidence, Micrometer tags and meter names, metric creation inside loops, and Spring proxy/AOP modality are mapped into the same parser-neutral model. Full classpath resolution and pointcuts that require runtime Spring/AspectJ state remain outside the current boundary.
+Kotlin support is syntax-first but covers the complete rule catalog. The adapter maps trailing-lambda
+evidence, injected receiver chains, typed overloads, defaults/varargs, transitive interfaces,
+inherited/default methods, composed or inherited entrypoints and advice targets, Micrometer, and
+Spring proxy/AOP evidence into the same parser-neutral model. Typed same-arity overloads also relink
+across Java and Kotlin. Full classpath resolution and runtime-only Spring/AspectJ state remain outside
+the current boundary.
 
 By default all three reports are written to `<your-project>/target/diagscope/`:
 

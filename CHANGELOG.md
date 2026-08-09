@@ -23,6 +23,13 @@ All notable project changes are recorded in this file.
 - Kotlin Micrometer tag and meter-name evidence with syntax-visible provenance, including interpolated names and metrics created inside loops.
 - Shared syntax-level AspectJ pointcut matching and cross-language advice application after Java/Kotlin fragment composition.
 - Conservative single-implementation interface resolution for Kotlin sources.
+- Kotlin rule-parity fixtures for every registered rule, including logging, Kafka, database,
+  async/resilience, MDC, transaction, catch/output, metrics, and proxy/AOP families.
+- Kotlin transitive-interface, inherited/default-method, injected-property-chain, same-arity overload,
+  default/vararg/generic, and recursively composed/inherited annotation resolution.
+- Source-typed same-arity overload relinking in both Java-to-Kotlin and Kotlin-to-Java directions.
+- Safe literal production roots declared by Gradle `sourceSets.main`, Maven `build-helper`, and Kotlin
+  Maven plugin `sourceDirs`.
 - Path-aware flow modeling with reached methods, call edges, resolution reasons, terminal boundaries, and per-path confidence.
 - Dedicated deterministic `RuleEngine` for rule execution, deduplication, and related-flow merging.
 - Stable related-flow identities and deterministic SHA-256 finding fingerprints.
@@ -37,7 +44,7 @@ All notable project changes are recorded in this file.
 
 - The CLI now composes Java and Kotlin analyzers before building flows and running the existing parser-neutral rules.
 - `LocalFlowBuilder` moved into `diagscope-core`; project layout detection moved into shared JVM infrastructure.
-- All six rules evaluate typed parser-neutral evidence through reached flow methods.
+- All registered rules evaluate typed parser-neutral evidence through reached flow methods.
 - Finding confidence is capped by the weakest reachability evidence required for that finding.
 - Finding evidence and related flows are immutable, ordered, and merged deterministically.
 - The CLI is composed explicitly at its application boundary; parser and presentation details remain outside the core.
@@ -50,7 +57,8 @@ All notable project changes are recorded in this file.
 
 ### Known limitations
 
-- Pointcuts requiring runtime-only designators or named pointcut expansion remain unresolved, and cross-language overload/vararg resolution remains conservative.
+- Pointcuts requiring runtime-only designators or named pointcut expansion remain unresolved;
+  cross-language defaults, varargs, and generic substitution remain conservative.
 - The Java adapter remains syntax-first and does not yet provide complete symbol, classpath, inheritance, overload, or framework resolution.
 - REST routes, Kafka topics, and scheduled expressions are not yet stable entrypoint metadata.
 - Semantic recognition of logging, Kafka, and Micrometer APIs remains heuristic.

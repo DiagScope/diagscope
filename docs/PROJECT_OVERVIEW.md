@@ -42,14 +42,14 @@ Git changed-file scope exist for controlled CI adoption, but gating is disabled 
 
 | Capability | Alpha 1 behavior |
 |---|---|
-| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with `src/main/java` and/or `src/main/kotlin` in the root or its modules |
-| Source discovery | Sorted, deduplicated `.java` and `.kt` files below conventional production roots (module search depth 4, build output directories skipped) |
+| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with conventional or safely declared literal production roots in the root or its modules |
+| Source discovery | Sorted, deduplicated `.java` and `.kt` files below conventional roots plus literal Gradle `sourceSets.main`, Maven `build-helper`, and Kotlin Maven `sourceDirs` roots (module search depth 4) |
 | Parsing | JavaParser configured for Java 25 with bounded workers; Kotlin compiler PSI in one deterministic per-scan session |
 | Domain mapping | Immutable parser-neutral method and typed-evidence records |
-| REST entrypoints | Direct Spring controller and mapping annotations; class and method annotations are treated separately; best-effort verb/route display metadata |
-| Kafka entrypoints | Direct `@KafkaListener`; best-effort topic display metadata |
-| Scheduled entrypoints | Direct `@Scheduled`; best-effort cron/fixed-delay/fixed-rate display metadata |
-| Local calls | Same-class and declared-receiver calls from fields, constructor properties, parameters, and locals; language fragments are merged for conservative Java/Kotlin cross-language linking; a single direct Java or Kotlin interface implementation is followed at `MEDIUM` confidence |
+| REST entrypoints | Direct Spring controller/mapping annotations plus inherited and recursively composed Kotlin annotations; best-effort verb/route display metadata |
+| Kafka entrypoints | Direct listeners plus inherited/composed Kotlin listener annotations; best-effort topic display metadata |
+| Scheduled entrypoints | Direct plus inherited/composed Kotlin `@Scheduled`; best-effort schedule display metadata |
+| Local calls | Same-class and declared receivers from fields, constructor properties, parameters, locals, and Kotlin injected-property chains; Kotlin resolves source-decidable overloads, transitive interfaces, inherited/default methods, defaults and varargs; typed same-arity overloads relink across Java/Kotlin |
 | Flow model | Bounded, cycle-safe reached methods plus explicit call edges and terminal boundaries |
 | Confidence | Per-edge and per-reached-method propagation; findings capped by the path that reaches their evidence |
 | Rules | Deterministic parser-neutral rule catalog listed in [RULES.md](RULES.md) |
@@ -66,11 +66,11 @@ Git changed-file scope exist for controlled CI adoption, but gating is disabled 
 
 Alpha 1 does not guarantee:
 
-- arbitrary custom module layouts beyond conventional nested build descriptors;
-- generated sources or nonstandard source roots;
+- arbitrary custom module layouts beyond nested build descriptors;
+- dynamically computed source roots that cannot be reduced to a safe project-relative literal;
 - a complete dependency classpath or full JavaSymbolSolver semantics;
-- inherited or meta-annotated Spring entrypoints;
-- complete overload, generic, interface, inheritance, inner-class, default-method, or Kotlin default-argument resolution;
+- equivalent transitive hierarchy/composed-annotation resolution in every Java syntax shape;
+- cross-language default-argument, vararg, or generic substitution that requires compiler semantics;
 - Spring proxy, AOP, bean-factory, reflection, or runtime configuration behavior;
 - cross-service topology or Kafka producer-to-consumer linking;
 - proof that a logger receiver is a supported logging API in every case;

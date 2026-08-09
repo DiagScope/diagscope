@@ -25,6 +25,18 @@ Every rule must include:
 
 Fixtures do not require Kafka, Spring, Micrometer, a database, or application startup. Alpha 1 analyzes source syntax only.
 
+`kotlin-rule-parity` is the aggregate Kotlin contract for logging, Kafka, database,
+async/resilience, MDC, transaction, catch/output, and proxy rules. Together with
+`kotlin-metric-patterns`, an executable catalog assertion requires every registered rule to be
+exercised on Kotlin source. Its negative cases also freeze trailing-lambda recovery/context handling,
+resource `use`, guarded cleanup, propagated failures, observed async/Kafka results, and ordinary
+transaction propagation.
+
+Kotlin parser tests separately cover transitive and ambiguous interfaces, inherited/default methods,
+same-arity overloads, default/vararg/generic identities, constructor/property/parameter injection,
+composed/inherited annotations, and build-declared source roots. Cross-language overload tests must
+exercise both Java-to-Kotlin and Kotlin-to-Java directions.
+
 ## `silent-catch` contract
 
 The consolidated fixture distinguishes four cases:

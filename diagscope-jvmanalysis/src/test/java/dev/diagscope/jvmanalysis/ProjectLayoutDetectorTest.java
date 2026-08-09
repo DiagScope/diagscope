@@ -72,11 +72,58 @@ class ProjectLayoutDetectorTest {
         Path empty = project("empty", "pom.xml");
         assertThatThrownBy(() -> ProjectLayoutDetector.detect(empty))
                 .isInstanceOf(UnsupportedProjectException.class)
-                .hasMessageContaining("src/main/java or src/main/kotlin");
+                .hasMessageContaining("production source root");
 
         assertThatThrownBy(() -> ProjectLayoutDetector.detect(temp.resolve("missing")))
                 .isInstanceOf(UnsupportedProjectException.class)
                 .hasMessageContaining("does not exist");
+    }
+
+    @Test
+    void detects_literal_gradle_source_set_roots_for_java_and_kotlin() throws IOException {
+        Path root = project("custom-gradle-roots", "build.gradle.kts");
+        Files.writeString(root.resolve("build.gradle.kts"), """
+                sourceSets {
+                    main {
+                        kotlin.srcDir("src/production/kotlin")
+                        java.srcDirs("src/generated/java", "src/shared/java")
+                    }
+                    test { kotlin.srcDir("src/test-support/kotlin") }
+                }
+                """);
+        Path kotlin = Files.createDirectories(root.resolve("src/production/kotlin"));
+        Path generated = Files.createDirectories(root.resolve("src/generated/java"));
+        Path shared = Files.createDirectories(root.resolve("src/shared/java"));
+        Files.createDirectories(root.resolve("src/test-support/kotlin"));
+
+        var layout = ProjectLayoutDetector.detect(root);
+
+        assertThat(layout.sourceRoots()).containsExactly(generated, kotlin, shared);
+    }
+
+    @Test
+    void detects_build_helper_and_kotlin_maven_source_roots_without_leaving_the_module() throws IOException {
+        Path root = project("custom-maven-roots", "pom.xml");
+        Files.writeString(root.resolve("pom.xml"), """
+                <project>
+                  <build><plugins>
+                    <plugin><configuration><sources>
+                      <source>${project.basedir}/src/domain/kotlin</source>
+                      <source>../outside</source>
+                    </sources></configuration></plugin>
+                    <plugin><configuration><sourceDirs>
+                      <sourceDir>src/integration/java</sourceDir>
+                    </sourceDirs></configuration></plugin>
+                  </plugins></build>
+                </project>
+                """);
+        Path kotlin = Files.createDirectories(root.resolve("src/domain/kotlin"));
+        Path java = Files.createDirectories(root.resolve("src/integration/java"));
+        Files.createDirectories(temp.resolve("outside"));
+
+        var layout = ProjectLayoutDetector.detect(root);
+
+        assertThat(layout.sourceRoots()).containsExactly(kotlin, java);
     }
 
     private Path project(String name, String descriptor) throws IOException {

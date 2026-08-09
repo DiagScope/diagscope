@@ -799,8 +799,33 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 assignedVariable(call),
                 insideFinally(call),
                 insideLoop(call),
-                isLoggerCall(call, variableTypes, policy)
+                isLoggerCall(call, variableTypes, policy),
+                argumentTypes(call, variableTypes)
         );
+    }
+
+    /** Conservative source-only argument types used by the cross-language linker. */
+    private static List<String> argumentTypes(MethodCallExpr call, Map<String, String> variableTypes) {
+        return call.getArguments().stream().map(argument -> argumentType(argument, variableTypes)).toList();
+    }
+
+    private static String argumentType(Expression expression, Map<String, String> variableTypes) {
+        if (expression.isNameExpr()) {
+            return Objects.requireNonNullElse(variableTypes.get(expression.asNameExpr().getNameAsString()), "");
+        }
+        if (expression.isStringLiteralExpr() || expression.isTextBlockLiteralExpr()) return "String";
+        if (expression.isIntegerLiteralExpr()) return "int";
+        if (expression.isLongLiteralExpr()) return "long";
+        if (expression.isDoubleLiteralExpr()) {
+            String value = expression.asDoubleLiteralExpr().getValue();
+            return value.endsWith("f") || value.endsWith("F") ? "float" : "double";
+        }
+        if (expression.isBooleanLiteralExpr()) return "boolean";
+        if (expression.isCharLiteralExpr()) return "char";
+        if (expression.isNullLiteralExpr()) return "null";
+        if (expression.isObjectCreationExpr()) return expression.asObjectCreationExpr().getTypeAsString();
+        if (expression.isCastExpr()) return expression.asCastExpr().getTypeAsString();
+        return "";
     }
 
     private static String inferReceiverType(String rawScope) {

@@ -153,6 +153,234 @@ class KotlinParserProjectAnalyzerTest {
         });
     }
 
+    @Test
+    void follows_transitive_interfaces_to_the_single_concrete_implementation() throws IOException {
+        var analyzed = analyzeSource("kotlin-transitive-interface", """
+                package sample
+                interface RootPort { fun execute(id: String): Boolean }
+                interface SpecializedPort : RootPort
+                class PortAdapter : SpecializedPort {
+                    override fun execute(id: String): Boolean = true
+                }
+                @RestController
+                class Controller(private val port: RootPort) {
+                    @GetMapping("/execute")
+                    fun execute(id: String): Boolean = port.execute(id)
+                }
+                """);
+
+        assertThat(method(analyzed, "Controller", "execute").calls()).singleElement().satisfies(call -> {
+            assertThat(call.target()).isPresent();
+            assertThat(call.target().orElseThrow().declaringType()).endsWith("PortAdapter");
+            assertThat(call.resolutionReason()).isEqualTo(ResolutionReason.SINGLE_IMPLEMENTATION);
+        });
+    }
+
+    @Test
+    void resolves_inherited_and_interface_default_methods() throws IOException {
+        var analyzed = analyzeSource("kotlin-inherited-methods", """
+                package sample
+                open class BaseRepository { fun inherited(id: String): Boolean = true }
+                class Repository : BaseRepository()
+                interface DefaultPort { fun fallback(id: String): Boolean = true }
+                class DefaultAdapter : DefaultPort
+                @RestController
+                class Controller(
+                    private val repository: Repository,
+                    private val defaultPort: DefaultPort
+                ) {
+                    @GetMapping("/execute")
+                    fun execute(id: String): Boolean {
+                        repository.inherited(id)
+                        return defaultPort.fallback(id)
+                    }
+                }
+                """);
+
+        assertThat(method(analyzed, "Controller", "execute").calls())
+                .filteredOn(call -> "inherited".equals(call.methodName()))
+                .singleElement().satisfies(call -> {
+                    assertThat(call.target()).isPresent();
+                    assertThat(call.target().orElseThrow().declaringType()).endsWith("BaseRepository");
+                    assertThat(call.resolutionReason()).isEqualTo(ResolutionReason.DECLARED_RECEIVER);
+                });
+        assertThat(method(analyzed, "Controller", "execute").calls())
+                .filteredOn(call -> "fallback".equals(call.methodName()))
+                .singleElement().satisfies(call -> {
+                    assertThat(call.target()).isPresent();
+                    assertThat(call.target().orElseThrow().declaringType()).endsWith("DefaultPort");
+                    assertThat(call.resolutionReason()).isEqualTo(ResolutionReason.SINGLE_IMPLEMENTATION);
+                });
+    }
+
+    @Test
+    void follows_constructor_injected_property_chains() throws IOException {
+        var analyzed = analyzeSource("kotlin-injected-property-chain", """
+                package sample
+                class Repository { fun load(id: String): Boolean = true }
+                class Service(val repository: Repository)
+                @RestController
+                class Controller(private val service: Service) {
+                    @GetMapping("/load")
+                    fun load(id: String): Boolean = service.repository.load(id)
+                }
+                """);
+
+        assertThat(method(analyzed, "Controller", "load").calls()).singleElement().satisfies(call -> {
+            assertThat(call.target()).isPresent();
+            assertThat(call.target().orElseThrow().declaringType()).endsWith("Repository");
+            assertThat(call.resolutionReason()).isEqualTo(ResolutionReason.DECLARED_RECEIVER);
+        });
+    }
+
+    @Test
+    void expands_meta_annotations_and_inherits_entrypoints_and_advice_targets() throws IOException {
+        var analyzed = analyzeSource("kotlin-composed-annotations", """
+                package sample
+                annotation class RestController
+                annotation class RequestMapping(val value: String)
+                annotation class GetMapping(val value: String)
+                annotation class Aspect
+                annotation class Component
+                annotation class Around(val value: String)
+                annotation class Audited
+                @RestController
+                @RequestMapping("/api")
+                annotation class ApiController
+                @GetMapping("/orders")
+                annotation class OrdersRoute
+                @Audited
+                annotation class BusinessOperation
+                @ApiController
+                interface OrdersApi {
+                    @OrdersRoute
+                    @BusinessOperation
+                    fun orders(id: String): Boolean
+                }
+                @ApiController
+                class OrdersController : OrdersApi {
+                    override fun orders(id: String): Boolean = true
+                }
+                @Aspect
+                @Component
+                class AuditAspect {
+                    @Around("@annotation(Audited)")
+                    fun observe() {}
+                }
+                """);
+
+        assertThat(analyzed.entrypoints()).singleElement().satisfies(entrypoint -> {
+            assertThat(entrypoint.type()).isEqualTo(EntrypointType.REST);
+            assertThat(entrypoint.method().declaringType()).endsWith("OrdersController");
+            assertThat(entrypoint.displayName()).isEqualTo("GET /api/orders");
+        });
+        assertThat(method(analyzed, "OrdersController", "orders").annotations())
+                .contains("ApiController", "RestController", "RequestMapping",
+                        "OrdersRoute", "GetMapping", "BusinessOperation", "Audited");
+        assertThat(method(analyzed, "OrdersController", "orders").proxy().matchingAdvice())
+                .containsExactly("sample.AuditAspect.observe @Around");
+    }
+
+    @Test
+    void disambiguates_overloads_and_preserves_default_vararg_and_generic_identities() throws IOException {
+        var analyzed = analyzeSource("kotlin-rich-method-identity", """
+                package sample
+                class Service {
+                    fun load(id: String): String = id
+                    fun load(id: Int): String = id.toString()
+                    fun consume(values: List<String>): String = values.first()
+                    fun consume(values: Set<String>): String = values.first()
+                    fun collect(prefix: String = "default", vararg values: String): String = prefix
+                    fun <T> echo(value: T): T = value
+                }
+                @RestController
+                class Controller(private val service: Service) {
+                    @GetMapping("/identity")
+                    fun identity(values: List<String>): String {
+                        service.load("order")
+                        service.load(42)
+                        service.consume(values)
+                        service.collect("prefix", "one", "two")
+                        return service.echo("done")
+                    }
+                }
+                """);
+
+        MethodModel controller = method(analyzed, "Controller", "identity");
+        assertThat(controller.calls()).filteredOn(call -> "load".equals(call.methodName()))
+                .extracting(call -> call.target().orElseThrow().parameterTypes().getFirst())
+                .containsExactly("String", "Int");
+        assertThat(controller.calls()).filteredOn(call -> "consume".equals(call.methodName()))
+                .singleElement().satisfies(call ->
+                        assertThat(call.target().orElseThrow().parameterTypes()).containsExactly("List<String>"));
+        assertThat(controller.calls()).filteredOn(call -> "collect".equals(call.methodName()))
+                .singleElement().satisfies(call -> assertThat(call.target()).isPresent());
+        assertThat(controller.calls()).filteredOn(call -> "echo".equals(call.methodName()))
+                .singleElement().satisfies(call ->
+                        assertThat(call.target().orElseThrow().parameterTypes()).containsExactly("T"));
+    }
+
+    @Test
+    void maps_constructor_property_and_method_parameter_injection() throws IOException {
+        var analyzed = analyzeSource("kotlin-injection-shapes", """
+                package sample
+                class Service { fun execute() {} }
+                @RestController
+                class Controller(private val constructorService: Service) {
+                    lateinit var propertyService: Service
+                    @GetMapping("/injection")
+                    fun execute(parameterService: Service) {
+                        constructorService.execute()
+                        propertyService.execute()
+                        parameterService.execute()
+                    }
+                }
+                """);
+
+        assertThat(method(analyzed, "Controller", "execute").calls())
+                .filteredOn(call -> "execute".equals(call.methodName()))
+                .hasSize(3)
+                .allSatisfy(call -> {
+                    assertThat(call.target()).isPresent();
+                    assertThat(call.target().orElseThrow().declaringType()).endsWith("Service");
+                    assertThat(call.resolutionReason()).isEqualTo(ResolutionReason.DECLARED_RECEIVER);
+                });
+    }
+
+    @Test
+    void analyzes_kotlin_from_a_gradle_declared_source_set() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("kotlin-custom-source-set"));
+        Files.writeString(root.resolve("build.gradle.kts"), """
+                sourceSets {
+                    main { kotlin.srcDir("src/domain/kotlin") }
+                }
+                """);
+        Path sourceRoot = Files.createDirectories(root.resolve("src/domain/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Controller.kt"), """
+                package sample
+                @RestController
+                class Controller {
+                    @GetMapping("/custom-root")
+                    fun execute(): Boolean = true
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(analyzed.discoveredSourceFiles()).isEqualTo(1);
+        assertThat(analyzed.entrypoints()).singleElement()
+                .satisfies(entrypoint -> assertThat(entrypoint.displayName()).isEqualTo("GET /custom-root"));
+    }
+
+    private dev.diagscope.core.domain.AnalyzedProject analyzeSource(String projectName, String source)
+            throws IOException {
+        Path root = Files.createDirectories(temp.resolve(projectName));
+        Files.writeString(root.resolve("build.gradle.kts"), "plugins { kotlin(\"jvm\") }\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Flow.kt"), source);
+        return new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+    }
+
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {
         return project.methods().values().stream()
                 .filter(method -> method.id().declaringType().endsWith(type) && method.id().name().equals(name))

@@ -118,7 +118,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         MappedProject mapped = merge(batch.units());
         List<AspectAdvice> aspects = collectAspects(mapped);
         Map<MethodId, MethodModel> methods = resolveCalls(mapped, aspects);
-        List<Entrypoint> entrypoints = detectEntrypoints(mapped.methods(),
+        List<Entrypoint> entrypoints = detectEntrypoints(mapped,
                 options.enabledEntrypointTypes(), options.policy());
 
         var failures = new ArrayList<ParseFailure>(batch.failures());
@@ -231,9 +231,6 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 function.getValueParameters().stream().map(KotlinParserProjectAnalyzer::parameterType).toList());
         SourceLocation location = location(root, file, lines, function);
         List<AnnotationDescriptor> methodAnnotations = annotations(function);
-        var annotationNames = new TreeSet<String>();
-        typeAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
-        methodAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
 
         Map<String, String> variableTypes = declaredVariables(owner);
         var fieldNames = new LinkedHashSet<>(variableTypes.keySet());
@@ -281,24 +278,32 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String receiverType = Optional.ofNullable(receiverType(scope, variableTypes))
                     .orElseGet(() -> inferReceiverType(scope));
             invocations.add(invocationEvidence(callLocation, call, methodName, scope, receiverType,
-                    isLoggerCall(call, variableTypes, policy)));
+                    isLoggerCall(call, variableTypes, policy), inferArgumentTypes(call, variableTypes)));
             metricTags.addAll(KotlinMetricEvidenceExtractor.tags(callLocation, call, metricContext));
             KotlinMetricEvidenceExtractor.meter(callLocation, call, metricContext).ifPresent(metricNames::add);
-            calls.add(new RawCall(callLocation, scope, receiverType, methodName, argumentCount(call)));
+            calls.add(new RawCall(callLocation, scope, receiverType, methodName, argumentCount(call),
+                    inferArgumentTypes(call, variableTypes)));
         }
 
         int minimumArity = (int) function.getValueParameters().stream()
                 .filter(parameter -> !parameter.hasDefaultValue() && !parameter.isVarArg()).count();
         boolean vararg = function.getValueParameters().stream().anyMatch(KtParameter::isVarArg);
+        int varargIndex = -1;
+        for (int index = 0; index < function.getValueParameters().size(); index++) {
+            if (function.getValueParameters().get(index).isVarArg()) {
+                varargIndex = index;
+                break;
+            }
+        }
         int maximumArity = vararg ? Integer.MAX_VALUE : function.getValueParameters().size();
         boolean springOpened = kotlinSpringEnabled && typeAnnotations.stream()
                 .map(AnnotationDescriptor::name).anyMatch(SPRING_STEREOTYPES::contains);
         String returnType = function.getTypeReference() == null ? "" : function.getTypeReference().getTypeText();
-        return new RawMethod(id, location, Set.copyOf(annotationNames), typeAnnotations, methodAnnotations,
+        return new RawMethod(id, location, typeAnnotations, methodAnnotations,
                 catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
                 List.copyOf(calls), Map.copyOf(variableTypes),
                 visibility(function), false, effectiveFinal(function, springOpened), returnType,
-                minimumArity, maximumArity, owner == null);
+                minimumArity, maximumArity, varargIndex, owner == null, function.getBodyExpression() != null);
     }
 
     private static CatchEvidence catchEvidence(
@@ -352,16 +357,61 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String methodName,
             String scope,
             String receiverType,
-            boolean loggerReceiver
+            boolean loggerReceiver,
+            List<String> argumentTypes
     ) {
         return new InvocationEvidence(location, scope, receiverType, methodName,
-                call.getValueArguments().stream()
-                        .map(ValueArgument::getArgumentExpression)
-                        .map(expression -> expression == null ? "" : expression.getText())
-                        .toList(),
+                invocationArguments(call),
                 resultUsage(call), false, resourceManaged(call), assignedVariable(call),
                 hasAncestor(call, KtFinallySection.class), hasAncestor(call, KtLoopExpression.class),
-                loggerReceiver);
+                loggerReceiver, argumentTypes);
+    }
+
+    /**
+     * Keeps both parenthesized values and trailing lambdas. Kotlin APIs commonly carry the error,
+     * context propagation, or completion handling exclusively in a trailing lambda, so dropping it
+     * turns a correct async/HTTP/MDC call into an apparent evidence-loss finding.
+     */
+    private static List<String> invocationArguments(KtCallExpression call) {
+        var arguments = new ArrayList<String>(
+                call.getValueArguments().size() + call.getLambdaArguments().size());
+        call.getValueArguments().stream()
+                .map(ValueArgument::getArgumentExpression)
+                .map(expression -> expression == null ? "" : expression.getText())
+                .forEach(arguments::add);
+        call.getLambdaArguments().stream().map(PsiElement::getText).forEach(arguments::add);
+        return List.copyOf(arguments);
+    }
+
+    /** Conservative source-only types used to distinguish same-arity Kotlin overloads. */
+    private static List<String> inferArgumentTypes(KtCallExpression call, Map<String, String> variableTypes) {
+        var types = new ArrayList<String>(call.getValueArguments().size() + call.getLambdaArguments().size());
+        call.getValueArguments().stream()
+                .map(ValueArgument::getArgumentExpression)
+                .map(expression -> inferExpressionType(expression, variableTypes))
+                .forEach(types::add);
+        call.getLambdaArguments().forEach(ignored -> types.add("Function"));
+        return List.copyOf(types);
+    }
+
+    private static String inferExpressionType(KtExpression expression, Map<String, String> variableTypes) {
+        if (expression == null) return "";
+        String text = expression.getText().trim();
+        String variableType = variableTypes.get(text);
+        if (variableType != null) return variableType;
+        if (text.startsWith("\"") || text.startsWith("\"\"\"")) return "String";
+        if (text.matches("[-+]?\\d+[lL]")) return "Long";
+        if (text.matches("[-+]?\\d+")) return "Int";
+        if (text.matches("[-+]?(?:\\d+\\.\\d*|\\d*\\.\\d+)(?:[eE][-+]?\\d+)?[fF]")) return "Float";
+        if (text.matches("[-+]?(?:\\d+\\.\\d*|\\d*\\.\\d+)(?:[eE][-+]?\\d+)?")) return "Double";
+        if ("true".equals(text) || "false".equals(text)) return "Boolean";
+        if (text.matches("'(?:[^'\\\\]|\\\\.)'")) return "Char";
+        if ("null".equals(text)) return "null";
+        if (expression instanceof KtCallExpression nested) {
+            String callee = methodName(nested);
+            if (!callee.isBlank() && Character.isUpperCase(callee.charAt(0))) return callee;
+        }
+        return "";
     }
 
     private static InvocationResultUsage resultUsage(KtCallExpression call) {
@@ -495,7 +545,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         typesBySimpleName.values().forEach(list -> list.sort(Comparator.comparing(TypeInfo::qualifiedName)));
         var implementationsBySuperType = new HashMap<String, List<TypeInfo>>();
         for (TypeInfo type : project.types().values()) {
-            for (String superType : type.superTypes()) {
+            if (type.interfaceType()) continue;
+            for (String superType : allSuperTypes(type, project.types(), typesBySimpleName)) {
                 implementationsBySuperType.computeIfAbsent(simpleName(superType), ignored -> new ArrayList<>())
                         .add(type);
             }
@@ -505,6 +556,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
 
         var result = new LinkedHashMap<MethodId, MethodModel>();
         for (RawMethod raw : project.methods().values()) {
+            List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(raw, project);
+            List<AnnotationDescriptor> methodAnnotations = effectiveMethodAnnotations(raw, project);
+            var annotationNames = new TreeSet<String>();
+            typeAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
+            methodAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
             var calls = new ArrayList<MethodCall>();
             for (RawCall call : raw.calls()) {
                 Resolution resolution = resolveCall(raw, call, project.types(), typesBySimpleName,
@@ -515,12 +571,31 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             List<InvocationEvidence> invocations = project.producerListenerVisible()
                     ? raw.invocations().stream().map(item -> item.withProducerListenerVisible(true)).toList()
                     : raw.invocations();
-            result.put(raw.id(), new MethodModel(raw.id(), raw.location(), raw.annotations(), raw.catches(),
+            invocations = enrichReceiverTypes(raw, invocations, project.types(), typesBySimpleName);
+            result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(annotationNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
-                    proxyProfile(raw, project.types(), aspects),
-                    annotationAttributes(raw)));
+                    proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations),
+                    annotationAttributes(typeAnnotations, methodAnnotations)));
         }
         return Collections.unmodifiableMap(result);
+    }
+
+    private static List<InvocationEvidence> enrichReceiverTypes(
+            RawMethod method,
+            List<InvocationEvidence> invocations,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName
+    ) {
+        return invocations.stream().map(invocation -> {
+            if (!invocation.receiverType().isBlank()) return invocation;
+            RawCall call = method.calls().stream()
+                    .filter(candidate -> candidate.location().equals(invocation.location()))
+                    .filter(candidate -> candidate.methodName().equals(invocation.methodName()))
+                    .findFirst().orElse(null);
+            if (call == null) return invocation;
+            String receiverType = resolveScopedReceiverType(method, call.scope(), types, typesBySimpleName);
+            return receiverType.isBlank() ? invocation : invocation.withReceiverType(receiverType);
+        }).toList();
     }
 
     private static Resolution resolveCall(
@@ -534,38 +609,60 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         if (call.scope().isBlank() || "this".equals(call.scope())) {
             return choose(byTypeAndName.get(caller.id().declaringType() + '#' + call.methodName()),
-                    call.argumentCount(), ResolutionReason.SAME_CLASS);
+                    call, ResolutionReason.SAME_CLASS);
         }
-        if (!call.receiverType().isBlank()) {
-            String receiver = simpleName(call.receiverType());
+        String declaredReceiverType = call.receiverType().isBlank()
+                ? resolveScopedReceiverType(caller, call.scope(), types, typesBySimpleName)
+                : call.receiverType();
+        if (!declaredReceiverType.isBlank()) {
+            String receiver = simpleName(declaredReceiverType);
             List<TypeInfo> receiverTypes = typesBySimpleName.getOrDefault(receiver, List.of());
-            if (receiverTypes.size() > 1 && !types.containsKey(baseTypeName(call.receiverType()))) {
+            if (receiverTypes.size() > 1 && !types.containsKey(baseTypeName(declaredReceiverType))) {
                 return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
             }
-            TypeInfo receiverInfo = Optional.ofNullable(types.get(baseTypeName(call.receiverType())))
+            TypeInfo receiverInfo = Optional.ofNullable(types.get(baseTypeName(declaredReceiverType)))
                     .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.getFirst() : null);
             if (receiverInfo == null) {
                 return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
             }
             if (!receiverInfo.interfaceType()) {
-                return choose(byTypeAndName.get(receiverInfo.qualifiedName() + '#' + call.methodName()),
-                        call.argumentCount(), ResolutionReason.DECLARED_RECEIVER);
+                Resolution declared = choose(
+                        byTypeAndName.get(receiverInfo.qualifiedName() + '#' + call.methodName()),
+                        call, ResolutionReason.DECLARED_RECEIVER);
+                if (declared.target().isPresent() || declared.reason() == ResolutionReason.AMBIGUOUS) {
+                    return declared;
+                }
+                return choose(hierarchyMethods(receiverInfo, call.methodName(), types, typesBySimpleName,
+                                byTypeAndName, new LinkedHashSet<>()),
+                        call, ResolutionReason.DECLARED_RECEIVER);
             }
 
-            var implementations = new ArrayList<RawMethod>();
+            var implementations = new LinkedHashMap<MethodId, RawMethod>();
             for (TypeInfo type : implementationsBySuperType.getOrDefault(receiver, List.of())) {
-                List<RawMethod> methods = byTypeAndName.get(type.qualifiedName() + '#' + call.methodName());
-                if (methods != null) {
-                    methods.stream().filter(candidate -> candidate.acceptsArity(call.argumentCount()))
-                            .forEach(implementations::add);
-                }
+                hierarchyMethods(type, call.methodName(), types, typesBySimpleName,
+                        byTypeAndName, new LinkedHashSet<>()).stream()
+                        .filter(candidate -> candidate.acceptsArity(call.argumentCount()))
+                        .forEach(candidate -> implementations.putIfAbsent(candidate.id(), candidate));
             }
             if (implementations.size() == 1) {
-                return new Resolution(Optional.of(implementations.getFirst().id()),
+                return new Resolution(Optional.of(implementations.values().iterator().next().id()),
                         ResolutionReason.SINGLE_IMPLEMENTATION);
             }
             if (implementations.size() > 1) {
+                List<RawMethod> typed = bestTypedMatches(
+                        List.copyOf(implementations.values()), call.argumentTypes());
+                if (typed.size() == 1) {
+                    return new Resolution(Optional.of(typed.getFirst().id()),
+                            ResolutionReason.SINGLE_IMPLEMENTATION);
+                }
                 return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
+            }
+            Resolution defaultMethod = choose(
+                    hierarchyMethods(receiverInfo, call.methodName(), types, typesBySimpleName,
+                            byTypeAndName, new LinkedHashSet<>()),
+                    call, ResolutionReason.DECLARED_RECEIVER);
+            if (defaultMethod.target().isPresent() || defaultMethod.reason() == ResolutionReason.AMBIGUOUS) {
+                return defaultMethod;
             }
             return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
         }
@@ -573,35 +670,206 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String possibleType = simpleName(call.scope());
             if (typesBySimpleName.containsKey(possibleType)) {
                 return choose(bySimpleTypeAndName.get(possibleType + '#' + call.methodName()),
-                        call.argumentCount(), ResolutionReason.DECLARED_RECEIVER);
+                        call, ResolutionReason.DECLARED_RECEIVER);
             }
             return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
         }
         return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
     }
 
-    private static Resolution choose(List<RawMethod> candidates, int arity, ResolutionReason success) {
+    /** Resolves constructor/property injection chains such as {@code service.repository}. */
+    private static String resolveScopedReceiverType(
+            RawMethod caller,
+            String scope,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName
+    ) {
+        if (scope == null || !scope.matches("(?:this\\.)?[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
+            return "";
+        }
+        String[] parts = scope.split("\\.");
+        int index = 0;
+        String currentType;
+        if ("this".equals(parts[0])) {
+            currentType = caller.id().declaringType();
+            index = 1;
+        } else {
+            currentType = caller.variableTypes().get(parts[0]);
+            index = 1;
+        }
+        if (currentType == null || currentType.isBlank()) return "";
+        while (index < parts.length) {
+            TypeInfo info = findType(currentType, types, typesBySimpleName);
+            if (info == null) return "";
+            currentType = info.memberTypes().get(parts[index++]);
+            if (currentType == null || currentType.isBlank()) return "";
+        }
+        return currentType;
+    }
+
+    /** Returns the closest declaration of a method on a type or one of its parents. */
+    private static List<RawMethod> hierarchyMethods(
+            TypeInfo type,
+            String methodName,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName,
+            Map<String, List<RawMethod>> byTypeAndName,
+            Set<String> visited
+    ) {
+        if (!visited.add(type.qualifiedName())) return List.of();
+        List<RawMethod> declared = byTypeAndName.getOrDefault(
+                        type.qualifiedName() + '#' + methodName, List.of()).stream()
+                .filter(RawMethod::executableBody)
+                .toList();
+        if (!declared.isEmpty()) return declared;
+
+        var inherited = new LinkedHashMap<MethodId, RawMethod>();
+        type.superTypes().stream().sorted().forEach(superType -> {
+            TypeInfo parent = findType(superType, types, typesBySimpleName);
+            if (parent == null) return;
+            hierarchyMethods(parent, methodName, types, typesBySimpleName, byTypeAndName, visited)
+                    .forEach(method -> inherited.putIfAbsent(method.id(), method));
+        });
+        return List.copyOf(inherited.values());
+    }
+
+    /** Computes the transitive interface/superclass closure used by single-implementation dispatch. */
+    private static Set<String> allSuperTypes(
+            TypeInfo type,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName
+    ) {
+        var result = new LinkedHashSet<String>();
+        collectSuperTypes(type, types, typesBySimpleName, result, new LinkedHashSet<>());
+        return Collections.unmodifiableSet(new TreeSet<>(result));
+    }
+
+    private static void collectSuperTypes(
+            TypeInfo type,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName,
+            Set<String> result,
+            Set<String> visited
+    ) {
+        if (!visited.add(type.qualifiedName())) return;
+        for (String superType : type.superTypes()) {
+            result.add(superType);
+            TypeInfo parent = findType(superType, types, typesBySimpleName);
+            if (parent != null) collectSuperTypes(parent, types, typesBySimpleName, result, visited);
+        }
+    }
+
+    private static TypeInfo findType(
+            String typeName,
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> typesBySimpleName
+    ) {
+        TypeInfo qualified = types.get(baseTypeName(typeName));
+        if (qualified != null) return qualified;
+        List<TypeInfo> simpleMatches = typesBySimpleName.getOrDefault(simpleName(typeName), List.of());
+        return simpleMatches.size() == 1 ? simpleMatches.getFirst() : null;
+    }
+
+    private static TypeInfo findType(String typeName, Map<String, TypeInfo> types) {
+        TypeInfo qualified = types.get(baseTypeName(typeName));
+        if (qualified != null) return qualified;
+        List<TypeInfo> simpleMatches = types.values().stream()
+                .filter(type -> type.simpleName().equals(simpleName(typeName)))
+                .limit(2).toList();
+        return simpleMatches.size() == 1 ? simpleMatches.getFirst() : null;
+    }
+
+    private static Resolution choose(List<RawMethod> candidates, RawCall call, ResolutionReason success) {
         if (candidates == null) return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
-        List<RawMethod> matches = candidates.stream().filter(candidate -> candidate.acceptsArity(arity)).limit(2).toList();
+        List<RawMethod> matches = candidates.stream()
+                .filter(candidate -> candidate.acceptsArity(call.argumentCount()))
+                .toList();
         if (matches.size() == 1) return new Resolution(Optional.of(matches.getFirst().id()), success);
-        if (matches.size() > 1) return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
+        if (matches.size() > 1) {
+            List<RawMethod> typed = bestTypedMatches(matches, call.argumentTypes());
+            if (typed.size() == 1) return new Resolution(Optional.of(typed.getFirst().id()), success);
+            return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
+        }
         return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
     }
 
+    private static List<RawMethod> bestTypedMatches(List<RawMethod> candidates, List<String> argumentTypes) {
+        int bestScore = Integer.MIN_VALUE;
+        var best = new ArrayList<RawMethod>();
+        for (RawMethod candidate : candidates) {
+            int score = compatibilityScore(candidate, argumentTypes);
+            if (score < 0) continue;
+            if (score > bestScore) {
+                bestScore = score;
+                best.clear();
+            }
+            if (score == bestScore) best.add(candidate);
+        }
+        return List.copyOf(best);
+    }
+
+    private static int compatibilityScore(RawMethod candidate, List<String> argumentTypes) {
+        int score = 0;
+        for (int index = 0; index < argumentTypes.size(); index++) {
+            String argument = normalizedJvmType(argumentTypes.get(index));
+            if (argument.isBlank() || "null".equals(argument) || "Function".equals(argument)) continue;
+            int parameterIndex = candidate.varargIndex() >= 0 && index >= candidate.varargIndex()
+                    ? candidate.varargIndex() : index;
+            if (parameterIndex >= candidate.id().parameterTypes().size()) return -1;
+            String parameter = normalizedJvmType(candidate.id().parameterTypes().get(parameterIndex));
+            if (parameter.isBlank() || "Any".equals(parameter) || "Object".equals(parameter)
+                    || parameter.matches("[A-Z]")) continue;
+            if (parameter.equals(argument)) {
+                score += 3;
+            } else if (isNumericType(parameter) && isNumericType(argument)) {
+                score += 1;
+            } else {
+                return -1;
+            }
+        }
+        return score;
+    }
+
+    private static boolean isNumericType(String type) {
+        return Set.of("Byte", "Short", "Int", "Long", "Float", "Double").contains(type);
+    }
+
+    private static String normalizedJvmType(String type) {
+        String normalized = simpleName(type).replace("out ", "").replace("in ", "").trim();
+        return switch (normalized) {
+            case "Integer", "int" -> "Int";
+            case "long" -> "Long";
+            case "boolean" -> "Boolean";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "short" -> "Short";
+            case "byte" -> "Byte";
+            case "char", "Character" -> "Char";
+            default -> normalized;
+        };
+    }
+
     private static List<Entrypoint> detectEntrypoints(
-            Map<MethodId, RawMethod> methods,
+            MappedProject project,
             Set<EntrypointType> enabledTypes,
             AnalysisPolicy policy
     ) {
         var result = new ArrayList<Entrypoint>();
-        for (RawMethod method : methods.values()) {
-            if (enabledTypes.contains(EntrypointType.REST)) detectRest(method).ifPresent(result::add);
-            if (enabledTypes.contains(EntrypointType.KAFKA_LISTENER)) detectKafka(method).ifPresent(result::add);
+        for (RawMethod method : project.methods().values()) {
+            if (!method.executableBody()) continue;
+            List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(method, project);
+            List<AnnotationDescriptor> methodAnnotations = effectiveMethodAnnotations(method, project);
+            if (enabledTypes.contains(EntrypointType.REST)) {
+                detectRest(method, typeAnnotations, methodAnnotations).ifPresent(result::add);
+            }
+            if (enabledTypes.contains(EntrypointType.KAFKA_LISTENER)) {
+                detectKafka(method, typeAnnotations, methodAnnotations).ifPresent(result::add);
+            }
             if (enabledTypes.contains(EntrypointType.SCHEDULED)) {
-                annotation(method.methodAnnotations(), "Scheduled").ifPresent(item -> result.add(new Entrypoint(
+                annotation(methodAnnotations, "Scheduled").ifPresent(item -> result.add(new Entrypoint(
                         EntrypointType.SCHEDULED, method.id(), scheduleDisplay(item), method.location())));
             }
-            addCustomEntrypoints(result, method, enabledTypes, policy);
+            addCustomEntrypoints(result, method, methodAnnotations, enabledTypes, policy);
         }
         result.sort(Comparator.comparing((Entrypoint item) -> item.type().name())
                 .thenComparing(Entrypoint::displayName).thenComparing(item -> item.method().displayName()));
@@ -611,10 +879,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static void addCustomEntrypoints(
             List<Entrypoint> result,
             RawMethod method,
+            List<AnnotationDescriptor> effectiveMethodAnnotations,
             Set<EntrypointType> enabledTypes,
             AnalysisPolicy policy
     ) {
-        Set<String> methodAnnotations = method.methodAnnotations().stream()
+        Set<String> methodAnnotations = effectiveMethodAnnotations.stream()
                 .map(AnnotationDescriptor::name).collect(java.util.stream.Collectors.toSet());
         for (EntrypointType type : enabledTypes) {
             if (result.stream().anyMatch(entrypoint -> entrypoint.type() == type
@@ -627,32 +896,40 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         }
     }
 
-    private static Optional<Entrypoint> detectRest(RawMethod method) {
-        boolean controller = annotation(method.typeAnnotations(), "RestController").isPresent()
-                || annotation(method.typeAnnotations(), "Controller").isPresent();
+    private static Optional<Entrypoint> detectRest(
+            RawMethod method,
+            List<AnnotationDescriptor> typeAnnotations,
+            List<AnnotationDescriptor> methodAnnotations
+    ) {
+        boolean controller = annotation(typeAnnotations, "RestController").isPresent()
+                || annotation(typeAnnotations, "Controller").isPresent();
         if (!controller) return Optional.empty();
-        Optional<AnnotationDescriptor> mapping = method.methodAnnotations().stream()
+        Optional<AnnotationDescriptor> mapping = methodAnnotations.stream()
                 .filter(item -> REST_MAPPING_ANNOTATIONS.contains(item.name())).findFirst();
         if (mapping.isEmpty()) return Optional.empty();
-        String prefix = annotation(method.typeAnnotations(), "RequestMapping")
+        String prefix = annotation(typeAnnotations, "RequestMapping")
                 .flatMap(item -> firstAttribute(item, "path", "value")).orElse("");
         String suffix = firstAttribute(mapping.orElseThrow(), "path", "value").orElse("");
         return Optional.of(new Entrypoint(EntrypointType.REST, method.id(),
                 restVerb(mapping.orElseThrow()) + ' ' + combinePaths(prefix, suffix), method.location()));
     }
 
-    private static Optional<Entrypoint> detectKafka(RawMethod method) {
-        Optional<AnnotationDescriptor> listener = annotation(method.methodAnnotations(), "KafkaListener");
+    private static Optional<Entrypoint> detectKafka(
+            RawMethod method,
+            List<AnnotationDescriptor> typeAnnotations,
+            List<AnnotationDescriptor> methodAnnotations
+    ) {
+        Optional<AnnotationDescriptor> listener = annotation(methodAnnotations, "KafkaListener");
         if (listener.isPresent()) {
             return Optional.of(new Entrypoint(EntrypointType.KAFKA_LISTENER, method.id(),
                     kafkaDisplay(listener.orElseThrow()), method.location()));
         }
-        boolean classListener = annotation(method.typeAnnotations(), "KafkaListener").isPresent();
-        boolean handler = annotation(method.methodAnnotations(), "KafkaHandler").isPresent()
-                || annotation(method.methodAnnotations(), "DltHandler").isPresent();
+        boolean classListener = annotation(typeAnnotations, "KafkaListener").isPresent();
+        boolean handler = annotation(methodAnnotations, "KafkaHandler").isPresent()
+                || annotation(methodAnnotations, "DltHandler").isPresent();
         if (!classListener || !handler) return Optional.empty();
         return Optional.of(new Entrypoint(EntrypointType.KAFKA_LISTENER, method.id(),
-                kafkaDisplay(annotation(method.typeAnnotations(), "KafkaListener").orElseThrow()), method.location()));
+                kafkaDisplay(annotation(typeAnnotations, "KafkaListener").orElseThrow()), method.location()));
     }
 
     private static String restVerb(AnnotationDescriptor annotation) {
@@ -703,12 +980,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static List<AspectAdvice> collectAspects(MappedProject project) {
         var result = new ArrayList<AspectAdvice>();
         for (RawMethod method : project.methods().values()) {
-            Set<String> typeAnnotations = new TreeSet<>();
-            method.typeAnnotations().forEach(item -> typeAnnotations.add(item.name()));
-            if (!typeAnnotations.contains("Aspect")) continue;
-            boolean managed = typeAnnotations.stream().anyMatch(name -> SPRING_STEREOTYPES.contains(name)
+            List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(method, project);
+            Set<String> typeAnnotationNames = typeAnnotations.stream().map(AnnotationDescriptor::name)
+                    .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+            if (!typeAnnotationNames.contains("Aspect")) continue;
+            boolean managed = typeAnnotationNames.stream().anyMatch(name -> SPRING_STEREOTYPES.contains(name)
                     && !"Aspect".equals(name));
-            for (AnnotationDescriptor annotation : method.methodAnnotations()) {
+            for (AnnotationDescriptor annotation : effectiveMethodAnnotations(method, project)) {
                 AdviceKind.fromAnnotation(annotation.name()).ifPresent(kind -> result.add(new AspectAdvice(
                         method.id().declaringType(), method.id().name(), kind,
                         firstAttribute(annotation, "value", "pointcut").orElse(""), method.location(), managed)));
@@ -721,48 +999,149 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static ProxyProfile proxyProfile(
             RawMethod method,
             Map<String, TypeInfo> types,
-            List<AspectAdvice> aspects
+            List<AspectAdvice> aspects,
+            Set<String> effectiveAnnotations,
+            List<AnnotationDescriptor> effectiveTypeAnnotations
     ) {
         TypeInfo type = types.get(method.id().declaringType());
         var proxied = new TreeSet<String>();
-        method.annotations().stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxied::add);
+        effectiveAnnotations.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxied::add);
         var matchingAdvice = new ArrayList<String>();
         for (AspectAdvice aspect : aspects) {
             if (aspect.aspectType().equals(method.id().declaringType())) continue;
             var target = new AspectPointcutMatcher.Target(
-                    method.id().declaringType(), method.id().name(), method.annotations());
+                    method.id().declaringType(), method.id().name(), effectiveAnnotations);
             if (AspectPointcutMatcher.matches(aspect.pointcut(), target)) {
                 matchingAdvice.add(aspect.displayName());
             }
         }
-        return new ProxyProfile(method.visibility(), method.staticMethod(), method.finalMethod(),
-                type != null && type.finalType(), type != null && type.springManaged(), false,
+        boolean springManaged = effectiveTypeAnnotations.stream().map(AnnotationDescriptor::name)
+                .anyMatch(SPRING_STEREOTYPES::contains);
+        boolean springOpened = type != null && type.kotlinSpringEnabled() && springManaged;
+        return new ProxyProfile(method.visibility(), method.staticMethod(),
+                method.finalMethod() && !springOpened,
+                type != null && type.finalType() && !springOpened, springManaged, false,
                 proxied, matchingAdvice);
     }
 
-    private static Map<String, Map<String, String>> annotationAttributes(RawMethod method) {
+    private static Map<String, Map<String, String>> annotationAttributes(
+            List<AnnotationDescriptor> typeAnnotations,
+            List<AnnotationDescriptor> methodAnnotations
+    ) {
         var result = new LinkedHashMap<String, Map<String, String>>();
-        method.typeAnnotations().stream().filter(item -> !item.attributes().isEmpty())
+        typeAnnotations.stream().filter(item -> !item.attributes().isEmpty())
                 .forEach(item -> result.put(item.name(), item.attributes()));
-        method.methodAnnotations().stream().filter(item -> !item.attributes().isEmpty())
+        methodAnnotations.stream().filter(item -> !item.attributes().isEmpty())
                 .forEach(item -> result.put(item.name(), item.attributes()));
         return Collections.unmodifiableMap(result);
     }
 
+    private static List<AnnotationDescriptor> effectiveTypeAnnotations(RawMethod method, MappedProject project) {
+        TypeInfo owner = project.types().get(method.id().declaringType());
+        if (owner == null) return expandAnnotations(method.typeAnnotations(), project.types());
+        var result = new LinkedHashMap<String, AnnotationDescriptor>();
+        collectTypeAnnotations(owner, project.types(), result, new LinkedHashSet<>());
+        return List.copyOf(result.values());
+    }
+
+    private static void collectTypeAnnotations(
+            TypeInfo type,
+            Map<String, TypeInfo> types,
+            Map<String, AnnotationDescriptor> result,
+            Set<String> visited
+    ) {
+        if (!visited.add(type.qualifiedName())) return;
+        expandAnnotations(type.declaredAnnotations(), types).forEach(annotation ->
+                result.putIfAbsent(annotation.name(), annotation));
+        type.superTypes().stream().sorted().forEach(superType -> {
+            TypeInfo parent = findType(superType, types);
+            if (parent != null) collectTypeAnnotations(parent, types, result, visited);
+        });
+    }
+
+    private static List<AnnotationDescriptor> effectiveMethodAnnotations(RawMethod method, MappedProject project) {
+        var result = new LinkedHashMap<String, AnnotationDescriptor>();
+        expandAnnotations(method.methodAnnotations(), project.types()).forEach(annotation ->
+                result.putIfAbsent(annotation.name(), annotation));
+        TypeInfo owner = project.types().get(method.id().declaringType());
+        if (owner != null) collectInheritedMethodAnnotations(method, owner, project, result, new LinkedHashSet<>());
+        return List.copyOf(result.values());
+    }
+
+    private static void collectInheritedMethodAnnotations(
+            RawMethod method,
+            TypeInfo type,
+            MappedProject project,
+            Map<String, AnnotationDescriptor> result,
+            Set<String> visited
+    ) {
+        if (!visited.add(type.qualifiedName())) return;
+        for (String superType : type.superTypes().stream().sorted().toList()) {
+            TypeInfo parent = findType(superType, project.types());
+            if (parent == null) continue;
+            project.methods().values().stream()
+                    .filter(candidate -> candidate.id().declaringType().equals(parent.qualifiedName()))
+                    .filter(candidate -> sameSignature(method, candidate))
+                    .flatMap(candidate -> expandAnnotations(candidate.methodAnnotations(), project.types()).stream())
+                    .forEach(annotation -> result.putIfAbsent(annotation.name(), annotation));
+            collectInheritedMethodAnnotations(method, parent, project, result, visited);
+        }
+    }
+
+    private static boolean sameSignature(RawMethod left, RawMethod right) {
+        if (!left.id().name().equals(right.id().name())) return false;
+        if (left.id().parameterTypes().size() != right.id().parameterTypes().size()) return false;
+        for (int index = 0; index < left.id().parameterTypes().size(); index++) {
+            if (!simpleName(left.id().parameterTypes().get(index))
+                    .equals(simpleName(right.id().parameterTypes().get(index)))) return false;
+        }
+        return true;
+    }
+
+    private static List<AnnotationDescriptor> expandAnnotations(
+            List<AnnotationDescriptor> annotations,
+            Map<String, TypeInfo> types
+    ) {
+        var result = new LinkedHashMap<String, AnnotationDescriptor>();
+        collectExpandedAnnotations(annotations, types, result, new LinkedHashSet<>());
+        return List.copyOf(result.values());
+    }
+
+    private static void collectExpandedAnnotations(
+            List<AnnotationDescriptor> annotations,
+            Map<String, TypeInfo> types,
+            Map<String, AnnotationDescriptor> result,
+            Set<String> visited
+    ) {
+        for (AnnotationDescriptor annotation : annotations) {
+            result.putIfAbsent(annotation.name(), annotation);
+            List<TypeInfo> annotationTypes = types.values().stream()
+                    .filter(TypeInfo::annotationType)
+                    .filter(type -> type.simpleName().equals(annotation.name()))
+                    .limit(2).toList();
+            TypeInfo annotationType = annotationTypes.size() == 1 ? annotationTypes.getFirst() : null;
+            if (annotationType != null && visited.add(annotationType.qualifiedName())) {
+                collectExpandedAnnotations(annotationType.declaredAnnotations(), types, result, visited);
+            }
+        }
+    }
+
     private static TypeInfo typeInfo(KtClassOrObject type, boolean kotlinSpringEnabled) {
         String qualified = qualifiedTypeName(type.getContainingKtFile().getPackageFqName().asString(), type);
-        Set<String> annotationNames = annotations(type).stream().map(AnnotationDescriptor::name)
-                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
-        boolean springManaged = annotationNames.stream().anyMatch(SPRING_STEREOTYPES::contains);
+        List<AnnotationDescriptor> declaredAnnotations = annotations(type);
+        boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)
+                .anyMatch(SPRING_STEREOTYPES::contains);
         boolean springOpened = kotlinSpringEnabled && springManaged;
         boolean interfaceType = type instanceof KtClass klass && klass.isInterface();
+        boolean annotationType = type instanceof KtClass klass && klass.isAnnotation();
         boolean finalType = !interfaceType && !springOpened && !type.hasModifier(KtTokens.OPEN_KEYWORD)
                 && !type.hasModifier(KtTokens.ABSTRACT_KEYWORD) && !type.hasModifier(KtTokens.SEALED_KEYWORD);
         Set<String> superTypes = type.getSuperTypeListEntries().stream()
                 .map(PsiElement::getText).map(KotlinParserProjectAnalyzer::baseTypeName)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         return new TypeInfo(qualified, simpleName(qualified), interfaceType, Set.copyOf(superTypes),
-                Set.copyOf(annotationNames), finalType, springManaged);
+                List.copyOf(declaredAnnotations), annotationType, Map.copyOf(declaredVariables(type)),
+                finalType, kotlinSpringEnabled);
     }
 
     private static Map<String, String> declaredVariables(KtClassOrObject owner) {
@@ -1030,15 +1409,20 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private record TypeInfo(String qualifiedName, String simpleName, boolean interfaceType,
-            Set<String> superTypes, Set<String> annotations, boolean finalType, boolean springManaged) {}
+            Set<String> superTypes, List<AnnotationDescriptor> declaredAnnotations,
+            boolean annotationType, Map<String, String> memberTypes, boolean finalType,
+            boolean kotlinSpringEnabled) {}
 
     private record RawCall(SourceLocation location, String scope, String receiverType,
-            String methodName, int argumentCount) {}
+            String methodName, int argumentCount, List<String> argumentTypes) {
+        private RawCall {
+            argumentTypes = List.copyOf(argumentTypes);
+        }
+    }
 
     private record RawMethod(
             MethodId id,
             SourceLocation location,
-            Set<String> annotations,
             List<AnnotationDescriptor> typeAnnotations,
             List<AnnotationDescriptor> methodAnnotations,
             List<CatchEvidence> catches,
@@ -1053,7 +1437,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String returnType,
             int minimumArity,
             int maximumArity,
-            boolean topLevel
+            int varargIndex,
+            boolean topLevel,
+            boolean executableBody
     ) {
         private boolean acceptsArity(int arity) {
             return arity >= minimumArity && arity <= maximumArity;

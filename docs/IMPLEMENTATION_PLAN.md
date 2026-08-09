@@ -29,13 +29,20 @@ with adding more unvalidated rules.
 - [x] multi-module discovery with build system and module metadata in every report;
 - [x] path-aware local flows with `FlowMethod`, `CallEdge`, explicit resolution reasons, terminal
   boundaries, cycle safety, and maximum-depth handling;
-- [x] conservative direct and single-implementation interface resolution;
-- [x] cross-language Java-to-Kotlin and Kotlin-to-Java flow relinking;
+- [x] conservative Kotlin transitive-interface, inherited-method, interface-default, and
+  single-implementation resolution;
+- [x] constructor-property, injected-property, method-parameter, and chained-property receiver
+  mapping for Kotlin;
+- [x] source-typed Java-to-Kotlin and Kotlin-to-Java same-arity overload relinking;
 - [x] confidence propagated by the weakest inference in each path;
 - [x] typed parser-neutral evidence, stable fingerprints, and stable related-flow identities;
 - [x] bounded Java parser concurrency and deterministic project-wide aggregation;
-- [x] Kotlin entrypoints, catches, invocation evidence, resource `use`, default arguments, varargs,
-  Micrometer evidence, and syntax-decidable Spring AOP;
+- [x] Kotlin entrypoints, catches, invocation evidence including trailing lambdas, resource `use`,
+  same-arity overloads, default arguments, varargs, generic identities, Micrometer evidence, and
+  syntax-decidable Spring AOP;
+- [x] inherited and recursively meta-annotated Kotlin entrypoints, proxy annotations, and advice
+  targets;
+- [x] literal Gradle `sourceSets.main` and Maven `build-helper`/Kotlin-plugin production roots;
 - [x] shared AspectJ pointcut matching and advice application across Java/Kotlin fragments.
 
 ### Rules
@@ -130,20 +137,36 @@ be injected outside the repository. Missing local configuration can only lower c
 The repository's existing `.github/workflows/build.yml` verifies DiagScope itself; it is not the
 published scanner Action described here.
 
-## Next — Step 3: resolution and Kotlin parity, driven by validation
+## Delivered in this increment — Kotlin rule and resolution parity
+
+- [x] positive, negative, and near-boundary Kotlin fixtures for logging, Kafka, database,
+  async/resilience, MDC, transaction, catch/output, proxy, and AOP rules;
+- [x] executable aggregate assertion proving that Kotlin fixtures exercise every registered rule,
+  together with the existing metric fixture;
+- [x] preserve trailing-lambda evidence for completion handling, HTTP recovery, and MDC propagation;
+- [x] transitive interface, inherited method, and interface-default resolution beyond the direct
+  single-implementation case;
+- [x] constructor-property, injected-property, method-parameter, and chained-property receiver
+  mapping;
+- [x] source-decidable same-arity overload selection, default/vararg arity, generic method identity,
+  and typed Java-to-Kotlin/Kotlin-to-Java overload relinking;
+- [x] inherited and recursively meta-annotated entrypoints, proxy annotations, and advice targets;
+- [x] literal additional production roots from Gradle `sourceSets.main`, Maven `build-helper`, and
+  Kotlin Maven plugin `sourceDirs`, with project-boundary validation.
+
+## Remaining — Step 3: validation-gated resolution
 
 - [ ] adapter-level positive, negative, and near-boundary fixtures for every enabled rule in Java;
-- [ ] Kotlin parity fixtures for logging, Kafka, database, async/resilience, MDC, and transaction
-  rules, beyond the existing flow, metric, and AOP fixtures;
-- [ ] transitive interface, inherited method, and default-method resolution beyond the direct
-  single-implementation case;
-- [ ] constructor and parameter injection mapping;
-- [ ] richer overload, vararg, generic, and cross-language method identity;
-- [ ] complete-classpath symbol solving as an explicit opt-in mode;
-- [ ] inherited and meta-annotated entrypoints and advice targets;
-- [ ] additional build-declared source roots (`sourceSets`, `build-helper`);
+- [ ] bring transitive hierarchy, composed-annotation, and source-typed overload resolution to the
+  Java adapter where field validation demonstrates a gap;
+- [ ] complete-classpath symbol solving as an explicit opt-in mode, with a declared classpath and no
+  hidden build execution;
+- [ ] cross-language default-argument, vararg, and generic-substitution resolution when source-only
+  identity is insufficient;
+- [ ] dynamic build-script source roots whose paths cannot be read as safe literals;
 - [ ] measured Kotlin PSI parallelism only if real scans show it is a bottleneck;
-- [ ] comparison with standard IDE and linter inspections to prove differential value.
+- [ ] comparison with standard IDE and linter inspections on the validation corpus to prove
+  differential value.
 
 Every resolver must preserve terminal boundaries, path-local confidence, cycle safety, deterministic
 aggregation, and benchmark equivalence.
