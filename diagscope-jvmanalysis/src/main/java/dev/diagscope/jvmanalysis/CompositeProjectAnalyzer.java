@@ -94,16 +94,19 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static Map<MethodId, MethodModel> linkAcrossLanguages(Map<MethodId, MethodModel> methods) {
-        var byQualifiedTypeAndName = new HashMap<String, List<MethodId>>();
-        var bySimpleTypeAndName = new HashMap<String, List<MethodId>>();
-        for (MethodId id : methods.keySet()) {
+        var byQualifiedTypeAndName = new HashMap<String, List<MethodModel>>();
+        var bySimpleTypeAndName = new HashMap<String, List<MethodModel>>();
+        for (MethodModel method : methods.values()) {
+            MethodId id = method.id();
             byQualifiedTypeAndName.computeIfAbsent(id.declaringType() + '#' + id.name(), ignored -> new ArrayList<>())
-                    .add(id);
+                    .add(method);
             bySimpleTypeAndName.computeIfAbsent(simpleName(id.declaringType()) + '#' + id.name(),
-                    ignored -> new ArrayList<>()).add(id);
+                    ignored -> new ArrayList<>()).add(method);
         }
-        byQualifiedTypeAndName.values().forEach(list -> list.sort(Comparator.comparing(MethodId::displayName)));
-        bySimpleTypeAndName.values().forEach(list -> list.sort(Comparator.comparing(MethodId::displayName)));
+        byQualifiedTypeAndName.values().forEach(list ->
+                list.sort(Comparator.comparing(item -> item.id().displayName())));
+        bySimpleTypeAndName.values().forEach(list ->
+                list.sort(Comparator.comparing(item -> item.id().displayName())));
 
         var result = new LinkedHashMap<MethodId, MethodModel>(methods.size());
         for (MethodModel method : methods.values()) {
@@ -119,8 +122,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
     private static MethodCall relink(
             MethodModel caller,
             MethodCall call,
-            Map<String, List<MethodId>> byQualifiedTypeAndName,
-            Map<String, List<MethodId>> bySimpleTypeAndName
+            Map<String, List<MethodModel>> byQualifiedTypeAndName,
+            Map<String, List<MethodModel>> bySimpleTypeAndName
     ) {
         if (call.target().isPresent()
                 || call.resolutionReason() != ResolutionReason.UNRESOLVED
@@ -132,7 +135,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             return choose(call,
                     byQualifiedTypeAndName.get(caller.id().declaringType() + '#' + call.methodName()),
                     ResolutionReason.SAME_CLASS,
-                    invocationAt(caller, call).map(InvocationEvidence::argumentTypes).orElse(List.of()));
+                    invocationAt(caller, call).map(InvocationEvidence::argumentTypes).orElse(List.of()),
+                    isKotlin(caller));
         }
 
         Optional<InvocationEvidence> invocation = invocationAt(caller, call);
@@ -145,7 +149,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         }
         return choose(call, bySimpleTypeAndName.get(simpleName(receiverType) + '#' + call.methodName()),
                 ResolutionReason.DECLARED_RECEIVER,
-                invocation.map(InvocationEvidence::argumentTypes).orElse(List.of()));
+                invocation.map(InvocationEvidence::argumentTypes).orElse(List.of()), isKotlin(caller));
     }
 
     private static Optional<InvocationEvidence> invocationAt(MethodModel method, MethodCall call) {
@@ -157,25 +161,27 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
 
     private static MethodCall choose(
             MethodCall original,
-            List<MethodId> candidates,
+            List<MethodModel> candidates,
             ResolutionReason success,
-            List<String> argumentTypes
+            List<String> argumentTypes,
+            boolean kotlinCaller
     ) {
         if (candidates == null) {
             return original;
         }
-        List<MethodId> matching = candidates.stream()
-                .filter(candidate -> candidate.parameterTypes().size() == original.argumentCount())
+        List<MethodModel> matching = candidates.stream()
+                .filter(candidate -> acceptsCrossLanguageArity(candidate, original.argumentCount(),
+                        kotlinCaller))
                 .toList();
         if (matching.size() == 1) {
             return new MethodCall(original.location(), original.scope(), original.methodName(),
-                    original.argumentCount(), Optional.of(matching.getFirst()), success);
+                    original.argumentCount(), Optional.of(matching.getFirst().id()), success);
         }
         if (matching.size() > 1) {
-            List<MethodId> typed = bestTypedMatches(matching, argumentTypes);
+            List<MethodModel> typed = bestTypedMatches(matching, argumentTypes);
             if (typed.size() == 1) {
                 return new MethodCall(original.location(), original.scope(), original.methodName(),
-                        original.argumentCount(), Optional.of(typed.getFirst()), success);
+                        original.argumentCount(), Optional.of(typed.getFirst().id()), success);
             }
             return new MethodCall(original.location(), original.scope(), original.methodName(),
                     original.argumentCount(), Optional.empty(), ResolutionReason.AMBIGUOUS);
@@ -183,11 +189,23 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         return original;
     }
 
-    private static List<MethodId> bestTypedMatches(List<MethodId> candidates, List<String> argumentTypes) {
+    private static boolean isKotlin(MethodModel method) {
+        return method.location().file().toString().endsWith(".kt");
+    }
+
+    private static boolean acceptsCrossLanguageArity(MethodModel candidate, int arity, boolean kotlinCaller) {
+        if (!candidate.callableShape().acceptsArity(arity)) return false;
+        if (candidate.callableShape().varargIndex() >= 0) return true;
+        if (arity >= candidate.id().parameterTypes().size()) return true;
+        return kotlinCaller || candidate.annotations().contains("JvmOverloads");
+    }
+
+    private static List<MethodModel> bestTypedMatches(
+            List<MethodModel> candidates, List<String> argumentTypes) {
         int bestScore = Integer.MIN_VALUE;
-        var best = new ArrayList<MethodId>();
-        for (MethodId candidate : candidates) {
-            int score = compatibilityScore(candidate.parameterTypes(), argumentTypes);
+        var best = new ArrayList<MethodModel>();
+        for (MethodModel candidate : candidates) {
+            int score = compatibilityScore(candidate, argumentTypes);
             if (score < 0) continue;
             if (score > bestScore) {
                 bestScore = score;
@@ -198,14 +216,16 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         return List.copyOf(best);
     }
 
-    private static int compatibilityScore(List<String> parameterTypes, List<String> argumentTypes) {
+    private static int compatibilityScore(MethodModel candidate, List<String> argumentTypes) {
         int score = 0;
         for (int index = 0; index < argumentTypes.size(); index++) {
             String argument = normalizedJvmType(argumentTypes.get(index));
             if (argument.isBlank() || "null".equals(argument)) continue;
-            String parameter = normalizedJvmType(parameterTypes.get(index));
+            int parameterIndex = candidate.callableShape().parameterIndex(index);
+            if (parameterIndex >= candidate.id().parameterTypes().size()) return -1;
+            String parameter = normalizedJvmType(candidate.id().parameterTypes().get(parameterIndex));
             if (parameter.isBlank() || "Any".equals(parameter) || "Object".equals(parameter)
-                    || parameter.matches("[A-Z]")) continue;
+                    || candidate.callableShape().typeParameters().contains(parameter)) continue;
             if (parameter.equals(argument)) {
                 score += 3;
             } else if (isNumericType(parameter) && isNumericType(argument)) {
@@ -239,7 +259,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
     private static MethodModel copyWithCalls(MethodModel method, List<MethodCall> calls) {
         return new MethodModel(method.id(), method.location(), method.annotations(), method.catches(),
                 method.invocations(), method.metricTags(), method.metricNames(), calls, method.proxy(),
-                method.annotationAttributes());
+                method.annotationAttributes(), method.callableShape());
     }
 
     /** Re-evaluates advice after Java and Kotlin aspects and target methods have been merged. */
@@ -264,7 +284,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                     old.proxiedAnnotations(), List.copyOf(matchingAdvice));
             result.put(method.id(), new MethodModel(method.id(), method.location(), method.annotations(),
                     method.catches(), method.invocations(), method.metricTags(), method.metricNames(),
-                    method.calls(), proxy, method.annotationAttributes()));
+                    method.calls(), proxy, method.annotationAttributes(), method.callableShape()));
         }
         return Collections.unmodifiableMap(result);
     }

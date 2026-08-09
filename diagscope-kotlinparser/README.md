@@ -17,8 +17,10 @@ The adapter maps:
 
 The analyzer produces only parser-neutral `diagscope-core` models. Kotlin PSI objects are discarded after each analysis session.
 
-Every registered rule is exercised against Kotlin source by the parity and metric fixtures. Current
-boundaries include complete type/classpath resolution, runtime-only or named AspectJ pointcuts,
-cross-language default/vararg/generic substitution, and dynamically computed build configuration.
+Every registered rule is exercised against Kotlin source by the parity and metric fixtures. Shared
+cross-language linking consumes Kotlin callable shapes for `@JvmOverloads`, varargs, and generic
+candidates. Current boundaries include compiler-grade Kotlin dependency-classpath resolution,
+runtime-only or named AspectJ pointcuts, and automatic evaluation of dynamic build configuration
+(explicit `--source-root` remains available).
 Kotlin parsing remains deterministic and sequential because PSI files share one compiler application
 environment; parallelism stays gated on real profiling evidence.

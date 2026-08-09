@@ -60,14 +60,18 @@ Delivered:
 - lost-throwable and generic logs, async/HTTP/scheduled/retry/fallback evidence loss, metric creation
   in loops, sensitive logging, MDC context loss, and duplicate diagnostics;
 - positive instrumentation evidence from `@Observed`, `@Timed`, `@Counted`, and tracing annotations;
+- Java/Kotlin rule-parity contracts, transitive/inherited/default resolution, composed annotations,
+  typed cross-language defaults/varargs/generic candidates, explicit Java classpath solving, and
+  explicit dynamic source roots;
 - per-finding plain-language explanation plus a confidence rationale in all three formats;
 - an executive summary at the top of every report, with per-rule and per-confidence counts, clickable in HTML;
 - a drill-down HTML report with Evidence / Call paths / Flow impact / Source tabs, filters, and free-text search.
 
-Remaining work is precision-oriented rather than rule-count-oriented. Kotlin fixtures now exercise
-every registered rule and cover source-decidable hierarchy, overload, injection, composed-annotation,
-and additional-source-root shapes. The next gate is validating that precision on real repositories
-and deepening classpath/runtime-dependent resolution only where those scans expose a concrete gap.
+Remaining work is precision-oriented rather than rule-count-oriented. Java and Kotlin fixtures now
+exercise every registered rule and cover source-decidable hierarchy, overload, injection,
+composed-annotation, and source-root shapes. The next gate is validating that precision on real
+repositories, profiling Kotlin PSI before any concurrency change, and comparing findings with the
+teams' existing IDE/linter inspections.
 
 An LLM may summarize or explain a finding, but it never creates the authoritative finding or decides whether CI passes.
 
@@ -95,8 +99,6 @@ Delivered:
 
 Remaining:
 
-- Java parity for meta-annotated and inherited advice targets; Kotlin source-decidable targets are
-  delivered;
 - a flow-level diagnostic score that can aggregate existing positive instrumentation evidence;
 - interface-proxy versus CGLIB reasoning where the source makes the proxy mode provable.
 

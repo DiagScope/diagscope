@@ -19,6 +19,8 @@ Fixtures are Java and Kotlin/JVM sources analyzed by DiagScope. They do not need
 - `kotlin-rule-parity` exercises positive, negative, and near-boundary Kotlin shapes for every
   non-metric rule family: logging, Kafka, database/resources, async/resilience, MDC, transactions,
   catch/output, and Spring proxy/AOP behavior.
+- `java-rule-parity` is the matching Java adapter contract and, together with `metric-patterns`,
+  proves that every registered rule is exercised by Java source.
 - `configuration-policy` exercises strict `diagscope.yml` behavior across Java and Kotlin: ignored
   generated paths, rule state/severity, sensitive names, logger types, and custom entrypoints.
 - `silent-catch` defines the alpha contract for empty catch blocks, logging, explanatory comments, and explicit rule suppression. Its `expected.json` records the exact positive and negative locations.

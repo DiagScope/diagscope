@@ -60,7 +60,13 @@ public final class ProjectLayoutDetector {
      * build. Custom source sets remain an explicit boundary.
      */
     public static ProjectLayout detect(Path projectDirectory) {
+        return detect(projectDirectory, List.of());
+    }
+
+    /** Detects the layout and adds caller-declared roots without evaluating build scripts. */
+    public static ProjectLayout detect(Path projectDirectory, List<Path> additionalSourceRoots) {
         Objects.requireNonNull(projectDirectory, "projectDirectory");
+        Objects.requireNonNull(additionalSourceRoots, "additionalSourceRoots");
         Path root = projectDirectory.toAbsolutePath().normalize();
         if (!Files.isDirectory(root)) {
             throw new UnsupportedProjectException("Project directory does not exist: " + root);
@@ -72,7 +78,7 @@ public final class ProjectLayoutDetector {
                                 + "/settings.gradle.kts) build descriptor found in " + root));
 
         List<Path> moduleDirectories = discoverModules(root);
-        var modules = new ArrayList<Path>(moduleDirectories.size());
+        var modules = new LinkedHashSet<Path>(moduleDirectories.size());
         var sourceRoots = new LinkedHashSet<Path>();
         for (Path module : moduleDirectories) {
             boolean containsSources = false;
@@ -86,12 +92,32 @@ public final class ProjectLayoutDetector {
                 modules.add(root.relativize(module));
             }
         }
+        for (Path configured : additionalSourceRoots) {
+            Path sourceRoot = configured.isAbsolute()
+                    ? configured.toAbsolutePath().normalize()
+                    : root.resolve(configured).toAbsolutePath().normalize();
+            if (!sourceRoot.startsWith(root)) {
+                throw new IllegalArgumentException("Additional source root must stay within the project: "
+                        + sourceRoot);
+            }
+            if (!Files.isDirectory(sourceRoot)) {
+                throw new IllegalArgumentException("Additional source root does not exist: " + sourceRoot);
+            }
+            sourceRoots.add(sourceRoot);
+            Path module = closestModule(sourceRoot, moduleDirectories);
+            if (module != null) modules.add(root.relativize(module));
+        }
         if (sourceRoots.isEmpty()) {
             throw new UnsupportedProjectException(
                     "No conventional or build-declared Java/Kotlin production source root found in "
                             + root + " or in any of its modules");
         }
-        return new ProjectLayout(buildSystem, root, modules, List.copyOf(sourceRoots));
+        return new ProjectLayout(buildSystem, root, List.copyOf(modules), List.copyOf(sourceRoots));
+    }
+
+    private static Path closestModule(Path sourceRoot, List<Path> modules) {
+        return modules.stream().filter(sourceRoot::startsWith)
+                .max(java.util.Comparator.comparingInt(Path::getNameCount)).orElse(null);
     }
 
     /** Conventional roots plus literal production roots declared by Gradle or Maven plugins. */

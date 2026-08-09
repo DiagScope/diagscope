@@ -29,14 +29,17 @@ java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/your-projec
 
 Maven and Gradle projects are both supported, including multi-module and mixed Java/Kotlin builds.
 Conventional roots are discovered automatically; literal production roots declared by Gradle
-`sourceSets.main`, Maven `build-helper`, or Kotlin Maven `sourceDirs` are included as well.
+`sourceSets.main`, Maven `build-helper`, or Kotlin Maven `sourceDirs` are included as well. A dynamic
+root can be supplied explicitly with `--source-root` without executing the build.
 
 Kotlin support is syntax-first but covers the complete rule catalog. The adapter maps trailing-lambda
 evidence, injected receiver chains, typed overloads, defaults/varargs, transitive interfaces,
 inherited/default methods, composed or inherited entrypoints and advice targets, Micrometer, and
-Spring proxy/AOP evidence into the same parser-neutral model. Typed same-arity overloads also relink
-across Java and Kotlin. Full classpath resolution and runtime-only Spring/AspectJ state remain outside
-the current boundary.
+Spring proxy/AOP evidence into the same parser-neutral model. Java now has matching hierarchy,
+composed-annotation, and typed-overload resolution. Cross-language linking understands declared
+varargs, generic candidates, and Kotlin defaults exposed to Java with `@JvmOverloads`. Java dependency
+symbol solving is available only when an explicit `--classpath` is supplied; Kotlin compiler-grade
+dependency resolution and runtime-only Spring/AspectJ state remain outside the current boundary.
 
 By default all three reports are written to `<your-project>/target/diagscope/`:
 
@@ -68,6 +71,10 @@ java -jar diagscope.jar scan --project . --changed-since origin/main --fail-on W
 
 # Use a team policy instead of automatic ./diagscope.yml discovery
 java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
+
+# Supply generated sources and the already-built dependency classpath explicitly
+java -jar diagscope.jar scan --project . --source-root build/generated/sources \
+  --classpath build/classes/java/main,libs/domain-api.jar
 ```
 
 ### Options
@@ -85,6 +92,8 @@ java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
 | `--update-baseline` | Atomically rewrite the selected/default baseline with all current findings | off |
 | `--changed-since <ref>` | Keep findings only in files changed since a Git revision | off |
 | `--config <path>` | Load a strict project policy; otherwise auto-discovers `diagscope.yml` | auto |
+| `--source-root <path>` | Additional production root inside the project; repeat or comma-separate | off |
+| `--classpath <path>` | Dependency JAR/classes directory for opt-in Java symbol solving; repeat or comma-separate | off |
 
 By default, findings do not fail the command. Exit code `1` is reserved for a completed scan that
 breached `--fail-on`; invalid configuration returns `2`, and unsupported project input returns `3`.
@@ -251,7 +260,11 @@ Rule details and limitations: [docs/RULES.md](docs/RULES.md).
 
 ## What DiagScope does not do
 
-It reads Java and Kotlin source code only — it does not run your application, resolve the full type system, or follow calls into external libraries, reflection, or proxies. It does not replace SonarQube, SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this flow fails, will anyone be able to tell what happened?*
+It does not run your application or build, and it does not follow behavior into external libraries,
+reflection, or runtime-created proxies. Java dependency types can be resolved from an explicitly
+declared classpath; Kotlin dependency semantics remain source-first. It does not replace SonarQube,
+SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this
+flow fails, will anyone be able to tell what happened?*
 
 ## Documentation
 

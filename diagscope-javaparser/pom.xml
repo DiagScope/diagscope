@@ -27,6 +27,10 @@
             <artifactId>javaparser-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-symbol-solver-core</artifactId>
+        </dependency>
+        <dependency>
             <groupId>dev.diagscope</groupId>
             <artifactId>diagscope-test-fixtures</artifactId>
             <version>${project.version}</version>

@@ -32,10 +32,17 @@ exercised on Kotlin source. Its negative cases also freeze trailing-lambda recov
 resource `use`, guarded cleanup, propagated failures, observed async/Kafka results, and ordinary
 transaction propagation.
 
-Kotlin parser tests separately cover transitive and ambiguous interfaces, inherited/default methods,
+`java-rule-parity` is the equivalent aggregate Java contract. Together with `metric-patterns`, its
+catalog assertion requires every registered rule to execute on Java source, while its negative and
+near-boundary assertions freeze observed async/Kafka results, propagated failures, guarded resource
+cleanup, MDC restoration, transaction propagation, and exception-cause preservation.
+
+Java and Kotlin parser tests separately cover transitive and ambiguous interfaces, inherited/default methods,
 same-arity overloads, default/vararg/generic identities, constructor/property/parameter injection,
 composed/inherited annotations, and build-declared source roots. Cross-language overload tests must
-exercise both Java-to-Kotlin and Kotlin-to-Java directions.
+exercise both Java-to-Kotlin and Kotlin-to-Java directions, including `@JvmOverloads`, varargs, and
+generic candidates. Java classpath tests must prove the same call remains ambiguous without an
+explicit classpath and resolves with a caller-declared dependency directory.
 
 ## `silent-catch` contract
 
@@ -136,3 +143,5 @@ The combined Phase 1 continuation gate is at least 10 reviewable findings, at le
 | `kafka-patterns` | Every `KafkaTemplate.send` result shape: ignored, observed, blocking, assigned, returned, chained |
 | `kafka-producer-listener` | Ignored send in a project that declares a `ProducerListener`, lowering confidence to `LOW` |
 | `metric-patterns` | Micrometer receivers, bounded and unbounded tag provenance, dynamic meter names, unrelated fluent `tag` API |
+| `java-rule-parity` | Positive, negative, and near-boundary Java coverage for every non-metric rule family |
+| `kotlin-rule-parity` | Positive, negative, and near-boundary Kotlin coverage for every non-metric rule family |

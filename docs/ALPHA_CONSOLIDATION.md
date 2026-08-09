@@ -155,7 +155,10 @@ Merging files wholesale would have replaced working code with stubs and introduc
 
 ## Honest Alpha 1 boundary
 
-Alpha 1 supports controlled real-repository scans, not final CI enforcement. It remains syntax-first and does not provide a complete dependency classpath, inherited/meta-annotation model, Spring proxy model, cross-module graph, or runtime configuration proof.
+Alpha 1 supports controlled real-repository scans, not final CI enforcement. Subsequent increments
+added inherited/meta-annotation and Spring proxy models plus opt-in caller-declared Java classpaths;
+Kotlin dependency semantics, cross-service graphs, and runtime configuration proof remain outside
+the guaranteed boundary.
 
 The supported/unsupported matrix is maintained in [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md). Rule-specific limitations are maintained in [RULES.md](RULES.md).
 

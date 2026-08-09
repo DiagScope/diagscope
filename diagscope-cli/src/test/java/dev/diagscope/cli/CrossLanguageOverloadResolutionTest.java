@@ -31,26 +31,44 @@ class CrossLanguageOverloadResolutionTest {
                 class JavaService {
                     String execute(String value) { return value; }
                     String execute(int value) { return Integer.toString(value); }
+                    String collect(String prefix, String... values) { return prefix; }
+                    String identity(String value) { return value; }
+                    <T> T identity(T value) { return value; }
                 }
                 @RestController
                 class JavaController {
                     private final KotlinService service;
                     JavaController(KotlinService service) { this.service = service; }
                     @GetMapping("/java-to-kotlin")
-                    String execute() { return service.execute("order"); }
+                    String execute() {
+                        return service.execute("order") + service.greet() +
+                                service.collect("orders") + service.collect("orders", "one", "two") +
+                                service.identity("typed") +
+                                service.identity(new JavaToken("typed"));
+                    }
                 }
+                record JavaToken(String value) {}
                 """);
         Files.writeString(kotlinRoot.resolve("KotlinTypes.kt"), """
                 package sample
                 class KotlinService {
                     fun execute(value: String): String = value
                     fun execute(value: Int): String = value.toString()
+                    @JvmOverloads fun greet(prefix: String = "hello"): String = prefix
+                    fun collect(prefix: String, vararg values: String): String = prefix
+                    fun identity(value: String): String = value
+                    fun <T> identity(value: T): T = value
                 }
                 class ServiceHolder(val javaService: JavaService)
+                data class KotlinToken(val value: String)
                 @RestController
                 class KotlinController(private val holder: ServiceHolder) {
                     @GetMapping("/kotlin-to-java")
-                    fun execute(): String = holder.javaService.execute("order")
+                    fun execute(): String = holder.javaService.execute("order") +
+                        holder.javaService.collect("orders") +
+                        holder.javaService.collect("orders", "one", "two") +
+                        holder.javaService.identity("typed") +
+                        holder.javaService.identity(KotlinToken("typed")).value
                 }
                 """);
         Path output = temp.resolve("out");
@@ -63,9 +81,12 @@ class CrossLanguageOverloadResolutionTest {
         JsonNode result = JSON.readTree(output.resolve("result.json").toFile());
         assertThat(result.path("statistics").path("parseFailures").asInt()).isZero();
         assertThat(callees(result, "JavaController.execute"))
-                .containsExactly("sample.KotlinService.execute(String)");
+                .contains("sample.KotlinService.execute(String)", "sample.KotlinService.greet(String)",
+                        "sample.KotlinService.collect(String,String)",
+                        "sample.KotlinService.identity(String)", "sample.KotlinService.identity(T)");
         assertThat(callees(result, "KotlinController.execute"))
-                .containsExactly("sample.JavaService.execute(String)");
+                .contains("sample.JavaService.execute(String)", "sample.JavaService.collect(String,String)",
+                        "sample.JavaService.identity(String)", "sample.JavaService.identity(T)");
     }
 
     private static List<String> callees(JsonNode result, String callerFragment) {

@@ -40,6 +40,10 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `--changed-since <ref>` — retain findings only when their source file appears in `git diff <ref>`.
 - `--config <path>` — load a strict project policy; without this option, `diagscope.yml` is loaded
   automatically from the project root when present.
+- `--source-root <path>` — add an existing production source directory inside the project; repeat
+  the option or comma-separate entries for dynamic/generated roots;
+- `--classpath <path>` — opt into Java dependency symbol solving with an existing JAR or classes
+  directory; repeat the option or comma-separate entries. No build command is executed.
 
 The automatic worker policy may also be selected with the `diagscope.parallelism` system property. Explicit command options take precedence.
 
@@ -110,8 +114,8 @@ pom.xml | build.gradle | build.gradle.kts | settings.gradle | settings.gradle.kt
 src/main/java/ | src/main/kotlin/
 ```
 
-Multi-module and mixed Java/Kotlin builds are supported for both tools: every nested directory (up to four levels deep) that carries its own build descriptor and a conventional JVM source root is scanned in one run, and build output directories (`target/`, `build/`, `out/`, `bin/`) are skipped. The detected build system and module list are reported in `result.json` (`project.buildSystem`, `project.modules`), in the Markdown summary table, and in the HTML report header.
+Multi-module and mixed Java/Kotlin builds are supported for both tools: every nested directory (up to four levels deep) that carries its own build descriptor and a JVM source root is scanned in one run, and build output directories (`target/`, `build/`, `out/`, `bin/`) are skipped. Conventional roots and safe literal Gradle/Maven declarations are automatic; use repeatable `--source-root <path>` for dynamic production roots. Explicit roots must exist inside the project. The scanner never evaluates the build script. The detected build system and module list are reported in `result.json` (`project.buildSystem`, `project.modules`), in the Markdown summary table, and in the HTML report header.
 
-Kotlin analysis is syntax-first. It currently covers entrypoints, local and single-implementation interface calls, catch and invocation evidence, resource `use`, Micrometer tags and names, metric creation inside loops, and syntax-decidable Spring AOP pointcuts. Complete type/classpath resolution and pointcuts that require runtime state remain outside the current boundary.
+Java analysis is syntax-first by default. Repeatable `--classpath <jar-or-classes-directory>` opts into JavaParser source/JDK/dependency symbol solving using exactly the declared entries; DiagScope does not run Maven or Gradle to construct that classpath. Kotlin analysis remains source-first but covers transitive hierarchy, defaults/varargs, generic identities, composed annotations, resource `use`, Micrometer evidence, and syntax-decidable Spring AOP. Kotlin compiler-grade dependency resolution and pointcuts requiring runtime state remain outside the boundary.
 
-Source directories configured explicitly inside a build script (custom `sourceSets` or `build-helper` roots) and generated sources are still out of scope: DiagScope never executes Maven or Gradle, it only reads the conventional layout.
+The effective explicit classpath and additional source roots are recorded in JSON and Markdown scan configuration so a resolution change is auditable.

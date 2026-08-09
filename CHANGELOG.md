@@ -30,6 +30,14 @@ All notable project changes are recorded in this file.
 - Source-typed same-arity overload relinking in both Java-to-Kotlin and Kotlin-to-Java directions.
 - Safe literal production roots declared by Gradle `sourceSets.main`, Maven `build-helper`, and Kotlin
   Maven plugin `sourceDirs`.
+- Java rule-parity fixtures for every registered rule, including positive, negative, and
+  near-boundary assertions.
+- Java transitive hierarchy, inherited/default method, recursively composed annotation, receiver
+  chain, and source-typed overload resolution.
+- Explicit `--classpath` Java symbol solving and `--source-root` dynamic-root overrides, with no
+  hidden build execution and effective inputs recorded in reports.
+- Cross-language callable-shape resolution for `@JvmOverloads`, Java/Kotlin varargs, and
+  source-decidable generic candidates.
 - Path-aware flow modeling with reached methods, call edges, resolution reasons, terminal boundaries, and per-path confidence.
 - Dedicated deterministic `RuleEngine` for rule execution, deduplication, and related-flow merging.
 - Stable related-flow identities and deterministic SHA-256 finding fingerprints.
@@ -57,9 +65,9 @@ All notable project changes are recorded in this file.
 
 ### Known limitations
 
-- Pointcuts requiring runtime-only designators or named pointcut expansion remain unresolved;
-  cross-language defaults, varargs, and generic substitution remain conservative.
-- The Java adapter remains syntax-first and does not yet provide complete symbol, classpath, inheritance, overload, or framework resolution.
+- Pointcuts requiring runtime-only designators or named pointcut expansion remain unresolved.
+- Java classpath solving is opt-in and only as complete as the declared entries; Kotlin
+  dependency-classpath resolution remains source-first.
 - REST routes, Kafka topics, and scheduled expressions are not yet stable entrypoint metadata.
 - Semantic recognition of logging, Kafka, and Micrometer APIs remains heuristic.
 - Explicit source suppression is deliberately limited to `SILENT_CATCH` and requires a local rule-specific directive with a reason.

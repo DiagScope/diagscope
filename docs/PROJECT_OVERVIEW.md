@@ -42,14 +42,14 @@ Git changed-file scope exist for controlled CI adoption, but gating is disabled 
 
 | Capability | Alpha 1 behavior |
 |---|---|
-| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with conventional or safely declared literal production roots in the root or its modules |
-| Source discovery | Sorted, deduplicated `.java` and `.kt` files below conventional roots plus literal Gradle `sourceSets.main`, Maven `build-helper`, and Kotlin Maven `sourceDirs` roots (module search depth 4) |
-| Parsing | JavaParser configured for Java 25 with bounded workers; Kotlin compiler PSI in one deterministic per-scan session |
+| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with conventional, safely declared literal, or explicit `--source-root` production roots in the root or its modules |
+| Source discovery | Sorted, deduplicated `.java` and `.kt` files below conventional roots, literal Gradle/Maven declarations, and caller-declared dynamic roots (module search depth 4) |
+| Parsing | JavaParser configured for Java 25 with bounded workers and optional explicit classpath symbol solving; Kotlin compiler PSI in one deterministic per-scan session |
 | Domain mapping | Immutable parser-neutral method and typed-evidence records |
-| REST entrypoints | Direct Spring controller/mapping annotations plus inherited and recursively composed Kotlin annotations; best-effort verb/route display metadata |
-| Kafka entrypoints | Direct listeners plus inherited/composed Kotlin listener annotations; best-effort topic display metadata |
-| Scheduled entrypoints | Direct plus inherited/composed Kotlin `@Scheduled`; best-effort schedule display metadata |
-| Local calls | Same-class and declared receivers from fields, constructor properties, parameters, locals, and Kotlin injected-property chains; Kotlin resolves source-decidable overloads, transitive interfaces, inherited/default methods, defaults and varargs; typed same-arity overloads relink across Java/Kotlin |
+| REST entrypoints | Direct, inherited, and recursively composed Java/Kotlin controller and mapping annotations; best-effort verb/route metadata |
+| Kafka entrypoints | Direct plus inherited/composed Java/Kotlin listener annotations; best-effort topic metadata |
+| Scheduled entrypoints | Direct plus inherited/composed Java/Kotlin `@Scheduled`; best-effort schedule metadata |
+| Local calls | Java/Kotlin fields, constructor/property/parameter injection and chains; transitive interfaces, inherited/default methods, typed overloads; cross-language `@JvmOverloads`, varargs, and source-decidable generic candidates |
 | Flow model | Bounded, cycle-safe reached methods plus explicit call edges and terminal boundaries |
 | Confidence | Per-edge and per-reached-method propagation; findings capped by the path that reaches their evidence |
 | Rules | Deterministic parser-neutral rule catalog listed in [RULES.md](RULES.md) |
@@ -67,10 +67,11 @@ Git changed-file scope exist for controlled CI adoption, but gating is disabled 
 Alpha 1 does not guarantee:
 
 - arbitrary custom module layouts beyond nested build descriptors;
-- dynamically computed source roots that cannot be reduced to a safe project-relative literal;
-- a complete dependency classpath or full JavaSymbolSolver semantics;
-- equivalent transitive hierarchy/composed-annotation resolution in every Java syntax shape;
-- cross-language default-argument, vararg, or generic substitution that requires compiler semantics;
+- automatic discovery of dynamically computed source roots when `--source-root` is not supplied;
+- Java dependency semantics when the opt-in classpath is absent/incomplete, and compiler-grade
+  Kotlin dependency-classpath resolution;
+- Kotlin defaults not exposed to Java through `@JvmOverloads`, or generic constraint solving that
+  cannot be decided from source-visible identities;
 - Spring proxy, AOP, bean-factory, reflection, or runtime configuration behavior;
 - cross-service topology or Kafka producer-to-consumer linking;
 - proof that a logger receiver is a supported logging API in every case;

@@ -1,6 +1,7 @@
 package dev.diagscope.javaparser;
 
 import dev.diagscope.core.application.AnalysisOptions;
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
@@ -33,6 +34,8 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import javax.tools.ToolProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -365,6 +368,141 @@ class JavaParserProjectAnalyzerTest {
         assertThatThrownBy(() -> analyze(unsupported, AnalysisOptions.defaults()))
                 .isInstanceOf(UnsupportedProjectException.class)
                 .hasMessageContaining("pom.xml");
+    }
+
+    @Test
+    void resolves_transitive_interfaces_inherited_methods_and_interface_defaults() throws IOException {
+        Path project = project("java-hierarchy", Map.of("sample/Hierarchy.java", """
+                package sample;
+
+                @interface RestController {}
+                @interface GetMapping { String value(); }
+
+                interface RootPort { void execute(String value); }
+                interface Port extends RootPort {
+                    default String label() { return "port"; }
+                }
+                class PortImpl implements Port {
+                    public void execute(String value) { System.out.println(value); }
+                }
+                class BaseService {
+                    String inherited(String value) { return value; }
+                }
+                class ChildService extends BaseService {}
+
+                @RestController
+                class HierarchyController {
+                    private final RootPort port;
+                    private final Port defaults;
+                    private final ChildService child;
+                    HierarchyController(RootPort port, Port defaults, ChildService child) {
+                        this.port = port; this.defaults = defaults; this.child = child;
+                    }
+                    @GetMapping("/hierarchy")
+                    String run(String value) {
+                        port.execute(value);
+                        return defaults.label() + child.inherited(value);
+                    }
+                }
+                """));
+
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+        var flow = new LocalFlowBuilder().build(analyzed, entrypoint(analyzed, EntrypointType.REST), 3);
+
+        assertThat(flow.methods()).extracting(reached -> reached.method().id().displayName())
+                .contains("sample.PortImpl.execute(String)", "sample.Port.label()",
+                        "sample.BaseService.inherited(String)");
+        assertThat(flow.boundaries()).noneMatch(edge ->
+                edge.displayName().matches(".*(?:execute|label|inherited).*"));
+    }
+
+    @Test
+    void expands_composed_and_inherited_entrypoint_and_advice_annotations() throws IOException {
+        Path project = project("java-composed-annotations", Map.of("sample/Annotations.java", """
+                package sample;
+
+                @interface RestController {}
+                @interface GetMapping { String value() default ""; }
+                @interface Aspect {}
+                @interface Component {}
+                @interface Around { String value(); }
+
+                @RestController @interface ApiController {}
+                @GetMapping("/composed") @interface ApiRead {}
+                @Aspect @Component @interface ManagedAspect {}
+
+                @ApiController class ControllerBase {}
+                interface Endpoint { @ApiRead String read(String id); }
+
+                class OrdersController extends ControllerBase implements Endpoint {
+                    public String read(String id) { return id; }
+                }
+
+                @ManagedAspect
+                class AuditAspect {
+                    @Around("execution(* sample.OrdersController.*(..))")
+                    Object around() { return null; }
+                }
+                """));
+
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+
+        assertThat(analyzed.entrypoints()).singleElement().satisfies(entrypoint -> {
+            assertThat(entrypoint.method().displayName()).isEqualTo("sample.OrdersController.read(String)");
+            assertThat(entrypoint.displayName()).isEqualTo("GET /composed");
+        });
+        assertThat(analyzed.aspects()).singleElement().satisfies(advice -> {
+            assertThat(advice.aspectType()).isEqualTo("sample.AuditAspect");
+            assertThat(advice.springManagedAspect()).isTrue();
+        });
+        assertThat(method(analyzed, "sample.OrdersController", "read").proxy().matchingAdvice()).isNotEmpty();
+    }
+
+    @Test
+    void uses_only_an_explicit_classpath_to_resolve_dependency_typed_arguments() throws IOException {
+        Path dependencySources = Files.createDirectories(temp.resolve("dependency-src/external"));
+        Path classes = Files.createDirectories(temp.resolve("dependency-classes"));
+        Path orderId = dependencySources.resolve("OrderId.java");
+        Path factory = dependencySources.resolve("Factory.java");
+        Files.writeString(orderId, "package external; public record OrderId(String value) {}\n");
+        Files.writeString(factory, "package external; public class Factory {"
+                + " public OrderId orderId() { return new OrderId(\"42\"); } }\n");
+        int compiled = ToolProvider.getSystemJavaCompiler().run(null, null, null,
+                "-d", classes.toString(), orderId.toString(), factory.toString());
+        assertThat(compiled).isZero();
+
+        Path project = project("explicit-classpath", Map.of("sample/ClasspathFlow.java", """
+                package sample;
+                import external.Factory;
+                import external.OrderId;
+                @interface RestController {}
+                @interface GetMapping { String value(); }
+                class Service {
+                    String execute(String value) { return value; }
+                    String execute(OrderId value) { return value.value(); }
+                }
+                @RestController class Controller {
+                    private final Service service;
+                    private final Factory factory;
+                    Controller(Service service, Factory factory) { this.service = service; this.factory = factory; }
+                    @GetMapping("/classpath") String run() { return service.execute(factory.orderId()); }
+                }
+                """));
+
+        AnalyzedProject syntaxOnly = analyze(project, AnalysisOptions.defaults());
+        var syntaxFlow = new LocalFlowBuilder().build(
+                syntaxOnly, entrypoint(syntaxOnly, EntrypointType.REST), 3);
+        assertThat(syntaxFlow.boundaries()).anyMatch(edge ->
+                edge.resolutionReason() == ResolutionReason.AMBIGUOUS);
+
+        var classpathOptions = new AnalysisOptions(3, 1, Set.of(EntrypointType.REST),
+                AnalysisPolicy.defaults(), List.of(classes), List.of());
+        AnalyzedProject classpathResolved = analyze(project, classpathOptions);
+        var resolvedFlow = new LocalFlowBuilder().build(
+                classpathResolved, entrypoint(classpathResolved, EntrypointType.REST), 3);
+        assertThat(resolvedFlow.methods()).extracting(reached -> reached.method().id().displayName())
+                .contains("sample.Service.execute(OrderId)")
+                .doesNotContain("sample.Service.execute(String)");
     }
 
     private AnalyzedProject analyze(Path project, AnalysisOptions options) {

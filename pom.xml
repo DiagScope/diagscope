@@ -57,6 +57,11 @@
                 <version>${javaparser.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.javaparser</groupId>
+                <artifactId>javaparser-symbol-solver-core</artifactId>
+                <version>${javaparser.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-compiler-embeddable</artifactId>
                 <version>${kotlin.version}</version>

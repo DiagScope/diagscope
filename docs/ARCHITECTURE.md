@@ -235,16 +235,20 @@ requires parser or presentation dependencies in the core.
 
 ## Current analysis boundary
 
-Alpha 1 is intentionally syntax-first. It does not claim complete Java, Kotlin, or Spring semantics. In particular, it does not yet guarantee:
+Alpha 1 is syntax-first by default. JavaParser can opt into a caller-declared complete classpath;
+Kotlin remains source-first. It does not claim complete Kotlin or Spring runtime semantics. In
+particular, it does not yet guarantee:
 
-- complete classpath or JavaSymbolSolver resolution;
+- Java symbol resolution when `--classpath` is absent or incomplete, nor compiler-grade Kotlin
+  dependency-classpath resolution;
 - runtime-polymorphic, reflective, or proxy-mediated resolution when source has multiple viable
   targets;
 - stable REST route, Kafka topic, or schedule-expression metadata;
 - semantic identification of every logger, `KafkaTemplate`, or Micrometer receiver;
 - runtime-only AspectJ designators and named pointcut expansion;
-- cross-language default arguments, varargs, or generic substitution that require compiler semantics;
-- dynamically computed build-script source roots;
+- Kotlin defaults not exposed to Java with `@JvmOverloads`, or generic substitution that requires
+  compiler constraint solving beyond source-decidable candidates;
+- automatic discovery of dynamic build-script roots; these require explicit `--source-root`;
 - cross-service flow construction.
 
 When the adapter cannot prove a local edge, it must stop, record a reason, and lower confidence where appropriate. Expanding resolution is adapter work; weakening the core dependency rule is not an acceptable shortcut.

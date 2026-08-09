@@ -8,6 +8,7 @@ import dev.diagscope.core.application.rule.RuleCatalog;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +64,14 @@ public final class MarkdownReporter implements AnalysisReporter {
                 .append("- Parser workers: ").append(result.options().parallelism()).append("\n")
                 .append("- Entrypoint types: ").append(result.options().enabledEntrypointTypes().stream()
                         .map(Enum::name).sorted().collect(Collectors.joining(", "))).append("\n")
+                .append("- Explicit classpath entries: ")
+                .append(result.options().explicitClasspath().isEmpty() ? "none"
+                        : result.options().explicitClasspath().stream().map(Path::toString)
+                                .collect(Collectors.joining(", "))).append("\n")
+                .append("- Additional source roots: ")
+                .append(result.options().additionalSourceRoots().isEmpty() ? "none"
+                        : result.options().additionalSourceRoots().stream().map(Path::toString)
+                                .collect(Collectors.joining(", "))).append("\n")
                 .append("- Project policy: ").append(valueOrNone(result.scanPolicy().configurationFile()))
                 .append("\n")
                 .append("- Disabled rules: ").append(result.options().policy().disabledRules().isEmpty()

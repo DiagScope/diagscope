@@ -79,15 +79,14 @@ class EdgeCaseAnalysisTest {
         assertThat(defaultPackageFlow.methods()).extracting(method -> method.method().id().displayName())
                 .contains("DefaultPackageService.read(String)");
 
-        // Overloads with a distinct arity are followed; same-arity overloads stay an explicit
-        // AMBIGUOUS boundary instead of an arbitrary guess.
+        // Literal argument types make the same-arity overloads source-decidable.
         Flow overloadFlow = flow(result.flows(), "POST /overloads");
         assertThat(overloadFlow.methods()).extracting(method -> method.method().id().displayName())
                 .contains("example.edge.OverloadService.process(String)")
-                .doesNotContain("example.edge.OverloadService.process(String,int)");
+                .contains("example.edge.OverloadService.process(String,int)")
+                .contains("example.edge.OverloadService.process(String,String)");
         assertThat(overloadFlow.boundaries())
-                .isNotEmpty()
-                .allSatisfy(boundary -> assertThat(boundary.resolutionReason())
+                .noneSatisfy(boundary -> assertThat(boundary.resolutionReason())
                         .isEqualTo(dev.diagscope.core.domain.ResolutionReason.AMBIGUOUS));
 
         assertThat(result.findings()).extracting(Finding::ruleId).contains("PRINT_STACK_TRACE", "SYSTEM_OUTPUT");

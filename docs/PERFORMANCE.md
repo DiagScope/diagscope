@@ -53,7 +53,8 @@ Containment is both a performance and correctness mechanism: incomplete resoluti
 ## Alpha optimizations
 
 - no Spring context inside the scanner;
-- no execution or class loading from the target repository;
+- no target application or build execution; dependency bytecode is consulted only when the caller
+  opts into `--classpath`;
 - deterministic source discovery;
 - one parse per source file;
 - bounded worker pool;
@@ -72,13 +73,19 @@ Containment is both a performance and correctness mechanism: incomplete resoluti
 
 Parsing contains substantial CPU work. Worker count is bounded and configurable; more tasks are not automatically faster.
 
-The default policy caps Java parser parallelism at eight workers until measurements justify a different policy. Only independent Java source-file parsing is parallelized in Alpha 1. Kotlin parsing remains sequential in its first adapter because PSI files share a compiler application environment. Index aggregation, cross-language relinking, graph traversal, rule merging, and report ordering preserve stable output.
+The default policy caps Java parser parallelism at eight workers until measurements justify a different policy. Only independent syntax-first Java source-file parsing is parallelized in Alpha 1;
+explicit-classpath mode is intentionally sequential because the per-scan symbol solver is shared.
+Kotlin parsing remains sequential because PSI files share a compiler application environment. Index
+aggregation, cross-language relinking, graph traversal, rule merging, and report ordering preserve
+stable output.
 
 Virtual threads are not the default for parsing. An unbounded task-per-file strategy may increase allocation and CPU contention. Any executor-policy change must improve median, tail latency, and memory on the fixed corpus without changing results.
 
 ## Symbol-resolution policy
 
-Alpha 1 uses syntax-first local resolution and does not claim a complete dependency classpath. When richer symbol solving is added, it must:
+Alpha 1 remains syntax-first by default. Java scans can opt into a complete caller-declared
+classpath with `--classpath`; the scanner configures source, JDK, and dependency solvers and never
+invokes Maven or Gradle. Kotlin dependency semantics remain source-first. Classpath mode must:
 
 - configure source, JDK, and dependency solvers explicitly;
 - distinguish missing classpath configuration from an actual external boundary;
@@ -165,6 +172,9 @@ A faster implementation that preserves only the finding count but changes these 
 6. compare memory and allocation;
 7. verify exact semantic equivalence;
 8. keep or revert based on evidence.
+
+For the Kotlin PSI-specific decision thresholds and the required IDE/linter comparison record, use
+[VALIDATION_MATRIX.md](VALIDATION_MATRIX.md).
 
 ## What not to do
 

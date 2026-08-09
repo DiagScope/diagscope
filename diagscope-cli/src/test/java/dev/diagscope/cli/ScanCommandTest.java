@@ -271,6 +271,54 @@ class ScanCommandTest {
         assertThat(output).doesNotExist();
     }
 
+    @Test
+    void scans_an_explicit_dynamic_source_root_without_executing_the_build() throws Exception {
+        Path project = Files.createDirectories(temp.resolve("dynamic-source-root"));
+        Files.writeString(project.resolve("build.gradle.kts"), """
+                val generatedRoot = providers.gradleProperty("generatedRoot")
+                sourceSets.main { java.srcDir(generatedRoot) }
+                """);
+        Path generated = Files.createDirectories(project.resolve("generated/domain/sample"));
+        Files.writeString(generated.resolve("GeneratedController.java"), """
+                package sample;
+                @interface RestController {}
+                @interface GetMapping { String value(); }
+                @RestController class GeneratedController {
+                    @GetMapping("/generated") void run() { System.out.println("generated"); }
+                }
+                """);
+        Path output = temp.resolve("dynamic-source-output");
+
+        int exit = executeScan(project, output, "--source-root", "generated/domain", "--format", "JSON");
+
+        assertThat(exit).isZero();
+        JsonNode report = outputJson(output);
+        assertThat(report.path("statistics").path("sourceFiles").asInt()).isEqualTo(1);
+        assertThat(textValues(report.path("configuration").path("additionalSourceRoots")))
+                .containsExactly(project.resolve("generated/domain").toString());
+        assertThat(report.path("flows")).singleElement();
+
+        int escaped = executeScan(project, temp.resolve("escaped-source-output"),
+                "--source-root", "../outside");
+        assertThat(escaped).isEqualTo(2);
+    }
+
+    @Test
+    void records_and_validates_the_opt_in_classpath() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
+        Path classes = Files.createDirectories(project.resolve("dependency-classes"));
+        Path output = temp.resolve("classpath-output");
+
+        int exit = executeScan(project, output, "--classpath", "dependency-classes", "--format", "JSON");
+
+        assertThat(exit).isZero();
+        assertThat(textValues(outputJson(output).path("configuration").path("explicitClasspath")))
+                .containsExactly(classes.toString());
+        int missing = executeScan(project, temp.resolve("missing-classpath-output"),
+                "--classpath", "missing.jar");
+        assertThat(missing).isEqualTo(2);
+    }
+
     private int executeScan(Path project, Path output, String... additionalArguments) {
         String[] arguments = new String[5 + additionalArguments.length];
         arguments[0] = "scan";

@@ -16,6 +16,8 @@
     "maxFlowDepth",
     "parallelism",
     "enabledEntrypointTypes",
+    "explicitClasspath",
+    "additionalSourceRoots",
     "projectPolicy",
     "scanScope"
   ],

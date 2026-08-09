@@ -22,6 +22,8 @@
 - Maximum flow depth: 3
 - Parser workers: 1
 - Entrypoint types: KAFKA_LISTENER, REST, SCHEDULED
+- Explicit classpath entries: none
+- Additional source roots: none
 - Project policy: none
 - Disabled rules: none
 - Baseline: none (suppressed 0)

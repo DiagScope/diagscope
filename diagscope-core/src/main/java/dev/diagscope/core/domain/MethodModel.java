@@ -25,12 +25,14 @@ public record MethodModel(
         List<MetricNameEvidence> metricNames,
         List<MethodCall> calls,
         ProxyProfile proxy,
-        Map<String, Map<String, String>> annotationAttributes
+        Map<String, Map<String, String>> annotationAttributes,
+        CallableShape callableShape
 ) {
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");
         Objects.requireNonNull(proxy, "proxy");
+        Objects.requireNonNull(callableShape, "callableShape");
         annotations = Set.copyOf(annotations);
         catches = List.copyOf(catches);
         invocations = List.copyOf(invocations);
@@ -51,9 +53,26 @@ public record MethodModel(
             List<MetricTagEvidence> metricTags,
             List<MetricNameEvidence> metricNames,
             List<MethodCall> calls,
+            ProxyProfile proxy,
+            Map<String, Map<String, String>> annotationAttributes
+    ) {
+        this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
+                annotationAttributes, CallableShape.fixed(id.parameterTypes().size()));
+    }
+
+    public MethodModel(
+            MethodId id,
+            SourceLocation location,
+            Set<String> annotations,
+            List<CatchEvidence> catches,
+            List<InvocationEvidence> invocations,
+            List<MetricTagEvidence> metricTags,
+            List<MetricNameEvidence> metricNames,
+            List<MethodCall> calls,
             ProxyProfile proxy
     ) {
-        this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy, Map.of());
+        this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy, Map.of(),
+                CallableShape.fixed(id.parameterTypes().size()));
     }
 
     public MethodModel(

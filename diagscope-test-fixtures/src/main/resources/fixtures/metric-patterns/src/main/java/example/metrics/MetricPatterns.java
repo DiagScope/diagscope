@@ -27,6 +27,7 @@ public class MetricPatterns {
         tagsFactory(orderId);
         dynamicMeterName(orderId);
         dynamicMeterNameFromParameter(orderId);
+        metricCreatedInLoop(orderId);
         staticMeterName();
         unrelatedFluentApi(orderId);
     }
@@ -69,6 +70,12 @@ public class MetricPatterns {
 
     void dynamicMeterNameFromParameter(String meterName) {
         registry.counter(meterName).increment();
+    }
+
+    void metricCreatedInLoop(String orderId) {
+        for (int index = 0; index < 2; index++) {
+            registry.counter("orders.loop", "orderId", orderId).increment();
+        }
     }
 
     void staticMeterName() {

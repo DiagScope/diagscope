@@ -126,6 +126,25 @@ class ProjectLayoutDetectorTest {
         assertThat(layout.sourceRoots()).containsExactly(kotlin, java);
     }
 
+    @Test
+    void accepts_an_explicit_dynamic_root_and_rejects_roots_outside_the_project() throws IOException {
+        Path root = project("dynamic-root", "build.gradle.kts");
+        Files.writeString(root.resolve("build.gradle.kts"), """
+                val generated = providers.gradleProperty("generatedRoot")
+                sourceSets.main { java.srcDir(generated) }
+                """);
+        Path conventional = Files.createDirectories(root.resolve("src/main/java"));
+        Path generated = Files.createDirectories(root.resolve("generated/domain"));
+
+        var layout = ProjectLayoutDetector.detect(root, java.util.List.of(generated));
+
+        assertThat(layout.sourceRoots()).containsExactly(conventional, generated);
+        Path outside = Files.createDirectories(temp.resolve("outside-dynamic"));
+        assertThatThrownBy(() -> ProjectLayoutDetector.detect(root, java.util.List.of(outside)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("stay within the project");
+    }
+
     private Path project(String name, String descriptor) throws IOException {
         Path root = Files.createDirectories(temp.resolve(name));
         Files.writeString(root.resolve(descriptor), descriptor.endsWith(".xml") ? "<project/>\n" : "// build\n");

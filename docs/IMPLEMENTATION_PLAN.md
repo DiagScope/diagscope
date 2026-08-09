@@ -31,9 +31,13 @@ with adding more unvalidated rules.
   boundaries, cycle safety, and maximum-depth handling;
 - [x] conservative Kotlin transitive-interface, inherited-method, interface-default, and
   single-implementation resolution;
+- [x] equivalent Java transitive-interface, superclass/inherited-method, interface-default,
+  composed-annotation, and source-typed overload resolution;
 - [x] constructor-property, injected-property, method-parameter, and chained-property receiver
   mapping for Kotlin;
-- [x] source-typed Java-to-Kotlin and Kotlin-to-Java same-arity overload relinking;
+- [x] source-typed Java-to-Kotlin and Kotlin-to-Java overload relinking, including callable-shape
+  metadata for Kotlin defaults exposed by `@JvmOverloads`, Java/Kotlin varargs, and generic
+  candidate substitution;
 - [x] confidence propagated by the weakest inference in each path;
 - [x] typed parser-neutral evidence, stable fingerprints, and stable related-flow identities;
 - [x] bounded Java parser concurrency and deterministic project-wide aggregation;
@@ -43,6 +47,10 @@ with adding more unvalidated rules.
 - [x] inherited and recursively meta-annotated Kotlin entrypoints, proxy annotations, and advice
   targets;
 - [x] literal Gradle `sourceSets.main` and Maven `build-helper`/Kotlin-plugin production roots;
+- [x] explicit `--source-root` fallback for dynamically computed build roots, constrained to the
+  analyzed project and without build execution;
+- [x] explicit `--classpath` mode for JavaParser source/JDK/dependency symbol solving, with only
+  caller-declared JARs or class directories and no Maven/Gradle execution;
 - [x] shared AspectJ pointcut matching and advice application across Java/Kotlin fragments.
 
 ### Rules
@@ -154,19 +162,27 @@ published scanner Action described here.
 - [x] literal additional production roots from Gradle `sourceSets.main`, Maven `build-helper`, and
   Kotlin Maven plugin `sourceDirs`, with project-boundary validation.
 
-## Remaining — Step 3: validation-gated resolution
+## Delivered in this increment — Step 3 resolution contracts
 
-- [ ] adapter-level positive, negative, and near-boundary fixtures for every enabled rule in Java;
-- [ ] bring transitive hierarchy, composed-annotation, and source-typed overload resolution to the
-  Java adapter where field validation demonstrates a gap;
-- [ ] complete-classpath symbol solving as an explicit opt-in mode, with a declared classpath and no
-  hidden build execution;
-- [ ] cross-language default-argument, vararg, and generic-substitution resolution when source-only
-  identity is insufficient;
-- [ ] dynamic build-script source roots whose paths cannot be read as safe literals;
+- [x] adapter-level positive, negative, and near-boundary Java fixtures, with an executable catalog
+  assertion proving every enabled rule is exercised by Java source;
+- [x] Java transitive hierarchy, inherited/default method, recursively composed/inherited
+  entrypoint/advice annotation, injected receiver-chain, and source-typed overload resolution;
+- [x] complete JavaParser classpath solving as explicit `--classpath` opt-in: source, JDK, and only
+  the caller-declared JAR/class-directory entries are configured; the scanner never invokes a build;
+- [x] parser-neutral callable-shape metadata for cross-language Kotlin `@JvmOverloads` defaults,
+  Java/Kotlin varargs, and source-decidable generic overload substitution;
+- [x] explicit `--source-root` for dynamic build paths that cannot be reduced to safe literals,
+  with existence and project-boundary validation;
+- [x] classpath/source-root inputs recorded in versioned JSON and Markdown scan metadata.
+
+## Remaining — Step 3 validation gates
+
+- [ ] add compiler-grade Kotlin dependency-classpath resolution only if real scans expose an edge
+  that callable-shape and source-typed relinking cannot decide;
 - [ ] measured Kotlin PSI parallelism only if real scans show it is a bottleneck;
 - [ ] comparison with standard IDE and linter inspections on the validation corpus to prove
-  differential value.
+  differential value, using [VALIDATION_MATRIX.md](VALIDATION_MATRIX.md).
 
 Every resolver must preserve terminal boundaries, path-local confidence, cycle safety, deterministic
 aggregation, and benchmark equivalence.

@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,6 +69,14 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--config", description = "Project policy file; defaults to diagscope.yml when present")
     private Path configuration;
 
+    @Option(names = "--classpath", split = ",",
+            description = "Explicit dependency JAR or classes directory; repeat or comma-separate entries")
+    private List<Path> classpath = List.of();
+
+    @Option(names = "--source-root", split = ",",
+            description = "Additional production source root inside the project; repeat or comma-separate entries")
+    private List<Path> sourceRoots = List.of();
+
     @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,SCHEDULED", description = "Entrypoint types to analyze")
     private EnumSet<EntrypointType> entrypointTypes;
 
@@ -88,7 +97,8 @@ public final class ScanCommand implements Callable<Integer> {
 
             int workers = parallelism == 0 ? AnalysisOptions.defaults().parallelism() : parallelism;
             var loadedConfiguration = loadConfiguration(projectRoot);
-            var options = new AnalysisOptions(maxDepth, workers, entrypointTypes, loadedConfiguration.policy());
+            var options = new AnalysisOptions(maxDepth, workers, entrypointTypes, loadedConfiguration.policy(),
+                    resolveClasspath(projectRoot), resolveSourceRoots(projectRoot));
             Path outputDirectory = resolveOutputDirectory(projectRoot);
             var rawResult = useCase.scan(new AnalysisRequest(projectRoot, options));
 
@@ -177,6 +187,40 @@ public final class ScanCommand implements Callable<Integer> {
         if (!resolved.startsWith(projectRoot)) {
             throw new IllegalArgumentException("Relative output must stay within the analyzed project");
         }
+        return resolved;
+    }
+
+    private List<Path> resolveClasspath(Path projectRoot) {
+        return classpath.stream().map(path -> {
+            Path resolved = resolveExistingPath(projectRoot, path, "Classpath entry");
+            String name = resolved.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+            if (!Files.isDirectory(resolved) && !name.endsWith(".jar") && !name.endsWith(".zip")) {
+                throw new IllegalArgumentException("Classpath entry must be a JAR/ZIP or directory: "
+                        + resolved);
+            }
+            return resolved;
+        })
+                .distinct().toList();
+    }
+
+    private List<Path> resolveSourceRoots(Path projectRoot) {
+        return sourceRoots.stream().map(path -> {
+            Path resolved = resolveExistingPath(projectRoot, path, "Source root");
+            if (!resolved.startsWith(projectRoot)) {
+                throw new IllegalArgumentException("Source root must stay within the analyzed project: " + path);
+            }
+            if (!Files.isDirectory(resolved)) {
+                throw new IllegalArgumentException("Source root is not a directory: " + resolved);
+            }
+            return resolved;
+        }).distinct().toList();
+    }
+
+    private static Path resolveExistingPath(Path projectRoot, Path configured, String label) {
+        Path resolved = configured.isAbsolute()
+                ? configured.toAbsolutePath().normalize()
+                : projectRoot.resolve(configured).toAbsolutePath().normalize();
+        if (!Files.exists(resolved)) throw new IllegalArgumentException(label + " does not exist: " + resolved);
         return resolved;
     }
 

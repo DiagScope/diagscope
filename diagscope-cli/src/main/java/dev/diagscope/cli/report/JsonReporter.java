@@ -57,6 +57,10 @@ public final class JsonReporter implements AnalysisReporter {
                 "parallelism", result.options().parallelism(),
                 "enabledEntrypointTypes", result.options().enabledEntrypointTypes().stream()
                         .map(Enum::name).sorted().toList(),
+                "explicitClasspath", result.options().explicitClasspath().stream()
+                        .map(Path::toString).toList(),
+                "additionalSourceRoots", result.options().additionalSourceRoots().stream()
+                        .map(Path::toString).toList(),
                 "projectPolicy", projectPolicy(result.options().policy()),
                 "scanScope", scanScope(result)
         ));

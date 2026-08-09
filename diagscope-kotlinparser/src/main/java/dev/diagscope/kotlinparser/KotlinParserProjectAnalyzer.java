@@ -7,6 +7,7 @@ import dev.diagscope.core.domain.AdviceKind;
 import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.AspectAdvice;
 import dev.diagscope.core.domain.CatchEvidence;
+import dev.diagscope.core.domain.CallableShape;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.core.domain.InvocationEvidence;
@@ -103,7 +104,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     public AnalyzedProject analyze(Path projectDirectory, AnalysisOptions options) {
         Objects.requireNonNull(projectDirectory, "projectDirectory");
         Objects.requireNonNull(options, "options");
-        ProjectLayout layout = ProjectLayoutDetector.detect(projectDirectory);
+        ProjectLayout layout = ProjectLayoutDetector.detect(projectDirectory, options.additionalSourceRoots());
         Path root = layout.root();
         List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots()).stream()
                 .filter(file -> !options.policy().ignores(root.relativize(file.toAbsolutePath().normalize())))
@@ -303,7 +304,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
                 List.copyOf(calls), Map.copyOf(variableTypes),
                 visibility(function), false, effectiveFinal(function, springOpened), returnType,
-                minimumArity, maximumArity, varargIndex, owner == null, function.getBodyExpression() != null);
+                minimumArity, maximumArity, varargIndex,
+                function.getTypeParameters().stream().map(parameter -> parameter.getName())
+                        .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()),
+                owner == null, function.getBodyExpression() != null);
     }
 
     private static CatchEvidence catchEvidence(
@@ -575,7 +579,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(annotationNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
                     proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations),
-                    annotationAttributes(typeAnnotations, methodAnnotations)));
+                    annotationAttributes(typeAnnotations, methodAnnotations),
+                    new CallableShape(raw.minimumArity(), raw.maximumArity(), raw.varargIndex(),
+                            raw.typeParameters())));
         }
         return Collections.unmodifiableMap(result);
     }
@@ -1438,6 +1444,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             int minimumArity,
             int maximumArity,
             int varargIndex,
+            Set<String> typeParameters,
             boolean topLevel,
             boolean executableBody
     ) {
