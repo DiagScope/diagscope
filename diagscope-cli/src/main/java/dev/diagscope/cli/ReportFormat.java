@@ -3,7 +3,8 @@ package dev.diagscope.cli;
 public enum ReportFormat {
     MARKDOWN("report.md"),
     JSON("result.json"),
-    HTML("report.html");
+    HTML("report.html"),
+    SARIF("result.sarif");
 
     private final String fileName;
 

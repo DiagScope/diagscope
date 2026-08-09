@@ -7,6 +7,7 @@ import dev.diagscope.core.application.AnalysisResult;
 import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.EntrypointType;
+import dev.diagscope.core.domain.Severity;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -46,6 +47,9 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML", description = "MARKDOWN, JSON, HTML, or any combination")
     private EnumSet<ReportFormat> formats;
 
+    @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE", defaultValue = "NONE")
+    private FailOn failOn;
+
     @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,SCHEDULED", description = "Entrypoint types to analyze")
     private EnumSet<EntrypointType> entrypointTypes;
 
@@ -71,7 +75,7 @@ public final class ScanCommand implements Callable<Integer> {
 
             writeReports(result, outputDirectory);
             printSummary(result, outputDirectory);
-            return 0;
+            return exitCode(result);
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());
             return 3;
@@ -82,6 +86,40 @@ public final class ScanCommand implements Callable<Integer> {
             System.err.println("DiagScope failed: " + exception.getMessage());
             return 2;
         }
+    }
+
+    /** Severity gate for pipelines; NONE keeps the scan purely informational. */
+    enum FailOn {
+        NONE(null),
+        INFO(Severity.INFO),
+        WARNING(Severity.WARNING),
+        ERROR(Severity.ERROR);
+
+        private final Severity threshold;
+
+        FailOn(Severity threshold) {
+            this.threshold = threshold;
+        }
+
+        Severity threshold() {
+            return threshold;
+        }
+    }
+
+    private int exitCode(AnalysisResult result) {
+        Severity threshold = failOn.threshold();
+        if (threshold == null) {
+            return 0;
+        }
+        long breaching = result.findings().stream()
+                .filter(finding -> finding.severity().compareTo(threshold) >= 0)
+                .count();
+        if (breaching == 0) {
+            return 0;
+        }
+        System.err.printf("Failing: %d finding(s) at or above %s (--fail-on %s).%n",
+                breaching, threshold, failOn);
+        return 1;
     }
 
     private Path resolveOutputDirectory(Path projectRoot) {

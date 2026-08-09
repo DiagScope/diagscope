@@ -34,7 +34,7 @@ class ReportWritingTest {
                 "scan",
                 "--project", project.toString(),
                 "--output", output.toString(),
-                "--format", "SARIF");
+                "--format", "PDF");
 
         assertThat(exit).isEqualTo(2);
         assertThat(output).doesNotExist();

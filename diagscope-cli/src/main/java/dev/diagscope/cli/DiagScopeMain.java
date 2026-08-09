@@ -4,6 +4,7 @@ import dev.diagscope.cli.report.AnalysisReporter;
 import dev.diagscope.cli.report.HtmlReporter;
 import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
+import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
@@ -89,6 +90,7 @@ public final class DiagScopeMain {
         reporters.put(ReportFormat.MARKDOWN, new MarkdownReporter());
         reporters.put(ReportFormat.JSON, new JsonReporter());
         reporters.put(ReportFormat.HTML, new HtmlReporter());
+        reporters.put(ReportFormat.SARIF, new SarifReporter());
 
         return new CommandLine(new RootCommand())
                 .addSubcommand("scan", new ScanCommand(createScanUseCase(), reporters))

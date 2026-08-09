@@ -57,12 +57,14 @@ java -jar diagscope.jar scan --project . --parallelism 2
 |---|---|---|
 | `-p`, `--project` | Project directory to analyze (required) | — |
 | `-o`, `--output` | Output directory; a relative path resolves inside the project | `target/diagscope` |
-| `--format` | `MARKDOWN`, `JSON`, `HTML`, or a comma-separated combination | all three |
+| `--format` | `MARKDOWN`, `JSON`, `HTML`, `SARIF`, or a comma-separated combination | `MARKDOWN,JSON,HTML` |
 | `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `SCHEDULED` | all |
 | `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
 | `--parallelism` | Parser worker count; `0` picks automatically | `0` |
+| `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |
 
-Exit code `0` means the scan completed, `1` means the scan failed, `2` means invalid arguments. Findings do not fail the command — DiagScope reports, you decide.
+By default, exit code `0` means the scan completed, `1` means the scan failed, `2` means invalid arguments — findings alone do not fail the command. Pass `--fail-on ERROR` in CI when you want a broken build instead of a report. `--format SARIF` writes `result.sarif`, ready to upload to GitHub code scanning.
+
 
 Full reference: [docs/CLI.md](docs/CLI.md).
 
