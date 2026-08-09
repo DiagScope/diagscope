@@ -2,7 +2,7 @@
 
 **Will this code explain itself when it fails in production?**
 
-DiagScope is a static analyzer for Java and Spring Boot projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
+DiagScope is a static analyzer for Java, Kotlin/JVM, and Spring Boot projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
 
 It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a Kafka listener, a scheduled job — so you see *which production path* goes blind when something breaks.
 
@@ -27,7 +27,9 @@ Scan a project:
 java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/your-project
 ```
 
-Maven and Gradle projects are both supported, including multi-module builds. Modules are discovered automatically from `pom.xml`, `build.gradle`, and `build.gradle.kts`.
+Maven and Gradle projects are both supported, including multi-module and mixed Java/Kotlin builds. Modules and conventional `src/main/java` and `src/main/kotlin` roots are discovered automatically from `pom.xml`, `build.gradle`, and `build.gradle.kts`.
+
+Kotlin support is currently syntax-first. REST, Kafka, and scheduled entrypoints, local and single-implementation interface calls, catch and invocation evidence, Micrometer tags and meter names, metric creation inside loops, and Spring proxy/AOP modality are mapped into the same parser-neutral model. Full classpath resolution and pointcuts that require runtime Spring/AspectJ state remain outside the current boundary.
 
 By default all three reports are written to `<your-project>/target/diagscope/`:
 
@@ -60,7 +62,7 @@ java -jar diagscope.jar scan --project . --parallelism 2
 | `--format` | `MARKDOWN`, `JSON`, `HTML`, `SARIF`, or a comma-separated combination | `MARKDOWN,JSON,HTML` |
 | `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `SCHEDULED` | all |
 | `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
-| `--parallelism` | Parser worker count; `0` picks automatically | `0` |
+| `--parallelism` | Java parser worker count; `0` picks automatically (Kotlin PSI is sequential for now) | `0` |
 | `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |
 
 By default, exit code `0` means the scan completed, `1` means the scan failed, `2` means invalid arguments — findings alone do not fail the command. Pass `--fail-on ERROR` in CI when you want a broken build instead of a report. `--format SARIF` writes `result.sarif`, ready to upload to GitHub code scanning.
@@ -220,7 +222,7 @@ Rule details and limitations: [docs/RULES.md](docs/RULES.md).
 
 ## What DiagScope does not do
 
-It reads source code only — it does not run your application, resolve the full type system, or follow calls into external libraries, reflection, or proxies. It does not replace SonarQube, SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this flow fails, will anyone be able to tell what happened?*
+It reads Java and Kotlin source code only — it does not run your application, resolve the full type system, or follow calls into external libraries, reflection, or proxies. It does not replace SonarQube, SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this flow fails, will anyone be able to tell what happened?*
 
 ## Documentation
 

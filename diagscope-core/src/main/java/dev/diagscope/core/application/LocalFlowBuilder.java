@@ -1,4 +1,4 @@
-package dev.diagscope.javaparser;
+package dev.diagscope.core.application;
 
 import dev.diagscope.core.application.port.out.FlowBuilder;
 import dev.diagscope.core.domain.AnalyzedProject;

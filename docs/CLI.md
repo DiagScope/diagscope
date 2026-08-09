@@ -22,12 +22,13 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 
 ## Options
 
-- `-p`, `--project` — required directory for one conventional Maven module;
+- `-p`, `--project` — required directory for a conventional Maven or Gradle JVM project;
 - `-o`, `--output` — output directory, default `target/diagscope`; a relative path is resolved below the analyzed project and cannot escape it with `..`; an absolute path is used explicitly as supplied;
 - `--max-depth` — maximum local call depth, from `0` through `32`;
-- `--parallelism` — parser worker count; `0` selects the automatic bounded policy;
+- `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
 - `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, and `SCHEDULED`;
-- `--format` — `MARKDOWN`, `JSON`, or both.
+- `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, and/or `SARIF`;
+- `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`).
 
 The automatic worker policy may also be selected with the `diagscope.parallelism` system property. Explicit command options take precedence.
 
@@ -38,7 +39,8 @@ Default files are:
 ```text
 <analyzed-project>/target/diagscope/
 ├── report.md
-└── result.json
+├── result.json
+└── report.html
 ```
 
 Only requested formats are written. Reports are written through a temporary file and moved into place so an interrupted serialization does not leave a normal-looking partial report. The move falls back safely when the filesystem does not support atomic replacement.
@@ -48,20 +50,23 @@ The terminal summary includes tool version, source files, methods, flows, elapse
 ## Exit codes
 
 - `0` — scan and all requested report writes completed successfully;
+- `1` — scan completed, but at least one finding met the configured `--fail-on` threshold;
 - `2` — invalid scan configuration or scanner/reporting failure;
 - `3` — unsupported project structure or project input.
 
-An Alpha 1 success exit does not mean “no findings.” Severity thresholds and baseline-aware CI blocking are deliberately postponed until project configuration exists.
+Without `--fail-on`, a successful Alpha 1 scan remains informational and exit code `0` does not mean “no findings.”
 
 ## Supported input shape
 
-The project directory must declare a Maven or a Gradle build and expose conventional Java sources, either at the root or in its modules:
+The project directory must declare a Maven or Gradle build and expose at least one conventional Java or Kotlin/JVM production source root, either at the root or in its modules:
 
 ```text
 pom.xml | build.gradle | build.gradle.kts | settings.gradle | settings.gradle.kts
-src/main/java/
+src/main/java/ | src/main/kotlin/
 ```
 
-Multi-module builds are supported for both tools: every nested directory (up to four levels deep) that carries its own build descriptor and a `src/main/java` folder is scanned in one run, and build output directories (`target/`, `build/`, `out/`, `bin/`) are skipped. The detected build system and module list are reported in `result.json` (`project.buildSystem`, `project.modules`), in the Markdown summary table, and in the HTML report header.
+Multi-module and mixed Java/Kotlin builds are supported for both tools: every nested directory (up to four levels deep) that carries its own build descriptor and a conventional JVM source root is scanned in one run, and build output directories (`target/`, `build/`, `out/`, `bin/`) are skipped. The detected build system and module list are reported in `result.json` (`project.buildSystem`, `project.modules`), in the Markdown summary table, and in the HTML report header.
+
+Kotlin analysis is syntax-first. It currently covers entrypoints, local and single-implementation interface calls, catch and invocation evidence, resource `use`, Micrometer tags and names, metric creation inside loops, and syntax-decidable Spring AOP pointcuts. Complete type/classpath resolution and pointcuts that require runtime state remain outside the current boundary.
 
 Source directories configured explicitly inside a build script (custom `sourceSets` or `build-helper` roots) and generated sources are still out of scope: DiagScope never executes Maven or Gradle, it only reads the conventional layout.

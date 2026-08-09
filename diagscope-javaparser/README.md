@@ -8,7 +8,6 @@ Responsibilities:
 - parse source files with JavaParser;
 - map the AST into parser-neutral evidence owned by the core;
 - index methods, types, and candidate implementations;
-- resolve local calls on a best-effort basis;
-- build bounded local flows.
+- resolve Java-local calls on a best-effort basis.
 
 No JavaParser type may cross the output port into `diagscope-core`.

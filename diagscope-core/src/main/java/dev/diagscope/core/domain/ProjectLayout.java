@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Describes how a project is laid out on disk: which build tool declares it and where its Java
- * production sources live. Multi-module builds contribute one source root per module.
+ * Describes how a JVM project is laid out on disk: which build tool declares it and where its
+ * production sources live. Multi-module and mixed-language builds may contribute several source
+ * roots per module.
  *
  * @param buildSystem build tool detected at the project root
  * @param root        absolute, normalized project root
@@ -31,7 +32,7 @@ public record ProjectLayout(
         sourceRoots = List.copyOf(sourceRoots);
     }
 
-    /** True when the build declares more than one module with Java sources. */
+    /** True when the build declares more than one module with JVM production sources. */
     public boolean isMultiModule() {
         return modules.size() > 1;
     }

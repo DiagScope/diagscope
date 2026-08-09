@@ -2,7 +2,7 @@
 
 ## Purpose
 
-DiagScope is a static analyzer for Java and Spring Boot repositories. It detects code patterns that may leave a production flow without enough diagnostic evidence to investigate a failure.
+DiagScope is a static analyzer for Java, Kotlin/JVM, and Spring Boot repositories. It detects code patterns that may leave a production flow without enough diagnostic evidence to investigate a failure.
 
 It does not collect telemetry and does not replace runtime observability platforms. It analyzes the source code responsible for producing telemetry, observing asynchronous outcomes, and preserving failure context.
 
@@ -12,7 +12,7 @@ It does not collect telemetry and does not replace runtime observability platfor
 
 ## Intended users
 
-- Java developers and reviewers;
+- Java and Kotlin developers and reviewers;
 - platform, reliability, and observability teams;
 - engineering managers responsible for Java quality standards.
 
@@ -26,35 +26,35 @@ It also complements rather than replaces SonarQube, SpotBugs, Checkstyle, and ID
 
 The `0.1.0-alpha.1` line:
 
-- analyzes one conventional Maven module per execution;
-- reads `src/main/java` and never executes analyzed application code;
+- analyzes conventional Maven and Gradle projects, including modules discovered up to four levels deep;
+- reads `src/main/java` and `src/main/kotlin` and never executes analyzed application code;
 - never initializes Spring or loads the target application's classes;
 - never uploads source code;
 - uses deterministic rules for findings;
 - reports incomplete resolution through boundaries and confidence;
 - focuses on diagnostic evidence rather than general style enforcement;
-- emits human-readable Markdown and versioned machine-readable JSON.
+- emits Markdown, versioned JSON, self-contained HTML, and optional SARIF reports.
 
-Alpha findings require human review. The release is not yet approved to block CI by severity.
+Alpha findings require human review. A `--fail-on` severity gate exists for controlled CI adoption, but it is disabled by default.
 
 ## Supported alpha analysis
 
 | Capability | Alpha 1 behavior |
 |---|---|
-| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with `src/main/java` in the root or in its modules |
-| Source discovery | Sorted, deduplicated `.java` files below every discovered module's `src/main/java` (module search depth 4, build output directories skipped) |
-| Parsing | JavaParser configured for Java 25; each file parsed once with bounded workers |
+| Project input | One directory declaring a Maven (`pom.xml`) or Gradle (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`) build, with `src/main/java` and/or `src/main/kotlin` in the root or its modules |
+| Source discovery | Sorted, deduplicated `.java` and `.kt` files below conventional production roots (module search depth 4, build output directories skipped) |
+| Parsing | JavaParser configured for Java 25 with bounded workers; Kotlin compiler PSI in one deterministic per-scan session |
 | Domain mapping | Immutable parser-neutral method and typed-evidence records |
 | REST entrypoints | Direct Spring controller and mapping annotations; class and method annotations are treated separately; best-effort verb/route display metadata |
 | Kafka entrypoints | Direct `@KafkaListener`; best-effort topic display metadata |
 | Scheduled entrypoints | Direct `@Scheduled`; best-effort cron/fixed-delay/fixed-rate display metadata |
-| Local calls | Same-class and declared-receiver calls from fields, record components, parameters, and locals; a single direct interface implementation is followed at `MEDIUM` confidence |
+| Local calls | Same-class and declared-receiver calls from fields, constructor properties, parameters, and locals; language fragments are merged for conservative Java/Kotlin cross-language linking; a single direct Java or Kotlin interface implementation is followed at `MEDIUM` confidence |
 | Flow model | Bounded, cycle-safe reached methods plus explicit call edges and terminal boundaries |
 | Confidence | Per-edge and per-reached-method propagation; findings capped by the path that reaches their evidence |
-| Rules | Six deterministic rules listed in [RULES.md](RULES.md) |
+| Rules | Deterministic parser-neutral rule catalog listed in [RULES.md](RULES.md) |
 | Suppression | Explicit `diagscope:ignore <RULE_ID> -- <reason>` directive for supported catch evidence; ordinary comments do not silently suppress findings |
 | Findings | Deterministic ordering, stable SHA-256 fingerprint, ordered related-flow context |
-| Output | Markdown and versioned JSON through CLI output adapters, including per-file parse diagnostics |
+| Output | Markdown, versioned JSON, self-contained HTML, and SARIF through CLI output adapters, including per-file parse diagnostics |
 | Metrics | Source, method, entrypoint, flow, parse-failure, finding, and phase-duration statistics |
 
 “Best effort” means metadata is emitted when it can be read directly and deterministically from syntax. Dynamic annotation expressions can remain as conservative display text or an unknown boundary.
@@ -63,18 +63,19 @@ Alpha findings require human review. The release is not yet approved to block CI
 
 Alpha 1 does not guarantee:
 
-- Maven reactor or arbitrary multi-module aggregation;
+- arbitrary custom module layouts beyond conventional nested build descriptors;
 - generated sources or nonstandard source roots;
 - a complete dependency classpath or full JavaSymbolSolver semantics;
 - inherited or meta-annotated Spring entrypoints;
-- complete overload, generic, interface, inheritance, inner-class, or default-method resolution;
+- complete overload, generic, interface, inheritance, inner-class, default-method, or Kotlin default-argument resolution;
 - Spring proxy, AOP, bean-factory, reflection, or runtime configuration behavior;
 - cross-service topology or Kafka producer-to-consumer linking;
 - proof that a logger receiver is a supported logging API in every case;
 - proof that global Kafka producer listeners or external error handling are absent;
 - complete Micrometer type and value-provenance analysis;
-- project policy files, severity overrides, baselines, or CI failure thresholds;
-- SARIF, Maven plugin execution, dashboard comparison, or LLM explanations.
+- runtime-only or named AspectJ pointcut expansion beyond syntax-decidable designators;
+- project policy files, severity overrides, or baselines;
+- Maven plugin execution, dashboard comparison, or LLM explanations.
 
 An unsupported construct should stop or weaken only the affected path. It must not silently manufacture a resolved call or reduce confidence on an unrelated branch.
 

@@ -1,5 +1,7 @@
 package dev.diagscope.javaparser;
 
+import dev.diagscope.core.application.LocalFlowBuilder;
+
 import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.DiagnosticCoverageService;

@@ -26,13 +26,13 @@ import java.util.concurrent.Callable;
 @Command(
         name = "scan",
         mixinStandardHelpOptions = true,
-        description = "Analyze one Maven module for diagnostic coverage gaps."
+        description = "Analyze a Maven or Gradle JVM project for diagnostic coverage gaps."
 )
 public final class ScanCommand implements Callable<Integer> {
     private final ScanProjectUseCase useCase;
     private final Map<ReportFormat, AnalysisReporter> reporters;
 
-    @Option(names = {"-p", "--project"}, required = true, description = "Maven module directory")
+    @Option(names = {"-p", "--project"}, required = true, description = "Maven or Gradle project directory")
     private Path project;
 
     @Option(names = {"-o", "--output"}, description = "Output directory, relative to the project by default", defaultValue = "target/diagscope")
@@ -41,7 +41,7 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--max-depth", defaultValue = "3", description = "Maximum local call depth, from 0 to 32")
     private int maxDepth;
 
-    @Option(names = "--parallelism", defaultValue = "${sys:diagscope.parallelism:-0}", description = "Parser workers; 0 selects an automatic bounded value")
+    @Option(names = "--parallelism", defaultValue = "${sys:diagscope.parallelism:-0}", description = "Java parser workers; 0 selects an automatic bounded value")
     private int parallelism;
 
     @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML", description = "MARKDOWN, JSON, HTML, or any combination")

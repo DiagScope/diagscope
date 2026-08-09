@@ -1,4 +1,4 @@
-package dev.diagscope.javaparser;
+package dev.diagscope.jvmanalysis;
 
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.BuildSystem;
@@ -17,15 +17,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-/**
- * Detects whether a directory is a Maven or a Gradle project and collects every Java production
- * source root it declares, including the modules of a multi-module build.
- *
- * <p>Detection is file-system based on purpose: DiagScope never executes {@code mvn} or
- * {@code gradle}, so it only relies on the conventional layout ({@code <module>/src/main/java})
- * that both tools use by default. Custom source directories configured inside a build script are
- * out of scope for the alpha.</p>
- */
+/** Detects conventional Java and Kotlin/JVM production source roots in Maven and Gradle builds. */
 public final class ProjectLayoutDetector {
     /** Depth of the module search below the project root; deep enough for nested module groups. */
     static final int MAX_MODULE_DEPTH = 4;
@@ -42,16 +34,17 @@ public final class ProjectLayoutDetector {
             ".git", ".gradle", ".idea", ".mvn", ".settings", ".svn", ".vscode"
     );
 
-    private static final Path MAIN_JAVA = Path.of("src", "main", "java");
+    private static final List<Path> MAIN_SOURCE_DIRECTORIES = List.of(
+            Path.of("src", "main", "java"),
+            Path.of("src", "main", "kotlin")
+    );
 
     private ProjectLayoutDetector() {
     }
 
     /**
-     * Resolves the layout of {@code projectDirectory}.
-     *
-     * @throws UnsupportedProjectException when no Maven or Gradle descriptor is present at the
-     *                                     root, or when the build declares no Java sources
+     * Resolves the conventional JVM source layout of {@code projectDirectory} without executing its
+     * build. Custom source sets remain an explicit boundary.
      */
     public static ProjectLayout detect(Path projectDirectory) {
         Objects.requireNonNull(projectDirectory, "projectDirectory");
@@ -69,15 +62,22 @@ public final class ProjectLayoutDetector {
         var modules = new ArrayList<Path>(moduleDirectories.size());
         var sourceRoots = new LinkedHashSet<Path>();
         for (Path module : moduleDirectories) {
-            Path sourceRoot = module.resolve(MAIN_JAVA);
-            if (Files.isDirectory(sourceRoot)) {
+            boolean containsSources = false;
+            for (Path relativeSourceRoot : MAIN_SOURCE_DIRECTORIES) {
+                Path sourceRoot = module.resolve(relativeSourceRoot);
+                if (Files.isDirectory(sourceRoot)) {
+                    containsSources = true;
+                    sourceRoots.add(sourceRoot);
+                }
+            }
+            if (containsSources) {
                 modules.add(root.relativize(module));
-                sourceRoots.add(sourceRoot);
             }
         }
         if (sourceRoots.isEmpty()) {
             throw new UnsupportedProjectException(
-                    "No src/main/java directory found in " + root + " or in any of its modules");
+                    "No src/main/java or src/main/kotlin directory found in " + root
+                            + " or in any of its modules");
         }
         return new ProjectLayout(buildSystem, root, modules, List.copyOf(sourceRoots));
     }
@@ -102,10 +102,6 @@ public final class ProjectLayoutDetector {
         return fileNames.stream().anyMatch(name -> Files.isRegularFile(directory.resolve(name)));
     }
 
-    /**
-     * Returns the root plus every nested directory that carries its own build descriptor, sorted so
-     * that repeated scans of the same project always parse files in the same order.
-     */
     private static List<Path> discoverModules(Path root) {
         var modules = new TreeSet<Path>();
         modules.add(root);

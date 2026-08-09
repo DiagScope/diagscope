@@ -180,6 +180,86 @@ class ScanCommandTest {
     }
 
     @Test
+    void scans_a_kotlin_project_end_to_end() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "kotlin-flow");
+        Path output = temp.resolve("kotlin-reports");
+
+        int exit = executeScan(project, output, "--parallelism", "1");
+
+        assertThat(exit).isZero();
+        JsonNode report = outputJson(output);
+        assertThat(report.path("project").path("buildSystem").asText()).isEqualTo("GRADLE");
+        assertThat(report.path("statistics").path("sourceFiles").asInt()).isEqualTo(1);
+        assertThat(report.path("flows")).hasSize(2);
+        assertThat(textValuesAt(report.path("findings"), "ruleId"))
+                .contains("SILENT_FAILURE_CONVERSION", "KAFKA_SEND_RESULT_IGNORED", "SILENT_CATCH", "SYSTEM_OUTPUT");
+        report.path("findings").forEach(finding ->
+                assertThat(finding.path("location").path("file").asText()).endsWith(".kt"));
+    }
+
+    @Test
+    void reports_kotlin_metric_and_aspect_evidence_end_to_end() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "kotlin-metric-patterns");
+        Path output = temp.resolve("kotlin-metric-reports");
+
+        int exit = executeScan(project, output, "--parallelism", "1");
+
+        assertThat(exit).isZero();
+        JsonNode report = outputJson(output);
+        assertThat(report.path("statistics").path("sourceFiles").asInt()).isEqualTo(1);
+        assertThat(report.path("aspects")).singleElement().satisfies(aspect -> {
+            assertThat(aspect.path("id").asText())
+                    .isEqualTo("example.kotlin.metrics.KotlinMetricsAspect.observe");
+            assertThat(aspect.path("pointcut").asText()).contains("KotlinMetricPatterns.dynamic*");
+        });
+        assertThat(textValuesAt(report.path("findings"), "ruleId"))
+                .contains("HIGH_CARDINALITY_METRIC_TAG", "DYNAMIC_METRIC_NAME", "METRIC_CREATED_IN_LOOP");
+    }
+
+    @Test
+    void follows_a_flow_from_java_into_kotlin() throws Exception {
+        Path project = Files.createDirectories(temp.resolve("mixed-language"));
+        Files.writeString(project.resolve("build.gradle.kts"), "plugins { kotlin(\"jvm\") version \"2.4.10\" }\n");
+        Path javaSource = Files.createDirectories(project.resolve("src/main/java/sample"));
+        Path kotlinSource = Files.createDirectories(project.resolve("src/main/kotlin/sample"));
+        Files.writeString(javaSource.resolve("JavaController.java"), """
+                package sample;
+                @RestController
+                class JavaController {
+                    private final KotlinService service;
+                    JavaController(KotlinService service) { this.service = service; }
+                    @GetMapping("/mixed")
+                    boolean run() { return service.execute(); }
+                }
+                """);
+        Files.writeString(kotlinSource.resolve("KotlinService.kt"), """
+                package sample
+                @Service
+                class KotlinService {
+                    fun execute(): Boolean = try {
+                        work()
+                        true
+                    } catch (exception: RuntimeException) {
+                        false
+                    }
+                    private fun work() {}
+                }
+                """);
+        Path output = temp.resolve("mixed-language-reports");
+
+        int exit = executeScan(project, output, "--parallelism", "1");
+
+        assertThat(exit).isZero();
+        JsonNode report = outputJson(output);
+        assertThat(report.path("statistics").path("sourceFiles").asInt()).isEqualTo(2);
+        assertThat(report.path("flows")).hasSize(1);
+        assertThat(report.path("flows").get(0).path("methods")).hasSize(3);
+        assertThat(textValuesAt(report.path("findings"), "ruleId")).contains("SILENT_FAILURE_CONVERSION");
+        assertThat(report.path("findings").findValues("affectedMethods").toString())
+                .contains("sample.KotlinService.execute()");
+    }
+
+    @Test
     void unsupported_project_returns_exit_code_three_without_creating_output() throws Exception {
         Path unsupportedProject = Files.createDirectory(temp.resolve("unsupported-project"));
         Files.createDirectories(unsupportedProject.resolve("src/main/java"));

@@ -6,6 +6,7 @@ import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
 import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
+import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
 import dev.diagscope.core.application.rule.GenericExceptionMessageRule;
@@ -37,7 +38,8 @@ import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
 import dev.diagscope.core.application.rule.UnmanagedAdviceTargetRule;
 import dev.diagscope.javaparser.JavaParserProjectAnalyzer;
-import dev.diagscope.javaparser.LocalFlowBuilder;
+import dev.diagscope.jvmanalysis.CompositeProjectAnalyzer;
+import dev.diagscope.kotlinparser.KotlinParserProjectAnalyzer;
 import picocli.CommandLine;
 
 import java.util.EnumMap;
@@ -85,7 +87,10 @@ public final class DiagScopeMain {
                 new TransactionalPropagationMismatchRule()
         ));
         return new DiagnosticCoverageService(
-                new JavaParserProjectAnalyzer(),
+                new CompositeProjectAnalyzer(List.of(
+                        new JavaParserProjectAnalyzer(),
+                        new KotlinParserProjectAnalyzer()
+                )),
                 new LocalFlowBuilder(),
                 ruleEngine
         );

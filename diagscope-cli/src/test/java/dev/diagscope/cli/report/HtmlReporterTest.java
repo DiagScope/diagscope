@@ -9,7 +9,7 @@ import dev.diagscope.core.application.rule.RuleEngine;
 import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.javaparser.JavaParserProjectAnalyzer;
-import dev.diagscope.javaparser.LocalFlowBuilder;
+import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.testfixtures.FixtureCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

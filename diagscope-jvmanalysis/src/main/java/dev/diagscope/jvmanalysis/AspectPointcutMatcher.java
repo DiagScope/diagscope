@@ -1,4 +1,4 @@
-package dev.diagscope.javaparser;
+package dev.diagscope.jvmanalysis;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,32 +8,34 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Conservative, syntax-level approximation of AspectJ pointcut matching.
+ * Conservative, parser-neutral approximation of AspectJ pointcut matching.
  *
- * <p>DiagScope does not run the AspectJ matcher: it has no classpath, no bean definitions and no
- * runtime types. This matcher recognises the designators that can be decided from source alone —
- * {@code @annotation}, {@code @within}, {@code within} and the type/method part of
- * {@code execution} — and combines them the way {@code &&}, {@code ||} and {@code !} do. Anything
- * it cannot decide (for example {@code target}, {@code args}, {@code bean} or a named pointcut
- * reference) evaluates to "no match", so the rules built on top under-report rather than invent
- * instrumentation that may not exist.</p>
+ * <p>DiagScope does not run the AspectJ matcher: it has no classpath, bean definitions, or runtime
+ * types. This matcher recognises the designators that can be decided from source alone —
+ * {@code @annotation}, {@code @within}, {@code within}, and the type/method part of
+ * {@code execution} — and combines them using {@code &&}, {@code ||}, and {@code !}. Unknown
+ * designators evaluate to no match so callers under-report rather than invent instrumentation.</p>
  */
-final class AspectPointcutMatcher {
+public final class AspectPointcutMatcher {
     private static final Pattern DESIGNATOR = Pattern.compile(
             "(@?\\w+)\\s*\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)");
 
     private AspectPointcutMatcher() {
     }
 
-    /** Method facts the matcher can reason about. */
-    record Target(String declaringType, String methodName, Set<String> annotations) {}
+    /** Method facts that can be obtained consistently from Java or Kotlin syntax. */
+    public record Target(String declaringType, String methodName, Set<String> annotations) {
+        public Target {
+            annotations = Set.copyOf(annotations);
+        }
+    }
 
     /** Whether the pointcut expression plausibly matches the target method. */
-    static boolean matches(String pointcut, Target target) {
+    public static boolean matches(String pointcut, Target target) {
         if (pointcut == null || pointcut.isBlank()) {
             return false;
         }
-        return evaluate(tokenize(pointcut), target);
+        return evaluate(tokenize(pointcut), target) == Decision.MATCH;
     }
 
     private static List<String> tokenize(String pointcut) {
@@ -58,34 +60,25 @@ final class AspectPointcutMatcher {
         return tokens;
     }
 
-    private static boolean evaluate(List<String> tokens, Target target) {
-        boolean result = false;
-        boolean pendingAnd = false;
-        boolean first = true;
-        for (int index = 0; index < tokens.size(); index++) {
-            String token = tokens.get(index);
+    /** Evaluates AND groups before OR groups and preserves unknown runtime-only designators. */
+    private static Decision evaluate(List<String> tokens, Target target) {
+        Decision disjunction = Decision.NO_MATCH;
+        Decision conjunction = Decision.MATCH;
+        for (String token : tokens) {
             if ("&&".equals(token)) {
-                pendingAnd = true;
                 continue;
             }
             if ("||".equals(token)) {
-                pendingAnd = false;
+                disjunction = or(disjunction, conjunction);
+                conjunction = Decision.MATCH;
                 continue;
             }
-            boolean value = evaluateSingle(token, target);
-            if (first) {
-                result = value;
-                first = false;
-            } else if (pendingAnd) {
-                result = result && value;
-            } else {
-                result = result || value;
-            }
+            conjunction = and(conjunction, evaluateSingle(token, target));
         }
-        return result;
+        return or(disjunction, conjunction);
     }
 
-    private static boolean evaluateSingle(String expression, Target target) {
+    private static Decision evaluateSingle(String expression, Target target) {
         String token = expression.trim();
         boolean negated = false;
         while (token.startsWith("!")) {
@@ -96,11 +89,9 @@ final class AspectPointcutMatcher {
             token = token.substring(1, token.length() - 1).trim();
         }
         if (token.contains("&&") || token.contains("||")) {
-            boolean nested = evaluate(tokenize(token), target);
-            return negated != nested;
+            return negateIfRequired(evaluate(tokenize(token), target), negated);
         }
-        boolean value = evaluateDesignator(token, target);
-        return negated != value;
+        return negateIfRequired(evaluateDesignator(token, target), negated);
     }
 
     private static boolean balanced(String token) {
@@ -113,19 +104,41 @@ final class AspectPointcutMatcher {
         return depth == 0;
     }
 
-    private static boolean evaluateDesignator(String token, Target target) {
+    private static Decision evaluateDesignator(String token, Target target) {
         Matcher matcher = DESIGNATOR.matcher(token);
         if (!matcher.matches()) {
-            return false;
+            return Decision.UNKNOWN;
         }
         String designator = matcher.group(1).toLowerCase(Locale.ROOT);
         String argument = matcher.group(2).trim();
         return switch (designator) {
-            case "@annotation", "@within", "@target" -> target.annotations().contains(simpleName(argument));
-            case "within" -> matchesTypePattern(argument, target.declaringType());
-            case "execution" -> matchesExecution(argument, target);
-            default -> false;
+            case "@annotation", "@within", "@target" -> decision(
+                    target.annotations().contains(simpleName(argument)));
+            case "within" -> decision(matchesTypePattern(argument, target.declaringType()));
+            case "execution" -> decision(matchesExecution(argument, target));
+            default -> Decision.UNKNOWN;
         };
+    }
+
+    private static Decision decision(boolean value) {
+        return value ? Decision.MATCH : Decision.NO_MATCH;
+    }
+
+    private static Decision negateIfRequired(Decision decision, boolean negated) {
+        if (!negated || decision == Decision.UNKNOWN) return decision;
+        return decision == Decision.MATCH ? Decision.NO_MATCH : Decision.MATCH;
+    }
+
+    private static Decision and(Decision left, Decision right) {
+        if (left == Decision.NO_MATCH || right == Decision.NO_MATCH) return Decision.NO_MATCH;
+        if (left == Decision.UNKNOWN || right == Decision.UNKNOWN) return Decision.UNKNOWN;
+        return Decision.MATCH;
+    }
+
+    private static Decision or(Decision left, Decision right) {
+        if (left == Decision.MATCH || right == Decision.MATCH) return Decision.MATCH;
+        if (left == Decision.UNKNOWN || right == Decision.UNKNOWN) return Decision.UNKNOWN;
+        return Decision.NO_MATCH;
     }
 
     private static boolean matchesExecution(String signature, Target target) {
@@ -151,11 +164,6 @@ final class AspectPointcutMatcher {
         return !cleaned.contains(".") && matchesNamePattern(cleaned, simpleName(declaringType));
     }
 
-    /**
-     * Translates an AspectJ name pattern into a regex. Built character by character because
-     * {@link Pattern#quote} plus string replacement produces unbalanced {@code \Q...\E} blocks for
-     * patterns such as {@code example.aop..*}.
-     */
     private static boolean matchesNamePattern(String pattern, String value) {
         var regex = new StringBuilder(pattern.length() * 2);
         for (int index = 0; index < pattern.length(); index++) {
@@ -173,10 +181,15 @@ final class AspectPointcutMatcher {
         return Pattern.compile(regex.toString()).matcher(value).matches();
     }
 
-
     private static String simpleName(String value) {
         String cleaned = value.trim();
         int lastDot = cleaned.lastIndexOf('.');
         return lastDot < 0 ? cleaned : cleaned.substring(lastDot + 1);
+    }
+
+    private enum Decision {
+        MATCH,
+        NO_MATCH,
+        UNKNOWN
     }
 }

@@ -50,6 +50,8 @@ import dev.diagscope.core.domain.MetricTagEvidence;
 import dev.diagscope.core.domain.ParseFailure;
 import dev.diagscope.core.domain.ResolutionReason;
 import dev.diagscope.core.domain.SourceLocation;
+import dev.diagscope.jvmanalysis.ProjectLayoutDetector;
+import dev.diagscope.jvmanalysis.AspectPointcutMatcher;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,5 +1,7 @@
 package dev.diagscope.javaparser;
 
+import dev.diagscope.core.application.LocalFlowBuilder;
+
 import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.BuildSystem;
 import dev.diagscope.core.domain.ProjectLayout;

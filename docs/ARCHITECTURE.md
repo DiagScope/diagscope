@@ -13,13 +13,15 @@ Picocli CLI
 ScanProjectUseCase
     │
     ▼
-DiagnosticCoverageService ───────► ProjectAnalyzer ─► JavaParser adapter
-    │                              FlowBuilder     ─► local-flow adapter
+DiagnosticCoverageService ───────► ProjectAnalyzer ─► JVM composite
+    │                                                  ├─ JavaParser adapter
+    │                                                  └─ Kotlin PSI adapter
+    │                              FlowBuilder     ─► core local-flow builder
     ▼
 RuleEngine
     │
     ▼
-AnalysisResult ─────────────────────────────────────► Markdown / JSON reporters
+AnalysisResult ─────────────────────────────────────► Markdown / JSON / HTML / SARIF reporters
 ```
 
 The CLI is the composition root. It constructs adapters, rules, the rule engine, and the application service explicitly. There is no Spring or other dependency-injection runtime inside the scanner.
@@ -27,16 +29,19 @@ The CLI is the composition root. It constructs adapters, rules, the rule engine,
 ## Dependency rule
 
 ```text
-diagscope-core ← diagscope-javaparser ← diagscope-cli
+diagscope-jvmanalysis ─► diagscope-core
+diagscope-javaparser ──► diagscope-core, diagscope-jvmanalysis
+diagscope-kotlinparser ► diagscope-core, diagscope-jvmanalysis
+diagscope-cli ─────────► all runtime modules above
 
-diagscope-test-fixtures ─ ─ ─► JavaParser and CLI integration tests only
+diagscope-test-fixtures ─ ─ ─► parser and CLI integration tests only
 ```
 
 Dependencies point inward. `diagscope-core` compiles with the JDK alone and must never import JavaParser, Picocli, Jackson, SLF4J, Spring, Kafka, or Micrometer types.
 
 This restriction is an architectural test:
 
-- parser-specific facts are translated at the JavaParser adapter boundary;
+- parser-specific facts are translated at the JavaParser or Kotlin PSI adapter boundary;
 - input validation and presentation stay in the CLI adapter;
 - diagnostic decisions operate only on core domain types;
 - replacing an adapter does not rewrite rules or application policy.
@@ -60,14 +65,29 @@ This restriction is an architectural test:
 - AST-to-typed-evidence mapping;
 - method and type indexes;
 - conservative local-call resolution;
-- explicit unresolved and truncated boundaries;
-- bounded path-aware local-flow construction.
+- explicit unresolved boundaries.
+
+### `diagscope-kotlinparser`
+
+- deterministic Kotlin source discovery and a per-scan Kotlin PSI environment;
+- Kotlin syntax-to-typed-evidence mapping;
+- Kotlin-local call resolution, including default and vararg arity;
+- REST, Kafka, scheduled, catch, invocation, resource, Micrometer, and proxy evidence;
+- direct single-implementation interface resolution;
+- explicit syntax failures and unresolved boundaries.
+
+### `diagscope-jvmanalysis`
+
+- shared Maven/Gradle module and JVM source-root discovery;
+- deterministic composition of language-specific analysis fragments;
+- conservative Java/Kotlin cross-language call relinking after both indexes exist;
+- parser-neutral syntax-level AspectJ pointcut matching and cross-language advice application.
 
 ### `diagscope-cli`
 
 - argument parsing and project-input validation;
 - explicit object-graph composition;
-- Markdown and JSON reporters;
+- Markdown, JSON, HTML, and SARIF reporters;
 - stable process exit codes;
 - executable shaded-JAR packaging.
 
@@ -83,13 +103,13 @@ This restriction is an architectural test:
 ```text
 validate input
     ↓
-discover sorted source paths once
+discover sorted Java and Kotlin source paths
     ↓
-parse and map each source file once with bounded workers
+parse and map each source file once in its language adapter
     ↓
 discard each AST after compact typed evidence is produced
     ↓
-build deterministic indexes once
+merge language fragments and relink cross-language calls
     ↓
 detect candidate entrypoints
     ↓
@@ -104,13 +124,13 @@ deduplicate and order findings
 serialize requested reports
 ```
 
-Parsing and per-file mapping are parallel only where source files are independent. Each worker returns parser-neutral facts so complete repository ASTs are not retained. Index aggregation, graph traversal, rule ordering, finding merging, and report serialization preserve deterministic ordering.
+Java parsing and per-file mapping use bounded workers where source files are independent. The first Kotlin adapter uses one deterministic PSI session per scan because its files share a compiler application environment. Both return parser-neutral facts, and complete repository ASTs are not retained after mapping. Fragment aggregation, cross-language linking, graph traversal, rule ordering, finding merging, and report serialization preserve deterministic ordering.
 
 ## Detection versus interpretation
 
 The most important adapter boundary separates source detection from diagnostic interpretation.
 
-The JavaParser adapter reads the AST and produces typed facts such as:
+The JavaParser and Kotlin PSI adapters read their syntax trees and produce the same typed facts, such as:
 
 - `CatchEvidence`;
 - `InvocationEvidence`;
@@ -202,14 +222,16 @@ Future adapters may include a Maven plugin, SARIF reporter, or remote API that r
 
 ## Current analysis boundary
 
-Alpha 1 is intentionally syntax-first. It does not claim complete Java or Spring semantics. In particular, it does not yet guarantee:
+Alpha 1 is intentionally syntax-first. It does not claim complete Java, Kotlin, or Spring semantics. In particular, it does not yet guarantee:
 
 - complete classpath or JavaSymbolSolver resolution;
 - inherited, generic, polymorphic, reflective, or proxy-mediated call resolution;
 - complete interface resolution beyond a directly provable single implementation;
 - stable REST route, Kafka topic, or schedule-expression metadata;
 - semantic identification of every logger, `KafkaTemplate`, or Micrometer receiver;
-- multi-module or cross-service flow construction.
+- runtime-only AspectJ designators and named pointcut expansion;
+- exact cross-language resolution for ambiguous overloads or varargs;
+- cross-service flow construction.
 
 When the adapter cannot prove a local edge, it must stop, record a reason, and lower confidence where appropriate. Expanding resolution is adapter work; weakening the core dependency rule is not an acceptable shortcut.
 

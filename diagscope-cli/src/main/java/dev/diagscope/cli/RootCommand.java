@@ -8,7 +8,7 @@ import picocli.CommandLine.Model.CommandSpec;
         name = "diagscope",
         mixinStandardHelpOptions = true,
         versionProvider = BuildInfo.class,
-        description = "Static diagnostic coverage analysis for Java and Spring Boot."
+        description = "Static diagnostic coverage analysis for Java, Kotlin, and Spring Boot."
 )
 public final class RootCommand implements Runnable {
     @Spec

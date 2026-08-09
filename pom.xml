@@ -10,12 +10,14 @@
     <packaging>pom</packaging>
 
     <name>DiagScope</name>
-    <description>Static diagnostic coverage analysis for Java and Spring Boot applications.</description>
+    <description>Static diagnostic coverage analysis for Java, Kotlin, and Spring Boot applications.</description>
     <url>https://diagscope.dev</url>
 
     <modules>
         <module>diagscope-core</module>
+        <module>diagscope-jvmanalysis</module>
         <module>diagscope-javaparser</module>
+        <module>diagscope-kotlinparser</module>
         <module>diagscope-cli</module>
         <module>diagscope-test-fixtures</module>
     </modules>
@@ -27,6 +29,7 @@
         <project.build.outputTimestamp>2026-08-02T00:00:00Z</project.build.outputTimestamp>
 
         <javaparser.version>3.28.2</javaparser.version>
+        <kotlin.version>2.4.10</kotlin.version>
         <picocli.version>4.7.7</picocli.version>
         <jackson.version>2.22.0</jackson.version>
         <junit.version>6.1.0</junit.version>
@@ -52,6 +55,16 @@
                 <groupId>com.github.javaparser</groupId>
                 <artifactId>javaparser-core</artifactId>
                 <version>${javaparser.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-compiler-embeddable</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>${kotlin.version}</version>
             </dependency>
             <dependency>
                 <groupId>info.picocli</groupId>

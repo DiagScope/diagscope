@@ -3,6 +3,7 @@ package dev.diagscope.javaparser;
 import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.DiagnosticCoverageService;
+import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;

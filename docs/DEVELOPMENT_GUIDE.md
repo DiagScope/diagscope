@@ -25,14 +25,16 @@ mvn clean verify
 - `dev.diagscope.core.application` — use case and orchestration;
 - `dev.diagscope.core.application.port` — input and output ports;
 - `dev.diagscope.core.application.rule` — deterministic rules and `RuleEngine`;
+- `dev.diagscope.jvmanalysis` — shared JVM layout detection, analyzer composition, and cross-language relinking;
 - `dev.diagscope.javaparser` — JavaParser adapter;
+- `dev.diagscope.kotlinparser` — Kotlin compiler PSI adapter;
 - `dev.diagscope.cli` — Picocli commands and reporters.
 
 ## Add a rule
 
 1. define a stable rule ID;
 2. add or reuse a typed parser-neutral evidence record in the core;
-3. map the required AST facts into that evidence in the JavaParser adapter;
+3. map the required syntax facts into that evidence in each applicable language adapter;
 4. implement `DiagnosticRule` over reached `FlowMethod` values in the core;
 5. add positive, negative, and boundary fixtures;
 6. test that path confidence caps the finding;

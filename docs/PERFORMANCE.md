@@ -12,9 +12,9 @@ These values are engineering targets, not public guarantees:
 
 | Repository size | Target scan time | Target maximum heap |
 |---|---:|---:|
-| 250 Java source files | < 1 s | < 256 MB |
-| 1,000 Java source files | < 3 s | < 512 MB |
-| 5,000 Java source files | < 12 s | < 1 GB |
+| 250 JVM source files | < 1 s | < 256 MB |
+| 1,000 JVM source files | < 3 s | < 512 MB |
+| 5,000 JVM source files | < 12 s | < 1 GB |
 
 Every measurement must record:
 
@@ -41,7 +41,7 @@ Each stage has a bounded unit of work:
 
 - source discovery is one sorted walk below the configured source root;
 - every source file is parsed at most once per scan;
-- parser concurrency is capped by configured parallelism and source count;
+- Java parser concurrency is capped by configured parallelism and source count; Kotlin PSI currently uses one shared per-scan session;
 - evidence is mapped once into parser-neutral records;
 - indexes are built once per scan and are not global caches;
 - flow traversal is cycle-safe and limited by `maxDepth`;
@@ -72,7 +72,7 @@ Containment is both a performance and correctness mechanism: incomplete resoluti
 
 Parsing contains substantial CPU work. Worker count is bounded and configurable; more tasks are not automatically faster.
 
-The default policy caps parser parallelism at eight workers until measurements justify a different policy. Only independent source-file parsing is parallelized in Alpha 1. Index aggregation, graph traversal, rule merging, and report ordering preserve stable output.
+The default policy caps Java parser parallelism at eight workers until measurements justify a different policy. Only independent Java source-file parsing is parallelized in Alpha 1. Kotlin parsing remains sequential in its first adapter because PSI files share a compiler application environment. Index aggregation, cross-language relinking, graph traversal, rule merging, and report ordering preserve stable output.
 
 Virtual threads are not the default for parsing. An unbounded task-per-file strategy may increase allocation and CPU contention. Any executor-policy change must improve median, tail latency, and memory on the fixed corpus without changing results.
 
