@@ -88,6 +88,8 @@ This restriction is an architectural test:
 - argument parsing and project-input validation;
 - explicit object-graph composition;
 - Markdown, JSON, HTML, and SARIF reporters;
+- strict YAML policy loading at the CLI boundary, translated into parser-neutral `AnalysisPolicy`;
+- CLI-level baseline and Git change-scope filtering with explicit report metadata;
 - stable process exit codes;
 - executable shaded-JAR packaging.
 
@@ -218,7 +220,9 @@ The alpha uses SHA-256 for deterministic identity. The same code issue reached f
 
 Reporters are output adapters hosted by `diagscope-cli`. Report format is not a core domain concern. Report serialization happens after core analysis so presentation cost and failures are separated from the measured analysis critical path.
 
-Future adapters may include a Maven plugin, SARIF reporter, or remote API that receives findings and metadata. None requires parser or presentation dependencies in the core.
+Current output adapters include Markdown, JSON, HTML, and SARIF. Future input/distribution adapters
+may include Maven and Gradle plugins or a remote API that receives findings and metadata. None
+requires parser or presentation dependencies in the core.
 
 ## Current analysis boundary
 

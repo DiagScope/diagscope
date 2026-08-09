@@ -1,5 +1,6 @@
 package dev.diagscope.core.application.rule;
 
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
@@ -21,13 +22,18 @@ public final class SensitivePayloadLoggedRule implements DiagnosticRule {
 
     @Override
     public List<Finding> evaluate(Flow flow) {
+        return evaluate(flow, AnalysisPolicy.defaults());
+    }
+
+    @Override
+    public List<Finding> evaluate(Flow flow, AnalysisPolicy policy) {
         var findings = new ArrayList<Finding>();
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
             for (var invocation : method.invocations()) {
                 if (!DiagnosticSignals.isLoggerCall(invocation)) continue;
                 var sensitive = invocation.arguments().stream()
-                        .filter(DiagnosticSignals::isSensitive)
+                        .filter(argument -> DiagnosticSignals.isSensitive(argument, policy.sensitiveFieldNames()))
                         .findFirst();
                 if (sensitive.isEmpty()) continue;
                 var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());

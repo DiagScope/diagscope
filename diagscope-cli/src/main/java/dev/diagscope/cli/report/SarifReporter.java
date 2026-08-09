@@ -55,6 +55,7 @@ public final class SarifReporter implements AnalysisReporter {
         var run = new LinkedHashMap<String, Object>();
         run.put("tool", Map.of("driver", driver(result)));
         run.put("results", result.findings().stream().map(SarifReporter::result).toList());
+        run.put("properties", Map.of("diagscopeScanScope", JsonReporter.scanScope(result)));
         return run;
     }
 

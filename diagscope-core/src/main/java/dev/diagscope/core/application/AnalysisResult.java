@@ -20,7 +20,8 @@ public record AnalysisResult(
         List<Flow> flows,
         List<Finding> findings,
         AnalysisStatistics statistics,
-        List<AspectAdvice> aspects
+        List<AspectAdvice> aspects,
+        ScanPolicyMetadata scanPolicy
 ) {
     public AnalysisResult {
         Objects.requireNonNull(projectName, "projectName");
@@ -32,6 +33,7 @@ public record AnalysisResult(
         Objects.requireNonNull(findings, "findings");
         Objects.requireNonNull(statistics, "statistics");
         Objects.requireNonNull(aspects, "aspects");
+        Objects.requireNonNull(scanPolicy, "scanPolicy");
         parseFailures = List.copyOf(parseFailures);
         flows = List.copyOf(flows);
         findings = List.copyOf(findings);
@@ -50,7 +52,22 @@ public record AnalysisResult(
             AnalysisStatistics statistics
     ) {
         this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings, statistics,
-                List.of());
+                List.of(), ScanPolicyMetadata.none());
+    }
+
+    public AnalysisResult(
+            String projectName,
+            Path projectRoot,
+            ProjectLayout projectLayout,
+            AnalysisOptions options,
+            List<ParseFailure> parseFailures,
+            List<Flow> flows,
+            List<Finding> findings,
+            AnalysisStatistics statistics,
+            List<AspectAdvice> aspects
+    ) {
+        this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings, statistics,
+                aspects, ScanPolicyMetadata.none());
     }
 
     /** Build tool that declares the scanned project. */

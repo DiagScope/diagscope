@@ -27,7 +27,9 @@ catch (CleanupException ignored) {
 
 A directive must name the exact rule and include a reason after `--`. This syntax is intentionally explicit so `// TODO`, commented-out code, or a vague explanatory comment cannot accidentally hide a diagnostic risk.
 
-Suppression is local to the supported source construct. Project-wide policies and baseline suppression are future-phase features.
+Source directives remain local to the supported construct. Project-wide rule policies are still a
+future step, while CLI baseline suppression is available through `--baseline [path]` and uses the
+stable finding fingerprint rather than source comments.
 
 ### When to lower confidence instead of suppressing
 

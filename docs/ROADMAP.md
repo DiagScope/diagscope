@@ -9,8 +9,8 @@ Do not implement a future phase before the current phase meets its own continuat
 | Phase | Objective | State | Continuation condition |
 |---|---|---|---|
 | 1 | Prove technical value | Engineering done, field validation pending | Valid findings, controlled noise, measured performance, and behavioral repeat interest |
-| 2 | Enrich deterministic analysis | Largely delivered | Recurring use and stable precision on the Phase 1 corpus |
-| 3A | Enable responsible CI adoption | Next | At least one team adopts configuration and baseline workflows |
+| 2 | Enrich deterministic analysis | Engineering delivered, validation pending | Recurring use and stable precision on the Phase 1 corpus |
+| 3A | Enable responsible CI adoption | In progress | At least one team adopts configuration and baseline workflows |
 | 3B | Analyze indirect Spring instrumentation | Delivered ahead of gate | Kept because real Spring repositories rely on `@Aspect` instrumentation |
 | 4 | Analyze cross-service diagnostic gaps | Not started | A design partner, sponsor, or paying pilot commits to validation |
 
@@ -18,7 +18,7 @@ Do not implement a future phase before the current phase meets its own continuat
 
 Delivered:
 
-- four-module Java 25 build with a JDK-only core;
+- modular Java 25 build with a JDK-only core and separate Java/Kotlin adapters;
 - Maven **and** Gradle projects, including multi-module builds, discovered per scan;
 - direct REST, Kafka-listener, and scheduled entrypoints;
 - bounded path-aware local-flow analysis with explicit terminal boundaries;
@@ -55,23 +55,18 @@ Delivered:
 - Kafka consumer coverage: class-level `@KafkaListener` with `@KafkaHandler`/`@DltHandler`, manual acknowledgement, and swallowed listener failures;
 - transaction and database coverage: suppressed rollbacks, unclosed JDBC resources, unguarded closes, `EntityManager` leaks, and `JdbcTemplate` connection escape;
 - Spring AOP and proxy awareness (see Phase 3B);
+- syntax-first Kotlin/JVM support, including mixed-language flows, Micrometer evidence, and
+  cross-language advice application;
+- lost-throwable and generic logs, async/HTTP/scheduled/retry/fallback evidence loss, metric creation
+  in loops, sensitive logging, MDC context loss, and duplicate diagnostics;
+- positive instrumentation evidence from `@Observed`, `@Timed`, `@Counted`, and tracing annotations;
 - per-finding plain-language explanation plus a confidence rationale in all three formats;
 - an executive summary at the top of every report, with per-rule and per-confidence counts, clickable in HTML;
 - a drill-down HTML report with Evidence / Call paths / Flow impact / Source tabs, filters, and free-text search.
 
-Remaining, ordered by expected value per unit of risk:
-
-1. **`LOG_WITHOUT_THROWABLE`** — a `catch` that logs a message but drops the caught exception. The single most common real-world cause of an unexplainable incident, and syntactically unambiguous.
-2. **`GENERIC_EXCEPTION_MESSAGE`** — logging a bare literal ("error", "failed") with no correlation key, identifier, or cause.
-3. **`SENSITIVE_PAYLOAD_LOGGED`** — whole request/response/entity objects or fields matching a configurable sensitive-name list written to logs. Needs Phase 3A configuration to avoid noise, so it ships with it.
-4. **`RETRY_WITHOUT_DIAGNOSTICS`** — `@Retryable`, `RetryTemplate`, or hand-written retry loops that never record why an attempt failed, so only the final failure is ever visible.
-5. **`FALLBACK_HIDES_FAILURE`** — resilience fallbacks (`@CircuitBreaker`, `@Fallback`, `Optional.orElse` on a failed call) that return a default with no signal that degradation happened.
-6. **`METRIC_CREATED_IN_LOOP`** — counters and timers registered inside loops, which produces meter churn and unreliable series.
-7. **`ASYNC_RESULT_UNOBSERVED`** — `@Async`, `CompletableFuture`, and executor submissions whose failure path is never observed. This generalizes the existing Kafka rule to any async boundary.
-8. **`HTTP_CLIENT_ERROR_DISCARDED`** — `RestTemplate`/`WebClient`/`HttpClient` calls whose error status or `onError` path is dropped.
-9. **`SCHEDULED_TASK_SWALLOWS_FAILURE`** — `@Scheduled` methods that catch everything, so a job silently stops doing its work.
-10. **Duplicate or contradictory diagnostic signals** — the same failure logged at several levels or in several layers, which inflates noise and hides the real event.
-11. **`MDC_CONTEXT_LOST`** — context propagation dropped across thread handoffs, which breaks correlation between logs of the same request.
+Remaining work is precision-oriented rather than rule-count-oriented: validate these rules on real
+repositories, add Kotlin parity fixtures for every syntax family, and deepen resolution only where
+validation exposes a concrete false positive or false negative.
 
 An LLM may summarize or explain a finding, but it never creates the authoritative finding or decides whether CI passes.
 
@@ -79,14 +74,10 @@ An LLM may summarize or explain a finding, but it never creates the authoritativ
 
 This is the next phase to start. Without it DiagScope cannot enter a real pipeline.
 
-- `diagscope.yml`: rule enable/disable and severity override, project-specific sensitive field names, ignored paths and generated sources, custom logger and entrypoint annotations;
-- a baseline file so legacy repositories fail only on **new** findings, keyed by the existing stable fingerprints;
-- `--fail-on <severity>` and documented exit codes for CI use;
-- SARIF output, so findings appear natively in GitHub code scanning, GitLab, and IDEs;
-- diff-aware scanning (`--changed-since <ref>`) to keep pull-request feedback fast and relevant;
+- delivered: strict `diagscope.yml`, deterministic fingerprint baselines, `--fail-on`, SARIF,
+  diff-aware `--changed-since`, and versioned `result.json` compatibility contracts;
 - `diagscope-maven-plugin` and a Gradle equivalent;
 - a published GitHub Action, plus a report artifact and a pull-request summary comment;
-- schema compatibility and upgrade policy for `result.json`;
 - Spring, logging, Micrometer, and OpenTelemetry configuration context read from the repository, used to lower confidence rather than to assert absence.
 
 Absence of in-repository configuration is not automatically a failure because configuration may be injected externally.
@@ -97,13 +88,14 @@ Delivered:
 
 - indirect instrumentation discovered through `@Aspect`, `@Around`, and related advice;
 - likely missed advice from self-invocation, private/final targets, and unmanaged classes (`AOP_SELF_INVOCATION`, `AOP_ADVICE_NOT_APPLIED`, `AOP_UNMANAGED_ADVICE_TARGET`);
+- `@Transactional` internal-call and propagation mismatch detection;
+- `@Observed`, `@Timed`, `@Counted`, and tracing annotations as positive instrumentation evidence;
 - confidence modelled around proxy and bean-resolution uncertainty.
 
 Remaining:
 
-- `@Transactional` self-invocation as a first-class case, including `propagation`/`readOnly` mismatches between caller and callee;
 - meta-annotated and inherited advice targets;
-- `@Observed`, `@Timed`, `@Counted`, and `@NewSpan` treated as instrumentation evidence that *raises* the diagnostic score of a flow;
+- a flow-level diagnostic score that can aggregate existing positive instrumentation evidence;
 - interface-proxy versus CGLIB reasoning where the source makes the proxy mode provable.
 
 ## Phase 4 — Cross-service flows

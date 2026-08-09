@@ -11,6 +11,7 @@ import java.util.Objects;
  * @param insideFinally whether the call sits in a {@code finally} block, so it also runs when the
  *        protected block throws
  * @param insideLoop whether the call sits inside a for/while/do-while body
+ * @param loggerReceiver whether built-in or project policy identifies the receiver as a logger
  */
 public record InvocationEvidence(
         SourceLocation location,
@@ -23,7 +24,8 @@ public record InvocationEvidence(
         boolean resourceManaged,
         String assignedTo,
         boolean insideFinally,
-        boolean insideLoop
+        boolean insideLoop,
+        boolean loggerReceiver
 ) {
     public InvocationEvidence {
         Objects.requireNonNull(location, "location");
@@ -48,7 +50,7 @@ public record InvocationEvidence(
             boolean insideFinally
     ) {
         this(location, scope, receiverType, methodName, arguments, resultUsage,
-                producerListenerVisible, resourceManaged, assignedTo, insideFinally, false);
+                producerListenerVisible, resourceManaged, assignedTo, insideFinally, false, false);
     }
 
     public InvocationEvidence(
@@ -63,7 +65,7 @@ public record InvocationEvidence(
             String assignedTo
     ) {
         this(location, scope, receiverType, methodName, arguments, resultUsage,
-                producerListenerVisible, resourceManaged, assignedTo, false, false);
+                producerListenerVisible, resourceManaged, assignedTo, false, false, false);
     }
 
     public InvocationEvidence(
@@ -76,7 +78,7 @@ public record InvocationEvidence(
             boolean producerListenerVisible
     ) {
         this(location, scope, receiverType, methodName, arguments, resultUsage,
-                producerListenerVisible, false, "", false, false);
+                producerListenerVisible, false, "", false, false, false);
     }
 
     public InvocationEvidence(
@@ -87,7 +89,8 @@ public record InvocationEvidence(
             List<String> arguments,
             InvocationResultUsage resultUsage
     ) {
-        this(location, scope, receiverType, methodName, arguments, resultUsage, false, false, "", false, false);
+        this(location, scope, receiverType, methodName, arguments, resultUsage,
+                false, false, "", false, false, false);
     }
 
     public InvocationEvidence(
@@ -110,6 +113,6 @@ public record InvocationEvidence(
         return visible == producerListenerVisible
                 ? this
                 : new InvocationEvidence(location, scope, receiverType, methodName, arguments, resultUsage,
-                        visible, resourceManaged, assignedTo, insideFinally, insideLoop);
+                        visible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver);
     }
 }

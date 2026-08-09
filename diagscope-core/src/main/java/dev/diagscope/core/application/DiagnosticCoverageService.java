@@ -36,7 +36,7 @@ public final class DiagnosticCoverageService implements ScanProjectUseCase {
         long flowNanos = System.nanoTime() - flowStart;
 
         long ruleStart = System.nanoTime();
-        var findings = ruleEngine.run(flows);
+        var findings = ruleEngine.run(flows, request.options().policy());
         long ruleNanos = System.nanoTime() - ruleStart;
 
         long totalNanos = System.nanoTime() - totalStart;

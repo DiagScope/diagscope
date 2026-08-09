@@ -30,6 +30,7 @@ import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.ThrowStmt;
 import dev.diagscope.core.application.AnalysisOptions;
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.application.port.out.ProjectAnalyzer;
 import dev.diagscope.core.domain.AdviceKind;
 import dev.diagscope.core.domain.AnalyzedProject;
@@ -107,12 +108,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         ProjectLayout layout = ProjectLayoutDetector.detect(projectDirectory);
         Path root = layout.root();
 
-        List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots());
-        ParseBatch parseBatch = parseFiles(root, sourceFiles, options.parallelism());
+        List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots()).stream()
+                .filter(file -> !options.policy().ignores(root.relativize(file.toAbsolutePath().normalize())))
+                .toList();
+        ParseBatch parseBatch = parseFiles(root, sourceFiles, options.parallelism(), options.policy());
         MappedProject mapped = mergeMappedUnits(parseBatch.units());
         List<AspectAdvice> aspects = collectAspects(mapped);
         Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped, aspects);
-        List<Entrypoint> entrypoints = detectEntrypoints(mapped.rawMethods(), options.enabledEntrypointTypes());
+        List<Entrypoint> entrypoints = detectEntrypoints(mapped.rawMethods(),
+                options.enabledEntrypointTypes(), options.policy());
 
         var failures = new ArrayList<ParseFailure>(parseBatch.failures().size() + mapped.failures().size());
         failures.addAll(parseBatch.failures());
@@ -136,7 +140,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return List.copyOf(files);
     }
 
-    private static ParseBatch parseFiles(Path root, List<Path> files, int parallelism) {
+    private static ParseBatch parseFiles(
+            Path root,
+            List<Path> files,
+            int parallelism,
+            AnalysisPolicy policy
+    ) {
         var units = new MappedUnit[files.size()];
         var failures = new ParseFailure[files.size()];
         var configuration = new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_25);
@@ -147,7 +156,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 Path relativeFile = root.relativize(file.toAbsolutePath().normalize());
                 try {
                     var result = new JavaParser(configuration).parse(file);
-                    result.getResult().ifPresent(unit -> units[index] = mapUnit(root, file, unit));
+                    result.getResult().ifPresent(unit -> units[index] = mapUnit(root, file, unit, policy));
                     if (!result.getProblems().isEmpty()) {
                         failures[index] = new ParseFailure(relativeFile, problemMessage(result.getProblems()));
                     } else if (result.getResult().isEmpty()) {
@@ -180,7 +189,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 : throwable.getMessage();
     }
 
-    private static MappedUnit mapUnit(Path root, Path file, CompilationUnit unit) {
+    private static MappedUnit mapUnit(Path root, Path file, CompilationUnit unit, AnalysisPolicy policy) {
         var rawMethods = new ArrayList<RawMethod>();
         var types = new ArrayList<TypeInfo>();
         String packageName = unit.getPackageDeclaration().map(node -> node.getNameAsString()).orElse("");
@@ -195,7 +204,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             for (BodyDeclaration<?> member : type.getMembers()) {
                 if (!member.isMethodDeclaration()) continue;
                 rawMethods.add(mapMethod(root, file, qualifiedName, member.asMethodDeclaration(),
-                        declaredVariables, typeAnnotations));
+                        declaredVariables, typeAnnotations, policy));
             }
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
@@ -238,7 +247,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             String declaringType,
             MethodDeclaration method,
             Map<String, String> declaredVariables,
-            List<AnnotationDescriptor> typeAnnotations
+            List<AnnotationDescriptor> typeAnnotations,
+            AnalysisPolicy policy
     ) {
         MethodId id = methodId(declaringType, method);
         SourceLocation methodLocation = location(root, file, method);
@@ -260,7 +270,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
 
         var catches = method.findAll(CatchClause.class).stream()
                 .filter(clause -> belongsToMethod(clause, method))
-                .map(clause -> catchEvidence(root, file, clause, variableTypes))
+                .map(clause -> catchEvidence(root, file, clause, variableTypes, policy))
                 .sorted(Comparator.comparingInt(evidence -> evidence.location().startLine()))
                 .toList();
 
@@ -290,7 +300,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .sorted(Comparator.comparingInt(call -> call.getBegin().map(position -> position.line).orElse(1)))
                 .toList();
         for (var call : methodCalls) {
-            invocations.add(invocationEvidence(root, file, call, variableTypes));
+            invocations.add(invocationEvidence(root, file, call, variableTypes, policy));
             SourceLocation callLocation = location(root, file, call);
             metricTags.addAll(MetricEvidenceExtractor.tags(callLocation, call, metricNamesContext));
             MetricEvidenceExtractor.meter(callLocation, call, metricNamesContext).ifPresent(metricNames::add);
@@ -553,7 +563,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
 
     private static List<Entrypoint> detectEntrypoints(
             Map<MethodId, RawMethod> methods,
-            Set<EntrypointType> enabledTypes
+            Set<EntrypointType> enabledTypes,
+            AnalysisPolicy policy
     ) {
         var result = new ArrayList<Entrypoint>();
         for (var method : methods.values()) {
@@ -569,11 +580,31 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     result.add(new Entrypoint(EntrypointType.SCHEDULED, method.id(), schedule, method.location()));
                 });
             }
+            addCustomEntrypoints(result, method, enabledTypes, policy);
         }
         result.sort(Comparator.comparing((Entrypoint entrypoint) -> entrypoint.type().name())
                 .thenComparing(Entrypoint::displayName)
                 .thenComparing(entrypoint -> entrypoint.method().displayName()));
         return List.copyOf(result);
+    }
+
+    private static void addCustomEntrypoints(
+            List<Entrypoint> result,
+            RawMethod method,
+            Set<EntrypointType> enabledTypes,
+            AnalysisPolicy policy
+    ) {
+        Set<String> methodAnnotations = method.methodAnnotations().stream()
+                .map(AnnotationDescriptor::name).collect(java.util.stream.Collectors.toSet());
+        for (EntrypointType type : enabledTypes) {
+            if (result.stream().anyMatch(entrypoint -> entrypoint.type() == type
+                    && entrypoint.method().equals(method.id()))) continue;
+            policy.customEntrypointAnnotations(type).stream()
+                    .filter(methodAnnotations::contains)
+                    .findFirst()
+                    .ifPresent(annotation -> result.add(new Entrypoint(type, method.id(),
+                            "Custom " + type + " @" + annotation, method.location())));
+        }
     }
 
     /**
@@ -691,11 +722,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             Path root,
             Path file,
             CatchClause clause,
-            Map<String, String> variableTypes
+            Map<String, String> variableTypes,
+            AnalysisPolicy policy
     ) {
         var body = clause.getBody();
         boolean hasLog = body.findAll(MethodCallExpr.class).stream()
-                .anyMatch(call -> isLoggerCall(call, variableTypes));
+                .anyMatch(call -> isLoggerCall(call, variableTypes, policy));
         boolean hasThrow = !body.findAll(ThrowStmt.class).isEmpty();
         List<ReturnStmt> returns = body.findAll(ReturnStmt.class);
         Optional<Expression> returned = returns.stream().findFirst().flatMap(ReturnStmt::getExpression);
@@ -722,12 +754,17 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         );
     }
 
-    private static boolean isLoggerCall(MethodCallExpr call, Map<String, String> variableTypes) {
+    private static boolean isLoggerCall(
+            MethodCallExpr call,
+            Map<String, String> variableTypes,
+            AnalysisPolicy policy
+    ) {
         if (!LOGGER_METHODS.contains(call.getNameAsString())) return false;
         String rawScope = scope(call);
         String receiverType = Optional.ofNullable(receiverType(rawScope, variableTypes)).orElse("");
         String hint = (rawScope + ' ' + receiverType).toLowerCase(Locale.ROOT);
-        return hint.contains("logger") || hint.matches(".*\\blog\\b.*");
+        return hint.contains("logger") || hint.matches(".*\\blog\\b.*")
+                || policy.isCustomLogger(rawScope, receiverType);
     }
 
     private static boolean containsStableFailureCode(Expression expression) {
@@ -744,7 +781,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             Path root,
             Path file,
             MethodCallExpr call,
-            Map<String, String> variableTypes
+            Map<String, String> variableTypes,
+            AnalysisPolicy policy
     ) {
         String rawScope = scope(call);
         String receiverType = Optional.ofNullable(receiverType(rawScope, variableTypes))
@@ -760,7 +798,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 isTryResource(call),
                 assignedVariable(call),
                 insideFinally(call),
-                insideLoop(call)
+                insideLoop(call),
+                isLoggerCall(call, variableTypes, policy)
         );
     }
 

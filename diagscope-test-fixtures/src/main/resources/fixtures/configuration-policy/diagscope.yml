@@ -1,0 +1,20 @@
+schemaVersion: "1.0"
+rules:
+  LOG_WITHOUT_THROWABLE:
+    enabled: false
+  SENSITIVE_PAYLOAD_LOGGED:
+    severity: WARNING
+ignoredPaths:
+  - "**/generated/**"
+sensitiveFields:
+  - accountNumber
+  - secretAlias
+customLoggerTypes:
+  - example.policy.CustomAuditSink
+  - AuditChannel
+customEntrypointAnnotations:
+  REST:
+    - BusinessEndpoint
+    - GeneratedBoundary
+  SCHEDULED:
+    - BatchBoundary

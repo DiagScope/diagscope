@@ -35,7 +35,8 @@ The `0.1.0-alpha.1` line:
 - focuses on diagnostic evidence rather than general style enforcement;
 - emits Markdown, versioned JSON, self-contained HTML, and optional SARIF reports.
 
-Alpha findings require human review. A `--fail-on` severity gate exists for controlled CI adoption, but it is disabled by default.
+Alpha findings require human review. A `--fail-on` severity gate, stable-fingerprint baseline, and
+Git changed-file scope exist for controlled CI adoption, but gating is disabled by default.
 
 ## Supported alpha analysis
 
@@ -55,6 +56,8 @@ Alpha findings require human review. A `--fail-on` severity gate exists for cont
 | Suppression | Explicit `diagscope:ignore <RULE_ID> -- <reason>` directive for supported catch evidence; ordinary comments do not silently suppress findings |
 | Findings | Deterministic ordering, stable SHA-256 fingerprint, ordered related-flow context |
 | Output | Markdown, versioned JSON, self-contained HTML, and SARIF through CLI output adapters, including per-file parse diagnostics |
+| CI scope | Optional baseline suppression, `--changed-since <ref>`, then severity gating through `--fail-on` |
+| Project policy | Strict, versioned `diagscope.yml` for rule state/severity, ignored paths, sensitive names, logger types, and method-level Java/Kotlin entrypoint annotations |
 | Metrics | Source, method, entrypoint, flow, parse-failure, finding, and phase-duration statistics |
 
 “Best effort” means metadata is emitted when it can be read directly and deterministically from syntax. Dynamic annotation expressions can remain as conservative display text or an unknown boundary.
@@ -74,21 +77,15 @@ Alpha 1 does not guarantee:
 - proof that global Kafka producer listeners or external error handling are absent;
 - complete Micrometer type and value-provenance analysis;
 - runtime-only or named AspectJ pointcut expansion beyond syntax-decidable designators;
-- project policy files, severity overrides, or baselines;
 - Maven plugin execution, dashboard comparison, or LLM explanations.
 
 An unsupported construct should stop or weaken only the affected path. It must not silently manufacture a resolved call or reduce confidence on an unrelated branch.
 
 ## Current rules
 
-The primary product rules are:
-
-- silent catch handling;
-- failure converted to a normal result without preserved evidence;
-- Kafka send result absent from the analyzed local decision path;
-- likely high-cardinality metric tags.
-
-`printStackTrace` and `System.out`/`System.err` checks are included as auxiliary deterministic rules. See [RULES.md](RULES.md) for precise claims and limitations.
+The catalog covers catch/output hygiene, logging context, metrics, Kafka producers and consumers,
+transactions and database resources, asynchronous/resilience boundaries, MDC propagation, and
+Spring AOP/proxy gaps. See [RULES.md](RULES.md) for precise claims and limitations.
 
 ## Alpha validation gate
 

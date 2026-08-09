@@ -19,7 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.0-alpha.1";
+    public static final String SCHEMA_VERSION = "1.1-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -56,7 +56,9 @@ public final class JsonReporter implements AnalysisReporter {
                 "maxFlowDepth", result.options().maxFlowDepth(),
                 "parallelism", result.options().parallelism(),
                 "enabledEntrypointTypes", result.options().enabledEntrypointTypes().stream()
-                        .map(Enum::name).sorted().toList()
+                        .map(Enum::name).sorted().toList(),
+                "projectPolicy", projectPolicy(result.options().policy()),
+                "scanScope", scanScope(result)
         ));
         document.put("statistics", statistics(result));
         document.put("summary", summary(result));
@@ -68,6 +70,31 @@ public final class JsonReporter implements AnalysisReporter {
         document.put("flows", result.flows().stream().map(JsonReporter::flow).toList());
         document.put("findings", result.findings().stream().map(JsonReporter::finding).toList());
         return document;
+    }
+
+    private static Map<String, Object> projectPolicy(dev.diagscope.core.application.AnalysisPolicy policy) {
+        var customEntrypoints = new java.util.TreeMap<String, Object>();
+        policy.customEntrypointAnnotations().forEach((type, annotations) ->
+                customEntrypoints.put(type.name(), annotations.stream().sorted().toList()));
+        return orderedMap(
+                "ignoredPaths", policy.ignoredPathPatterns().stream().sorted().toList(),
+                "disabledRules", policy.disabledRules().stream().sorted().toList(),
+                "severityOverrides", new java.util.TreeMap<>(policy.severityOverrides()),
+                "sensitiveFields", policy.sensitiveFieldNames().stream().sorted().toList(),
+                "customLoggerTypes", policy.customLoggerTypes().stream().sorted().toList(),
+                "customEntrypointAnnotations", customEntrypoints
+        );
+    }
+
+    static Map<String, Object> scanScope(AnalysisResult result) {
+        var scope = result.scanPolicy();
+        return orderedMap(
+                "configurationFile", scope.configurationFile(),
+                "baselineFile", scope.baselineFile(),
+                "baselineSuppressedFindings", scope.baselineSuppressedFindings(),
+                "changedSince", scope.changedSince(),
+                "changeScopeExcludedFindings", scope.changeScopeExcludedFindings()
+        );
     }
 
     private static Map<String, Object> aspect(dev.diagscope.core.domain.AspectAdvice advice) {

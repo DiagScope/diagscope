@@ -17,7 +17,11 @@ java -jar diagscope-cli/target/diagscope.jar scan \
   --max-depth 3 \
   --parallelism 8 \
   --entrypoint REST,KAFKA_LISTENER,SCHEDULED \
-  --format MARKDOWN,JSON
+  --format MARKDOWN,JSON \
+  --config config/diagscope-team.yml \
+  --baseline \
+  --changed-since origin/main \
+  --fail-on WARNING
 ```
 
 ## Options
@@ -28,9 +32,47 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
 - `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, and `SCHEDULED`;
 - `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, and/or `SARIF`;
-- `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`).
+- `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`);
+- `--baseline [path]` — suppress findings whose stable fingerprint is in the selected baseline; when
+  the option has no path, `<project>/diagscope-baseline.json` is used;
+- `--update-baseline` — atomically rewrite the selected baseline, or the default baseline when
+  `--baseline` is absent, using every finding from the full scan;
+- `--changed-since <ref>` — retain findings only when their source file appears in `git diff <ref>`.
+- `--config <path>` — load a strict project policy; without this option, `diagscope.yml` is loaded
+  automatically from the project root when present.
 
 The automatic worker policy may also be selected with the `diagscope.parallelism` system property. Explicit command options take precedence.
+
+Relative output and baseline paths must stay inside the analyzed project; explicit absolute paths
+are accepted. `--changed-since` requires the project to be inside a Git working tree and rejects an
+unknown or malformed revision.
+
+Configuration precedence and the complete YAML schema are documented in
+[CONFIGURATION.md](CONFIGURATION.md).
+
+## Baseline workflow
+
+Create or refresh the default baseline:
+
+```bash
+java -jar diagscope.jar scan --project . --update-baseline
+```
+
+Gate only findings not present in that baseline:
+
+```bash
+java -jar diagscope.jar scan --project . --baseline --fail-on WARNING
+```
+
+A custom file is selected with `--baseline config/accepted-findings.json`; combining it with
+`--update-baseline` updates that file. Baselines are JSON objects keyed by SHA-256 finding
+fingerprint, carry both a baseline schema version and the finding `fingerprintVersion`, omit
+timestamps, and are written atomically. An incompatible fingerprint version is rejected instead of
+silently suppressing the wrong findings.
+
+When `--changed-since` and `--baseline` are combined, changed-file filtering runs first, baseline
+suppression runs second, and `--fail-on` evaluates the remaining findings. Baseline updates always
+use the complete scan so unchanged findings are not accidentally removed.
 
 ## Output
 
@@ -55,6 +97,9 @@ The terminal summary includes tool version, source files, methods, flows, elapse
 - `3` — unsupported project structure or project input.
 
 Without `--fail-on`, a successful Alpha 1 scan remains informational and exit code `0` does not mean “no findings.”
+
+The compatibility and version-bump rules for `result.json` are documented in
+[RESULT_JSON_SCHEMA.md](RESULT_JSON_SCHEMA.md).
 
 ## Supported input shape
 

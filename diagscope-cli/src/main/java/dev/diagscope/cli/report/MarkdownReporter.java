@@ -62,7 +62,18 @@ public final class MarkdownReporter implements AnalysisReporter {
                 .append("- Maximum flow depth: ").append(result.options().maxFlowDepth()).append("\n")
                 .append("- Parser workers: ").append(result.options().parallelism()).append("\n")
                 .append("- Entrypoint types: ").append(result.options().enabledEntrypointTypes().stream()
-                        .map(Enum::name).sorted().collect(Collectors.joining(", "))).append("\n\n")
+                        .map(Enum::name).sorted().collect(Collectors.joining(", "))).append("\n")
+                .append("- Project policy: ").append(valueOrNone(result.scanPolicy().configurationFile()))
+                .append("\n")
+                .append("- Disabled rules: ").append(result.options().policy().disabledRules().isEmpty()
+                        ? "none" : result.options().policy().disabledRules().stream().sorted()
+                                .collect(Collectors.joining(", "))).append("\n")
+                .append("- Baseline: ").append(valueOrNone(result.scanPolicy().baselineFile()))
+                .append(" (suppressed ").append(result.scanPolicy().baselineSuppressedFindings())
+                .append(")\n")
+                .append("- Changed since: ").append(valueOrNone(result.scanPolicy().changedSince()))
+                .append(" (excluded ").append(result.scanPolicy().changeScopeExcludedFindings())
+                .append(")\n\n")
                 .append("</details>\n\n");
         if (!result.parseFailures().isEmpty()) {
             builder.append("<details><summary>Parse failures (")
@@ -72,6 +83,10 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append(escape(failure.message())).append("\n"));
             builder.append("\n</details>\n\n");
         }
+    }
+
+    private static String valueOrNone(String value) {
+        return value == null || value.isBlank() ? "none" : '`' + escape(value) + '`';
     }
 
     /**

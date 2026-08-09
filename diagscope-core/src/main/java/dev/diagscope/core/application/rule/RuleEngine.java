@@ -1,5 +1,6 @@
 package dev.diagscope.core.application.rule;
 
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
@@ -32,7 +33,12 @@ public final class RuleEngine {
     }
 
     public List<Finding> run(List<Flow> flows) {
+        return run(flows, AnalysisPolicy.defaults());
+    }
+
+    public List<Finding> run(List<Flow> flows, AnalysisPolicy policy) {
         Objects.requireNonNull(flows, "flows");
+        Objects.requireNonNull(policy, "policy");
         var sortedFlows = new ArrayList<>(flows);
         sortedFlows.forEach(flow -> Objects.requireNonNull(flow, "flows must not contain null"));
         sortedFlows.sort(Comparator
@@ -42,11 +48,13 @@ public final class RuleEngine {
         var findingsByFingerprint = new LinkedHashMap<String, Finding>();
         for (var flow : sortedFlows) {
             for (var rule : rules) {
-                var evaluated = Objects.requireNonNull(rule.evaluate(flow),
+                if (policy.disabledRules().contains(rule.id())) continue;
+                var evaluated = Objects.requireNonNull(rule.evaluate(flow, policy),
                         () -> "Rule " + rule.id() + " returned null");
                 for (var finding : evaluated) {
                     Objects.requireNonNull(finding, () -> "Rule " + rule.id() + " returned a null finding");
-                    Finding findingWithFlow = ensureRelatedFlow(finding, flow);
+                    Finding configuredFinding = applySeverityOverride(finding, policy);
+                    Finding findingWithFlow = ensureRelatedFlow(configuredFinding, flow);
                     findingsByFingerprint.merge(
                             findingWithFlow.fingerprint(), findingWithFlow, RuleEngine::mergeFindings);
                 }
@@ -54,6 +62,13 @@ public final class RuleEngine {
         }
 
         return findingsByFingerprint.values().stream().sorted(FINDING_ORDER).toList();
+    }
+
+    private static Finding applySeverityOverride(Finding finding, AnalysisPolicy policy) {
+        Severity severity = policy.severityOverrides().get(finding.ruleId());
+        if (severity == null || severity == finding.severity()) return finding;
+        return copy(finding, severity, finding.confidence(), finding.relatedFlows(),
+                finding.message(), finding.recommendation());
     }
 
     /**

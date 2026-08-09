@@ -10,7 +10,8 @@ import java.util.Set;
 public record AnalysisOptions(
         int maxFlowDepth,
         int parallelism,
-        Set<EntrypointType> enabledEntrypointTypes
+        Set<EntrypointType> enabledEntrypointTypes,
+        AnalysisPolicy policy
 ) {
     public AnalysisOptions {
         if (maxFlowDepth < 0 || maxFlowDepth > 32) {
@@ -20,6 +21,7 @@ public record AnalysisOptions(
             throw new IllegalArgumentException("parallelism must be between 1 and 256");
         }
         Objects.requireNonNull(enabledEntrypointTypes, "enabledEntrypointTypes");
+        Objects.requireNonNull(policy, "policy");
         if (enabledEntrypointTypes.isEmpty()) {
             throw new IllegalArgumentException("enabledEntrypointTypes must not be empty");
         }
@@ -27,12 +29,20 @@ public record AnalysisOptions(
     }
 
     public AnalysisOptions(int maxFlowDepth, int parallelism) {
-        this(maxFlowDepth, parallelism, EnumSet.allOf(EntrypointType.class));
+        this(maxFlowDepth, parallelism, EnumSet.allOf(EntrypointType.class), AnalysisPolicy.defaults());
+    }
+
+    public AnalysisOptions(
+            int maxFlowDepth,
+            int parallelism,
+            Set<EntrypointType> enabledEntrypointTypes
+    ) {
+        this(maxFlowDepth, parallelism, enabledEntrypointTypes, AnalysisPolicy.defaults());
     }
 
     public static AnalysisOptions defaults() {
         int processors = Runtime.getRuntime().availableProcessors();
         return new AnalysisOptions(3, Math.max(1, Math.min(processors, 8)),
-                EnumSet.allOf(EntrypointType.class));
+                EnumSet.allOf(EntrypointType.class), AnalysisPolicy.defaults());
     }
 }

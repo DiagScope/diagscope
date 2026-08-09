@@ -1,6 +1,7 @@
 package dev.diagscope.kotlinparser;
 
 import dev.diagscope.core.application.AnalysisOptions;
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.application.port.out.ProjectAnalyzer;
 import dev.diagscope.core.domain.AdviceKind;
 import dev.diagscope.core.domain.AnalyzedProject;
@@ -104,18 +105,21 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         Objects.requireNonNull(options, "options");
         ProjectLayout layout = ProjectLayoutDetector.detect(projectDirectory);
         Path root = layout.root();
-        List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots());
+        List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots()).stream()
+                .filter(file -> !options.policy().ignores(root.relativize(file.toAbsolutePath().normalize())))
+                .toList();
         if (sourceFiles.isEmpty()) {
             return new AnalyzedProject(root.getFileName().toString(), root, layout, Map.of(), List.of(),
                     0, List.of(), List.of());
         }
 
         boolean kotlinSpringEnabled = detectsKotlinSpringPlugin(root);
-        ParseBatch batch = parseFiles(root, sourceFiles, kotlinSpringEnabled);
+        ParseBatch batch = parseFiles(root, sourceFiles, kotlinSpringEnabled, options.policy());
         MappedProject mapped = merge(batch.units());
         List<AspectAdvice> aspects = collectAspects(mapped);
         Map<MethodId, MethodModel> methods = resolveCalls(mapped, aspects);
-        List<Entrypoint> entrypoints = detectEntrypoints(mapped.methods(), options.enabledEntrypointTypes());
+        List<Entrypoint> entrypoints = detectEntrypoints(mapped.methods(),
+                options.enabledEntrypointTypes(), options.policy());
 
         var failures = new ArrayList<ParseFailure>(batch.failures());
         failures.addAll(mapped.failures());
@@ -138,7 +142,12 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     /** Kotlin PSI shares an application environment, so the initial adapter parses deterministically in one session. */
-    private static ParseBatch parseFiles(Path root, List<Path> files, boolean kotlinSpringEnabled) {
+    private static ParseBatch parseFiles(
+            Path root,
+            List<Path> files,
+            boolean kotlinSpringEnabled,
+            AnalysisPolicy policy
+    ) {
         Disposable disposable = Disposer.newDisposable("diagscope-kotlin-parser");
         try {
             var configuration = new CompilerConfiguration();
@@ -153,7 +162,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 try {
                     String source = Files.readString(file);
                     KtFile ktFile = factory.createFile(file.getFileName().toString(), source);
-                    units.add(mapFile(root, file, ktFile, new LineIndex(source), kotlinSpringEnabled));
+                    units.add(mapFile(root, file, ktFile, new LineIndex(source), kotlinSpringEnabled, policy));
                     var errors = PsiTreeUtil.findChildrenOfType(ktFile, PsiErrorElement.class);
                     if (!errors.isEmpty()) {
                         String message = errors.stream().limit(3).map(PsiErrorElement::getErrorDescription)
@@ -181,7 +190,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             Path file,
             KtFile ktFile,
             LineIndex lines,
-            boolean kotlinSpringEnabled
+            boolean kotlinSpringEnabled,
+            AnalysisPolicy policy
     ) {
         String packageName = ktFile.getPackageFqName().asString();
         var types = new ArrayList<TypeInfo>();
@@ -200,7 +210,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             List<AnnotationDescriptor> typeAnnotations = owner == null
                     ? List.of() : annotations(owner);
             methods.add(mapFunction(root, file, lines, declaringType, owner, function,
-                    typeAnnotations, kotlinSpringEnabled));
+                    typeAnnotations, kotlinSpringEnabled, policy));
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()), methods, types,
                 ktFile.getText().contains("ProducerListener") || ktFile.getText().contains("setProducerListener("));
@@ -214,7 +224,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             KtClassOrObject owner,
             KtNamedFunction function,
             List<AnnotationDescriptor> typeAnnotations,
-            boolean kotlinSpringEnabled
+            boolean kotlinSpringEnabled,
+            AnalysisPolicy policy
     ) {
         MethodId id = new MethodId(declaringType, Objects.requireNonNullElse(function.getName(), "<anonymous>"),
                 function.getValueParameters().stream().map(KotlinParserProjectAnalyzer::parameterType).toList());
@@ -248,7 +259,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
 
         var catches = PsiTreeUtil.findChildrenOfType(function, KtCatchClause.class).stream()
                 .filter(clause -> belongsToFunction(clause, function))
-                .map(clause -> catchEvidence(root, file, lines, clause, variableTypes))
+                .map(clause -> catchEvidence(root, file, lines, clause, variableTypes, policy))
                 .sorted(Comparator.comparingInt(evidence -> evidence.location().startLine()))
                 .toList();
 
@@ -269,7 +280,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String scope = scope(call);
             String receiverType = Optional.ofNullable(receiverType(scope, variableTypes))
                     .orElseGet(() -> inferReceiverType(scope));
-            invocations.add(invocationEvidence(callLocation, call, methodName, scope, receiverType));
+            invocations.add(invocationEvidence(callLocation, call, methodName, scope, receiverType,
+                    isLoggerCall(call, variableTypes, policy)));
             metricTags.addAll(KotlinMetricEvidenceExtractor.tags(callLocation, call, metricContext));
             KotlinMetricEvidenceExtractor.meter(callLocation, call, metricContext).ifPresent(metricNames::add);
             calls.add(new RawCall(callLocation, scope, receiverType, methodName, argumentCount(call)));
@@ -294,7 +306,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             Path file,
             LineIndex lines,
             KtCatchClause clause,
-            Map<String, String> variableTypes
+            Map<String, String> variableTypes,
+            AnalysisPolicy policy
     ) {
         KtExpression body = clause.getCatchBody();
         KtParameter parameter = clause.getCatchParameter();
@@ -302,7 +315,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         String exceptionType = parameter == null ? "Throwable" : parameterType(parameter);
         List<KtCallExpression> calls = body == null ? List.of()
                 : List.copyOf(PsiTreeUtil.findChildrenOfType(body, KtCallExpression.class));
-        boolean hasLog = calls.stream().anyMatch(call -> isLoggerCall(call, variableTypes));
+        boolean hasLog = calls.stream().anyMatch(call -> isLoggerCall(call, variableTypes, policy));
         List<KtThrowExpression> throwsFound = body == null ? List.of()
                 : List.copyOf(PsiTreeUtil.findChildrenOfType(body, KtThrowExpression.class));
         List<KtReturnExpression> returns = body == null ? List.of()
@@ -338,7 +351,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             KtCallExpression call,
             String methodName,
             String scope,
-            String receiverType
+            String receiverType,
+            boolean loggerReceiver
     ) {
         return new InvocationEvidence(location, scope, receiverType, methodName,
                 call.getValueArguments().stream()
@@ -346,7 +360,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                         .map(expression -> expression == null ? "" : expression.getText())
                         .toList(),
                 resultUsage(call), false, resourceManaged(call), assignedVariable(call),
-                hasAncestor(call, KtFinallySection.class), hasAncestor(call, KtLoopExpression.class));
+                hasAncestor(call, KtFinallySection.class), hasAncestor(call, KtLoopExpression.class),
+                loggerReceiver);
     }
 
     private static InvocationResultUsage resultUsage(KtCallExpression call) {
@@ -429,13 +444,18 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         return false;
     }
 
-    private static boolean isLoggerCall(KtCallExpression call, Map<String, String> variableTypes) {
+    private static boolean isLoggerCall(
+            KtCallExpression call,
+            Map<String, String> variableTypes,
+            AnalysisPolicy policy
+    ) {
         String name = methodName(call);
         if (!LOGGER_METHODS.contains(name)) return false;
         String rawScope = scope(call);
         String type = Objects.requireNonNullElse(receiverType(rawScope, variableTypes), "");
         String hint = (rawScope + ' ' + type).toLowerCase(Locale.ROOT);
-        return hint.contains("logger") || hint.matches(".*\\blog\\b.*") || hint.contains("kotlinlogging");
+        return hint.contains("logger") || hint.matches(".*\\blog\\b.*") || hint.contains("kotlinlogging")
+                || policy.isCustomLogger(rawScope, type);
     }
 
     private static MappedProject merge(List<MappedUnit> units) {
@@ -570,7 +590,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
 
     private static List<Entrypoint> detectEntrypoints(
             Map<MethodId, RawMethod> methods,
-            Set<EntrypointType> enabledTypes
+            Set<EntrypointType> enabledTypes,
+            AnalysisPolicy policy
     ) {
         var result = new ArrayList<Entrypoint>();
         for (RawMethod method : methods.values()) {
@@ -580,10 +601,30 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 annotation(method.methodAnnotations(), "Scheduled").ifPresent(item -> result.add(new Entrypoint(
                         EntrypointType.SCHEDULED, method.id(), scheduleDisplay(item), method.location())));
             }
+            addCustomEntrypoints(result, method, enabledTypes, policy);
         }
         result.sort(Comparator.comparing((Entrypoint item) -> item.type().name())
                 .thenComparing(Entrypoint::displayName).thenComparing(item -> item.method().displayName()));
         return List.copyOf(result);
+    }
+
+    private static void addCustomEntrypoints(
+            List<Entrypoint> result,
+            RawMethod method,
+            Set<EntrypointType> enabledTypes,
+            AnalysisPolicy policy
+    ) {
+        Set<String> methodAnnotations = method.methodAnnotations().stream()
+                .map(AnnotationDescriptor::name).collect(java.util.stream.Collectors.toSet());
+        for (EntrypointType type : enabledTypes) {
+            if (result.stream().anyMatch(entrypoint -> entrypoint.type() == type
+                    && entrypoint.method().equals(method.id()))) continue;
+            policy.customEntrypointAnnotations(type).stream()
+                    .filter(methodAnnotations::contains)
+                    .findFirst()
+                    .ifPresent(annotation -> result.add(new Entrypoint(type, method.id(),
+                            "Custom " + type + " @" + annotation, method.location())));
+        }
     }
 
     private static Optional<Entrypoint> detectRest(RawMethod method) {

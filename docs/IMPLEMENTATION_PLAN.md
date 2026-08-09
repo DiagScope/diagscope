@@ -1,134 +1,165 @@
 # Implementation plan
 
-Companion to [ROADMAP.md](ROADMAP.md). The roadmap says *what* and *why*; this file says *what to do next, in order*.
+Companion to [ROADMAP.md](ROADMAP.md). The roadmap states *what* and *why*; this file records the
+verified implementation state and the next work in dependency order.
+
+Last reconciled with the repository: 2026-08-09.
 
 ## Current objective
 
-The analysis engine is broader than the original Alpha 1 scope: Gradle support, Spring AOP/proxy awareness, Kafka consumer and database rules, per-finding explanations, flow tracing, and an interactive HTML report are all in place.
+The engineering surface is now ahead of the original Alpha plan. Java and Kotlin/JVM analysis,
+Phase 2 rule depth, Spring AOP, SARIF, severity gating, baselines, and changed-file filtering are
+implemented. Two gaps still determine whether the project should become a blocking CI tool:
 
-Two things are still missing before DiagScope changes anyone's day:
+1. **Field validation** — precision has not yet been reviewed on three real repositories with their
+   maintainers.
+2. **Distribution validation** — the CLI policy workflow exists, but no published Action or build
+   plugin has been adopted by a real team.
 
-1. **Field validation** — no real repository has been reviewed with a maintainer yet, so precision is asserted, not proven.
-2. **Pipeline integration** — the tool produces an excellent artifact that nothing consumes automatically.
-
-Everything below is ordered against those two gaps.
+Field validation is the product gate. Distribution wrappers come next; neither should be confused
+with adding more unvalidated rules.
 
 ## Delivered
 
-### Foundation
+### Architecture and language support
 
-- [x] four-module hexagonal architecture and JDK-only core;
-- [x] path-aware local flows with `FlowMethod` and `CallEdge`, explicit resolution reasons and terminal boundaries;
-- [x] confidence propagated by minimum inference strength and capped per containing method;
-- [x] deterministic `RuleEngine` extracted from scan orchestration;
-- [x] typed parser-neutral evidence instead of a generic attribute map;
-- [x] stable fingerprints and related-flow identities;
-- [x] bounded parser concurrency with sequential deterministic aggregation;
-- [x] explicit CLI dependency composition, versioned and deterministically ordered reports, atomic report writes.
+- [x] parser-neutral JDK-only core, shared JVM analysis module, JavaParser adapter, Kotlin PSI
+  adapter, CLI, and fixture module;
+- [x] Java, Kotlin-only, and mixed Java/Kotlin Maven and Gradle projects;
+- [x] multi-module discovery with build system and module metadata in every report;
+- [x] path-aware local flows with `FlowMethod`, `CallEdge`, explicit resolution reasons, terminal
+  boundaries, cycle safety, and maximum-depth handling;
+- [x] conservative direct and single-implementation interface resolution;
+- [x] cross-language Java-to-Kotlin and Kotlin-to-Java flow relinking;
+- [x] confidence propagated by the weakest inference in each path;
+- [x] typed parser-neutral evidence, stable fingerprints, and stable related-flow identities;
+- [x] bounded Java parser concurrency and deterministic project-wide aggregation;
+- [x] Kotlin entrypoints, catches, invocation evidence, resource `use`, default arguments, varargs,
+  Micrometer evidence, and syntax-decidable Spring AOP;
+- [x] shared AspectJ pointcut matching and advice application across Java/Kotlin fragments.
 
-### Project discovery
+### Rules
 
-- [x] Maven and Gradle (Groovy and Kotlin DSL) detection;
-- [x] multi-module discovery with `project.buildSystem` and `project.modules` in every report format.
+- [x] catch and output hygiene: `SILENT_CATCH`, `SILENT_FAILURE_CONVERSION`, `PRINT_STACK_TRACE`,
+  `SYSTEM_OUTPUT`;
+- [x] logging: `LOG_WITHOUT_THROWABLE`, `GENERIC_EXCEPTION_MESSAGE`,
+  `SENSITIVE_PAYLOAD_LOGGED`, duplicate or contradictory diagnostic signals;
+- [x] metrics: `HIGH_CARDINALITY_METRIC_TAG`, `DYNAMIC_METRIC_NAME`,
+  `METRIC_CREATED_IN_LOOP`;
+- [x] Kafka producer and consumer: `KAFKA_SEND_RESULT_IGNORED`, `KAFKA_ACK_NOT_INVOKED`,
+  `KAFKA_LISTENER_ERROR_NOT_PROPAGATED`, class-level listeners with `@KafkaHandler`/`@DltHandler`;
+- [x] transactions and database: `TX_ROLLBACK_SUPPRESSED`, `TX_PROPAGATION_MISMATCH`,
+  `JDBC_RESOURCE_NOT_CLOSED`, `DB_RESOURCE_CLOSE_NOT_GUARDED`,
+  `JPA_ENTITY_MANAGER_NOT_CLOSED`, `JDBC_TEMPLATE_CONNECTION_ESCAPE`;
+- [x] asynchronous and resilience flows: `ASYNC_RESULT_UNOBSERVED`,
+  `HTTP_CLIENT_ERROR_DISCARDED`, `SCHEDULED_TASK_SWALLOWS_FAILURE`,
+  `RETRY_WITHOUT_DIAGNOSTICS`, `FALLBACK_HIDES_FAILURE`, `MDC_CONTEXT_LOST`;
+- [x] Spring AOP: `AOP_SELF_INVOCATION`, `AOP_ADVICE_NOT_APPLIED`,
+  `AOP_UNMANAGED_ADVICE_TARGET`;
+- [x] `@Observed`, `@Timed`, `@Counted`, `@NewSpan`, `@WithSpan`, and `@ContinueSpan` treated as
+  positive instrumentation evidence by relevant rules;
+- [x] every enabled rule registered in `RuleCatalog` with an explanation and confidence rationale.
 
-### Analysis and rules
+### Reporting and adoption surface
 
-- [x] catch handling: `SILENT_CATCH`, `SILENT_FAILURE_CONVERSION`, reasoned suppression syntax;
-- [x] output hygiene: `PRINT_STACK_TRACE`, `SYSTEM_OUTPUT`;
-- [x] metrics: `HIGH_CARDINALITY_METRIC_TAG`, `DYNAMIC_METRIC_NAME`, provenance-aware evidence;
-- [x] Kafka producer and consumer: `KAFKA_SEND_RESULT_IGNORED`, `KAFKA_ACK_NOT_INVOKED`, `KAFKA_LISTENER_ERROR_NOT_PROPAGATED`, class-level listeners with `@KafkaHandler`/`@DltHandler`;
-- [x] transactions and database: `TX_ROLLBACK_SUPPRESSED`, `JDBC_RESOURCE_NOT_CLOSED`, `DB_RESOURCE_CLOSE_NOT_GUARDED`, `JPA_ENTITY_MANAGER_NOT_CLOSED`, `JDBC_TEMPLATE_CONNECTION_ESCAPE`;
-- [x] Spring AOP: `AOP_SELF_INVOCATION`, `AOP_ADVICE_NOT_APPLIED`, `AOP_UNMANAGED_ADVICE_TARGET`;
-- [x] deterministic flow tracing with entrypoint type, depth, full path, and affected methods.
+- [x] Markdown, versioned JSON, self-contained HTML, and SARIF 2.1.0;
+- [x] source snippets, evidence, call paths, flow impact, affected methods, and terminal boundaries;
+- [x] executive summary by rule, confidence, and severity;
+- [x] HTML filters, search, drill-down tabs, top-five triage block, light/dark themes, and print
+  stylesheet;
+- [x] `--fail-on <severity>` with stable exit codes and report generation before gating;
+- [x] deterministic `diagscope-baseline.json`, optional custom path, fingerprint-version validation,
+  atomic updates, and suppression before `--fail-on`;
+- [x] `--changed-since <git-ref>` filtering combined safely with baselines and severity gating;
+- [x] documented `result.json` version policy and an executable compatibility contract for
+  `1.0-alpha.1` and `1.1-alpha.1`;
+- [x] strict, versioned `diagscope.yml` with rule enable/disable and severity overrides, pre-parse
+  ignored paths, custom sensitive names, custom logger types, and method-level custom entrypoint
+  annotations for Java and Kotlin;
+- [x] effective project policy and baseline/changed-file scope recorded in report metadata;
+- [x] deterministic/atomic report writes and repeated-scan golden verification.
 
-### Reporting
+## Next — Step 1: real-repository validation (product gate)
 
-- [x] Markdown, versioned JSON, and self-contained HTML;
-- [x] source snippets with the evidence line highlighted;
-- [x] `RuleCatalog` explanations and confidence rationale in all formats;
-- [x] executive summary with per-rule, per-confidence and per-severity counts, clickable in HTML;
-- [x] HTML drill-down with Evidence, Call paths, Flow impact and Source tabs, filters and search.
+This work requires repository access and maintainer participation; it cannot be completed using
+fixtures alone.
 
-### Quality tooling
-
-- [x] normalized Markdown and JSON golden tests;
-- [x] repeated-scan determinism verification;
-- [x] records, enums, nested classes, default package, overloads, cycles, and max-depth boundary coverage;
-- [x] documented CLI exit codes and invalid-input behavior;
-- [x] portable benchmark scripts.
-
-## Next — Step 1: real-repository validation (blocking)
-
-Nothing in Phase 3A is worth building on unproven precision.
-
-- [ ] select three representative repositories (at least one Gradle, at least one with Kafka, at least one with heavy Spring AOP) with maintainer access;
+- [ ] select three representative repositories: at least one Gradle, one Kafka-heavy, one with
+  substantial Spring AOP, and at least one Kotlin or mixed Java/Kotlin project;
 - [ ] record source count, approximate LOC, hardware, JDK, JVM options, depth, and parallelism;
-- [ ] run repeated cold and warm scans and record time and peak memory;
+- [ ] run repeated cold and warm scans and record time, peak memory, and output determinism;
 - [ ] review every finding with a maintainer;
 - [ ] classify each finding as valid, noise, already covered, or flow-context differential;
-- [ ] record false negatives discovered during manual review;
-- [ ] require at least 10 reviewable findings, 80% validity, no more than 20% noise, and 3 previously unnoticed valid issues;
-- [ ] record repeat-scan interest;
-- [ ] publish the decision to continue, refine, or stop Phase 1 as an ADR.
+- [ ] record false negatives discovered during manual review, including Java/Kotlin parity gaps;
+- [ ] require at least 10 reviewable findings, 80% validity, no more than 20% noise, and three
+  previously unnoticed valid issues;
+- [ ] record whether the team asks to scan another service or repeat the scan;
+- [ ] publish the continue/refine/stop decision as an ADR.
 
-Any rule that exceeds 20% noise on the corpus is demoted to `INFO`, moved behind configuration, or removed before Phase 3A starts.
+Any rule above 20% noise is demoted to `INFO`, disabled by default, refined, or removed before a
+blocking integration is recommended.
 
-## Next — Step 2: adoption surface (Phase 3A)
+## Delivered in this increment — project policy with `diagscope.yml`
 
-Ordered so that each item is useful on its own.
+- [x] define and version the configuration schema, with strict validation and useful unknown-key
+  errors;
+- [x] rule enable/disable and severity overrides;
+- [x] ignored paths and generated-source exclusions applied before parsing;
+- [x] project-specific sensitive-field names;
+- [x] custom logger types and method-level custom entrypoint annotations for Java and Kotlin;
+- [x] include the effective policy, baseline suppression count, and changed-ref scope in report
+  metadata so an empty report is explainable;
+- [x] precedence contract: explicit CLI options override project configuration, which overrides
+  built-in defaults;
+- [x] positive, negative, invalid-config, path-escape, and deterministic-output tests.
 
-- [ ] **SARIF reporter** — the cheapest path into GitHub code scanning and IDEs; reuses the existing report abstraction and fingerprints;
-- [ ] **`--fail-on <severity>`** with documented exit codes;
-- [ ] **baseline file** — `diagscope-baseline.json` keyed by fingerprint; `--baseline` suppresses known findings, `--update-baseline` rewrites it;
-- [ ] **`diagscope.yml`** — rule severity overrides, disabled rules, ignored paths, custom logger types, custom entrypoint annotations, project sensitive-field list;
-- [ ] **`--changed-since <ref>`** — restrict findings to files touched since a git ref, for pull-request feedback;
-- [ ] **GitHub Action** — runs the scan, uploads `report.html` as an artifact, posts the executive summary as a pull-request comment;
-- [ ] **`diagscope-maven-plugin`** and a Gradle plugin wrapping the same CLI entrypoint;
-- [ ] **`result.json` schema policy** — documented version bump rules and a compatibility test against the previous schema version.
+Configuration must not silently invent absence: logging, Micrometer, tracing, and Spring settings may
+be injected outside the repository. Missing local configuration can only lower confidence.
 
-## Next — Step 3: rule depth (Phase 2 remainder)
+## Next — Step 2: CI distribution
 
-Ship in this order; each needs positive, negative, and near-boundary fixtures plus a `RuleCatalog` entry before being enabled by default.
+- [ ] publish a reusable GitHub Action that runs the scan, uploads HTML/SARIF artifacts, and exposes
+  the executive summary without granting write permissions by default;
+- [ ] add an opt-in pull-request comment mode with idempotent comment updates;
+- [ ] implement `diagscope-maven-plugin` by calling the same application service, without launching a
+  nested CLI process;
+- [ ] implement a Gradle plugin with equivalent inputs, outputs, and exit policy;
+- [ ] add installation, cache, baseline-update, and non-blocking rollout examples;
+- [ ] validate the packaged JAR and both plugins against Java-only, Kotlin-only, and mixed fixtures.
 
-- [ ] `LOG_WITHOUT_THROWABLE`;
-- [ ] `GENERIC_EXCEPTION_MESSAGE`;
-- [ ] `ASYNC_RESULT_UNOBSERVED` (generalizes the Kafka producer rule to `@Async`, `CompletableFuture`, executors);
-- [ ] `HTTP_CLIENT_ERROR_DISCARDED` (`RestTemplate`, `WebClient`, `HttpClient`);
-- [ ] `SCHEDULED_TASK_SWALLOWS_FAILURE`;
-- [ ] `RETRY_WITHOUT_DIAGNOSTICS`;
-- [ ] `FALLBACK_HIDES_FAILURE`;
-- [ ] `METRIC_CREATED_IN_LOOP`;
-- [ ] `SENSITIVE_PAYLOAD_LOGGED` (depends on `diagscope.yml`);
-- [ ] duplicate or contradictory diagnostic signals;
-- [ ] `MDC_CONTEXT_LOST`;
-- [ ] `@Transactional` self-invocation and propagation mismatch (Phase 3B remainder);
-- [ ] `@Observed`/`@Timed`/`@Counted`/`@NewSpan` as positive instrumentation evidence.
+The repository's existing `.github/workflows/build.yml` verifies DiagScope itself; it is not the
+published scanner Action described here.
 
-## Next — Step 4: reporting and product polish
+## Next — Step 3: resolution and Kotlin parity, driven by validation
 
-- [ ] a **diagnostic coverage score** per flow: instrumentation present versus evidence-destroying constructs on the same path, so a team can see which flows are blind rather than only which lines are wrong;
-- [ ] group findings by flow and by file, not only by rule;
-- [ ] a "top 5 things to fix first" block derived from severity, confidence, and flow reach;
-- [ ] trend support: compare two `result.json` files and report new, fixed, and persisting findings;
-- [ ] copy-ready remediation snippets per rule;
-- [ ] light theme and print stylesheet for the HTML report.
-
-## Resolution work, driven by validation evidence only
-
-- [ ] adapter-level fixtures for every rule and supported syntax shape;
-- [ ] comparison with standard IDE and linter inspections, to prove differential value;
-- [ ] transitive interface and inherited/default-method resolution beyond the direct single-implementation case;
+- [ ] adapter-level positive, negative, and near-boundary fixtures for every enabled rule in Java;
+- [ ] Kotlin parity fixtures for logging, Kafka, database, async/resilience, MDC, and transaction
+  rules, beyond the existing flow, metric, and AOP fixtures;
+- [ ] transitive interface, inherited method, and default-method resolution beyond the direct
+  single-implementation case;
 - [ ] constructor and parameter injection mapping;
-- [ ] richer overload and generic method identity;
-- [ ] explicit complete-classpath symbol solving;
-- [ ] inherited and meta-annotated entrypoints;
-- [ ] additional source roots declared inside build scripts (`sourceSets`, `build-helper`).
+- [ ] richer overload, vararg, generic, and cross-language method identity;
+- [ ] complete-classpath symbol solving as an explicit opt-in mode;
+- [ ] inherited and meta-annotated entrypoints and advice targets;
+- [ ] additional build-declared source roots (`sourceSets`, `build-helper`);
+- [ ] measured Kotlin PSI parallelism only if real scans show it is a bottleneck;
+- [ ] comparison with standard IDE and linter inspections to prove differential value.
 
-Every added resolver must preserve terminal-boundary reporting, path-local confidence, cycle safety, and benchmark equivalence.
+Every resolver must preserve terminal boundaries, path-local confidence, cycle safety, deterministic
+aggregation, and benchmark equivalence.
+
+## Next — Step 4: reporting after adoption feedback
+
+- [ ] diagnostic coverage score per flow: instrumentation present versus evidence-destroying
+  constructs on the same path;
+- [ ] explicit grouping by flow and by file in addition to the current filters;
+- [ ] trend command comparing two compatible `result.json` files as new, fixed, and persisting;
+- [ ] copy-ready remediation snippets where a deterministic, framework-safe example exists;
+- [ ] baseline lifecycle support for removed findings and intentional fingerprint migrations.
 
 ## Still out of scope
 
-- blocking CI before a baseline exists;
-- cross-service analysis (Phase 4, gated on a committed design partner);
-- LLM-authored findings, autofix, or code rewriting;
-- dashboard analysis beyond provided metadata.
+- blocking CI recommendations before field validation and a baseline exist;
+- cross-service analysis without observed traces and a committed design partner;
+- LLM-authored findings, automated fixes, or source rewriting;
+- dashboards beyond data exported by the versioned report contract.

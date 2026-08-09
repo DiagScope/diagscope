@@ -59,6 +59,7 @@ public final class DiagnosticSignals {
     }
 
     private static boolean looksLikeLogger(InvocationEvidence invocation) {
+        if (invocation.loggerReceiver()) return true;
         String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
         return hint.contains("logger") || hint.matches(".*\\blog\\b.*") || hint.contains("slf4j");
     }
@@ -86,6 +87,16 @@ public final class DiagnosticSignals {
     /** True when the expression carries a word commonly used for sensitive data. */
     public static boolean isSensitive(String expression) {
         return expression != null && SENSITIVE_TERM.matcher(expression).matches();
+    }
+
+    /** Built-in sensitive terms plus project-specific field or argument names. */
+    public static boolean isSensitive(String expression, Set<String> customTerms) {
+        if (isSensitive(expression)) return true;
+        if (expression == null || expression.isBlank()) return false;
+        String normalized = expression.toLowerCase(Locale.ROOT);
+        return customTerms.stream().map(term -> term.toLowerCase(Locale.ROOT))
+                .anyMatch(term -> Pattern.compile(".*\\b" + Pattern.quote(term) + "\\b.*")
+                        .matcher(normalized).matches());
     }
 
     /** True when the invocation registers or creates a metric instrument. */

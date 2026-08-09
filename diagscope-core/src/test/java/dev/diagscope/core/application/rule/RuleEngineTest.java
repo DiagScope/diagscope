@@ -1,5 +1,6 @@
 package dev.diagscope.core.application.rule;
 
+import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
@@ -54,6 +55,22 @@ class RuleEngineTest {
 
         assertThat(first).isEqualTo(second);
         assertThat(first).extracting(Finding::ruleId).containsExactly("A_RULE", "Z_RULE");
+    }
+
+    @Test
+    void applies_rule_state_and_severity_policy_before_merging() {
+        var method = method("example.Worker", "run", 20);
+        var flow = flow(method, EntrypointType.REST, "POST /work", Confidence.HIGH);
+        var policy = new AnalysisPolicy(Set.of(), Set.of(), Map.of(), Set.of(),
+                Set.of("DISABLED_RULE"), Map.of("ACTIVE_RULE", Severity.ERROR));
+
+        var findings = new RuleEngine(List.of(rule("DISABLED_RULE"), rule("ACTIVE_RULE")))
+                .run(List.of(flow), policy);
+
+        assertThat(findings).singleElement().satisfies(finding -> {
+            assertThat(finding.ruleId()).isEqualTo("ACTIVE_RULE");
+            assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+        });
     }
 
     private static DiagnosticRule rule(String id) {

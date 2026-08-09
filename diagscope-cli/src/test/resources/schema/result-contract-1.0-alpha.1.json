@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0-alpha.1",
+  "root": [
+    "schemaVersion",
+    "tool",
+    "project",
+    "configuration",
+    "statistics",
+    "summary",
+    "parseFailures",
+    "aspects",
+    "flows",
+    "findings"
+  ],
+  "project": ["name", "root", "buildSystem", "buildSystemName", "modules"],
+  "statistics": [
+    "sourceFiles",
+    "parsedMethods",
+    "entrypoints",
+    "flows",
+    "findings",
+    "parseFailures",
+    "projectAnalysisNanos",
+    "flowConstructionNanos",
+    "ruleExecutionNanos",
+    "totalNanos"
+  ],
+  "flow": [
+    "id",
+    "type",
+    "name",
+    "method",
+    "location",
+    "confidence",
+    "methods",
+    "edges",
+    "boundaryCount",
+    "boundaries"
+  ],
+  "finding": [
+    "fingerprint",
+    "fingerprintVersion",
+    "ruleId",
+    "severity",
+    "confidence",
+    "location",
+    "message",
+    "recommendation",
+    "explanation",
+    "confidenceRationale",
+    "relatedFlows",
+    "affectedMethods",
+    "evidence"
+  ],
+  "location": ["file", "startLine", "endLine"]
+}

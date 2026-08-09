@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.0-alpha.1",
+  "schemaVersion" : "1.1-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -14,7 +14,22 @@
   "configuration" : {
     "maxFlowDepth" : 3,
     "parallelism" : 1,
-    "enabledEntrypointTypes" : [ "KAFKA_LISTENER", "REST", "SCHEDULED" ]
+    "enabledEntrypointTypes" : [ "KAFKA_LISTENER", "REST", "SCHEDULED" ],
+    "projectPolicy" : {
+      "ignoredPaths" : [ ],
+      "disabledRules" : [ ],
+      "severityOverrides" : { },
+      "sensitiveFields" : [ ],
+      "customLoggerTypes" : [ ],
+      "customEntrypointAnnotations" : { }
+    },
+    "scanScope" : {
+      "configurationFile" : "",
+      "baselineFile" : "",
+      "baselineSuppressedFindings" : 0,
+      "changedSince" : "",
+      "changeScopeExcludedFindings" : 0
+    }
   },
   "statistics" : {
     "sourceFiles" : 6,

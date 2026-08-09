@@ -51,6 +51,16 @@ java -jar diagscope.jar scan --project . --entrypoint REST --max-depth 5
 
 # Limit parser workers (useful in CI containers)
 java -jar diagscope.jar scan --project . --parallelism 2
+
+# Create the initial baseline, then fail only on findings that are not in it
+java -jar diagscope.jar scan --project . --update-baseline
+java -jar diagscope.jar scan --project . --baseline --fail-on WARNING
+
+# Pull-request scan: only findings in files changed since the target branch
+java -jar diagscope.jar scan --project . --changed-since origin/main --fail-on WARNING --format SARIF,HTML
+
+# Use a team policy instead of automatic ./diagscope.yml discovery
+java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
 ```
 
 ### Options
@@ -64,8 +74,20 @@ java -jar diagscope.jar scan --project . --parallelism 2
 | `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
 | `--parallelism` | Java parser worker count; `0` picks automatically (Kotlin PSI is sequential for now) | `0` |
 | `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |
+| `--baseline [path]` | Suppress fingerprints recorded in a baseline; without a path uses `diagscope-baseline.json` | off |
+| `--update-baseline` | Atomically rewrite the selected/default baseline with all current findings | off |
+| `--changed-since <ref>` | Keep findings only in files changed since a Git revision | off |
+| `--config <path>` | Load a strict project policy; otherwise auto-discovers `diagscope.yml` | auto |
 
-By default, exit code `0` means the scan completed, `1` means the scan failed, `2` means invalid arguments — findings alone do not fail the command. Pass `--fail-on ERROR` in CI when you want a broken build instead of a report. `--format SARIF` writes `result.sarif`, ready to upload to GitHub code scanning.
+By default, findings do not fail the command. Exit code `1` is reserved for a completed scan that
+breached `--fail-on`; invalid configuration returns `2`, and unsupported project input returns `3`.
+Baseline and changed-file filters run before the severity gate. `--format SARIF` writes
+`result.sarif`, ready to upload to GitHub code scanning. The versioning contract for automation is
+documented in [result.json schema policy](docs/RESULT_JSON_SCHEMA.md).
+
+Project policy supports rule enable/disable and severity overrides, ignored source globs, custom
+sensitive names, logger receiver types, and method-level entrypoint annotations for Java and Kotlin.
+See [project configuration](docs/CONFIGURATION.md).
 
 
 Full reference: [docs/CLI.md](docs/CLI.md).

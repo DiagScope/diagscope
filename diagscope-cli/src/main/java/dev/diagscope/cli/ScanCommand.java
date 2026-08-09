@@ -4,6 +4,7 @@ import dev.diagscope.cli.report.AnalysisReporter;
 import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.AnalysisResult;
+import dev.diagscope.core.application.ScanPolicyMetadata;
 import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.EntrypointType;
@@ -21,6 +22,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -44,11 +46,27 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--parallelism", defaultValue = "${sys:diagscope.parallelism:-0}", description = "Java parser workers; 0 selects an automatic bounded value")
     private int parallelism;
 
-    @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML", description = "MARKDOWN, JSON, HTML, or any combination")
+    @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML",
+            description = "MARKDOWN, JSON, HTML, SARIF, or any combination")
     private EnumSet<ReportFormat> formats;
 
     @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE", defaultValue = "NONE")
     private FailOn failOn;
+
+    @Option(names = "--baseline", arity = "0..1", fallbackValue = FindingBaseline.DEFAULT_FILE_NAME,
+            description = "Suppress findings recorded in this baseline (default path when omitted: ${FALLBACK-VALUE})")
+    private Path baseline;
+
+    @Option(names = "--update-baseline",
+            description = "Rewrite the selected baseline, or diagscope-baseline.json, with all current findings")
+    private boolean updateBaseline;
+
+    @Option(names = "--changed-since",
+            description = "Report only findings in files changed since this Git revision")
+    private String changedSince;
+
+    @Option(names = "--config", description = "Project policy file; defaults to diagscope.yml when present")
+    private Path configuration;
 
     @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,SCHEDULED", description = "Entrypoint types to analyze")
     private EnumSet<EntrypointType> entrypointTypes;
@@ -69,12 +87,41 @@ public final class ScanCommand implements Callable<Integer> {
             }
 
             int workers = parallelism == 0 ? AnalysisOptions.defaults().parallelism() : parallelism;
-            var options = new AnalysisOptions(maxDepth, workers, entrypointTypes);
+            var loadedConfiguration = loadConfiguration(projectRoot);
+            var options = new AnalysisOptions(maxDepth, workers, entrypointTypes, loadedConfiguration.policy());
             Path outputDirectory = resolveOutputDirectory(projectRoot);
-            var result = useCase.scan(new AnalysisRequest(projectRoot, options));
+            var rawResult = useCase.scan(new AnalysisRequest(projectRoot, options));
+
+            var changeScope = changedSince == null
+                    ? new ChangedFileScope.ScopeApplication(rawResult, 0)
+                    : changedFileScope(projectRoot, rawResult);
+
+            var baselineStore = new FindingBaseline();
+            Path selectedBaseline = baseline == null ? null
+                    : resolveProjectFile(projectRoot, baseline, "Baseline");
+            Set<String> knownFingerprints = readBaseline(baselineStore, selectedBaseline);
+            var baselineApplication = baselineStore.suppress(changeScope.result(), knownFingerprints);
+            var result = baselineApplication.result();
+
+            Path updatedBaseline = null;
+            if (updateBaseline) {
+                updatedBaseline = selectedBaseline != null ? selectedBaseline
+                        : projectRoot.resolve(FindingBaseline.DEFAULT_FILE_NAME);
+                baselineStore.write(updatedBaseline, rawResult);
+            }
+
+            Path effectiveBaseline = selectedBaseline != null ? selectedBaseline : updatedBaseline;
+            result = AnalysisResultFilter.withScanPolicy(result, new ScanPolicyMetadata(
+                    displayPath(projectRoot, loadedConfiguration.source()),
+                    displayPath(projectRoot, effectiveBaseline),
+                    baselineApplication.suppressedFindings(),
+                    changedSince,
+                    changeScope.excludedFindings()
+            ));
 
             writeReports(result, outputDirectory);
-            printSummary(result, outputDirectory);
+            printSummary(result, outputDirectory, changedSince, changeScope.excludedFindings(),
+                    baselineApplication.suppressedFindings(), updatedBaseline);
             return exitCode(result);
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());
@@ -133,6 +180,63 @@ public final class ScanCommand implements Callable<Integer> {
         return resolved;
     }
 
+    private Path resolveProjectFile(Path projectRoot, Path configured, String label) {
+        if (configured.isAbsolute()) {
+            return configured.toAbsolutePath().normalize();
+        }
+        Path resolved = projectRoot.resolve(configured).normalize();
+        if (!resolved.startsWith(projectRoot)) {
+            throw new IllegalArgumentException(label + " path must stay within the analyzed project");
+        }
+        return resolved;
+    }
+
+    private ProjectConfigurationLoader.LoadedConfiguration loadConfiguration(Path projectRoot) throws IOException {
+        Path selected;
+        if (configuration != null) {
+            selected = resolveProjectFile(projectRoot, configuration, "Configuration");
+            if (!Files.isRegularFile(selected)) {
+                throw new IllegalArgumentException("Configuration file does not exist: " + selected);
+            }
+        } else {
+            Path conventional = projectRoot.resolve(ProjectConfigurationLoader.DEFAULT_FILE_NAME);
+            if (!Files.isRegularFile(conventional)) return ProjectConfigurationLoader.defaults();
+            selected = conventional;
+        }
+        return new ProjectConfigurationLoader().load(selected);
+    }
+
+    private static String displayPath(Path projectRoot, Path file) {
+        if (file == null) return "";
+        Path normalized = file.toAbsolutePath().normalize();
+        Path root = projectRoot.toAbsolutePath().normalize();
+        return normalized.startsWith(root)
+                ? root.relativize(normalized).toString().replace('\\', '/')
+                : normalized.toString();
+    }
+
+    private Set<String> readBaseline(FindingBaseline store, Path selectedBaseline) throws IOException {
+        if (selectedBaseline == null) {
+            return Set.of();
+        }
+        if (!Files.exists(selectedBaseline)) {
+            if (updateBaseline) {
+                return Set.of();
+            }
+            throw new IllegalArgumentException("Baseline file does not exist: " + selectedBaseline);
+        }
+        if (!Files.isRegularFile(selectedBaseline)) {
+            throw new IllegalArgumentException("Baseline is not a regular file: " + selectedBaseline);
+        }
+        return store.read(selectedBaseline);
+    }
+
+    private ChangedFileScope.ScopeApplication changedFileScope(Path projectRoot, AnalysisResult result)
+            throws IOException, InterruptedException {
+        var scope = new ChangedFileScope();
+        return scope.apply(result, scope.filesChangedSince(projectRoot, changedSince));
+    }
+
     private void writeReports(AnalysisResult result, Path outputDirectory) throws IOException {
         Files.createDirectories(outputDirectory);
         for (ReportFormat format : formats) {
@@ -161,7 +265,14 @@ public final class ScanCommand implements Callable<Integer> {
         }
     }
 
-    private static void printSummary(AnalysisResult result, Path outputDirectory) {
+    private static void printSummary(
+            AnalysisResult result,
+            Path outputDirectory,
+            String changedSince,
+            int changeScopeExcludedFindings,
+            int suppressedFindings,
+            Path updatedBaseline
+    ) {
         var statistics = result.statistics();
         long boundaries = result.flows().stream().mapToLong(flow -> flow.boundaries().size()).sum();
         System.out.printf("DiagScope %s analyzed %d files, %d methods and %d flows in %d ms.%n",
@@ -169,5 +280,15 @@ public final class ScanCommand implements Callable<Integer> {
                 statistics.phaseMetrics().totalMillis());
         System.out.printf("Findings: %d | Parse failures: %d | Flow boundaries: %d | Output: %s%n",
                 statistics.findings(), statistics.parseFailures(), boundaries, outputDirectory);
+        if (changeScopeExcludedFindings > 0) {
+            System.out.printf("Change scope excluded %d finding(s) outside --changed-since %s.%n",
+                    changeScopeExcludedFindings, changedSince);
+        }
+        if (suppressedFindings > 0) {
+            System.out.printf("Baseline suppressed %d known finding(s).%n", suppressedFindings);
+        }
+        if (updatedBaseline != null) {
+            System.out.printf("Baseline updated: %s%n", updatedBaseline);
+        }
     }
 }

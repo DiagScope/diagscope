@@ -459,6 +459,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
   function renderCards() {
     var statistics = report.statistics || {};
     var configuration = report.configuration || {};
+    var scanScope = configuration.scanScope || {};
     var cards = [
       [statistics.sourceFiles, 'Source files'],
       [statistics.parsedMethods, 'Methods'],
@@ -469,6 +470,12 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
       [millis(statistics.totalNanos), 'Total time'],
       [configuration.maxFlowDepth, 'Max flow depth']
     ];
+    if (scanScope.baselineSuppressedFindings) {
+      cards.push([scanScope.baselineSuppressedFindings, 'Baseline suppressed']);
+    }
+    if (scanScope.changeScopeExcludedFindings) {
+      cards.push([scanScope.changeScopeExcludedFindings, 'Outside change scope']);
+    }
     document.getElementById('cards').innerHTML = cards.map(function (card) {
       return '<div class="card"><span class="card-value">' + esc(card[0] == null ? 0 : card[0]) +
         '</span><span class="card-label">' + esc(card[1]) + '</span></div>';

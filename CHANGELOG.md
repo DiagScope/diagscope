@@ -6,6 +6,16 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Deterministic fingerprint baseline workflow through `--baseline [path]` and
+  `--update-baseline`, including schema/fingerprint validation and atomic writes.
+- Git-aware `--changed-since <ref>` filtering for pull-request scans; it composes with baselines and
+  `--fail-on` without narrowing baseline updates.
+- A documented `result.json` schema-version policy and an executable compatibility contract for
+  `1.0-alpha.1`.
+- Strict `diagscope.yml` project policy for rule state/severity, ignored paths, project sensitive
+  names, and custom logger/entrypoint syntax in Java and Kotlin.
+- Effective policy and baseline/changed-file scope metadata in JSON, HTML, Markdown, and SARIF;
+  `result.json` advances additively to `1.1-alpha.1` while retaining the `1.0-alpha.1` contract test.
 - Syntax-first Kotlin/JVM analysis through the new `diagscope-kotlinparser` adapter, backed by Kotlin PSI.
 - Shared `diagscope-jvmanalysis` infrastructure for Maven/Gradle layout detection, analyzer composition, and Java/Kotlin call relinking.
 - Conventional `src/main/kotlin` discovery, including Kotlin-only, mixed-language, and multi-module projects.

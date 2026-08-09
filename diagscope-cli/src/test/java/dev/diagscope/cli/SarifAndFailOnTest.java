@@ -33,6 +33,7 @@ class SarifAndFailOnTest {
         assertThat(document.path("version").asText()).isEqualTo("2.1.0");
         JsonNode run = document.path("runs").get(0);
         assertThat(run.path("tool").path("driver").path("name").asText()).isEqualTo("DiagScope");
+        assertThat(run.path("properties").path("diagscopeScanScope").isObject()).isTrue();
         assertThat(run.path("tool").path("driver").path("rules")).isNotEmpty();
         JsonNode result = run.path("results").get(0);
         assertThat(result.path("ruleId").asText()).isNotBlank();
