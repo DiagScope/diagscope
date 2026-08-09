@@ -112,6 +112,7 @@ h3 { font-size: 0.92rem; margin: 0 0 8px; text-transform: uppercase; letter-spac
 .chip.active { background: var(--brand); border-color: var(--brand); color: #ffffff; }
 html[data-theme="dark"] .chip.active { color: #0f141c; }
 .active-filter { margin-bottom: 22px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.finding-group { margin: 24px 0 10px; color: var(--paper); font-size: 1rem; text-transform: none; letter-spacing: 0; }
 .flow-card { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
 .flow-card:hover, .flow-card:focus-visible { border-color: var(--brand); }
 .flow-card.active { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
@@ -167,6 +168,8 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
 .location { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--mute); margin: 2px 0; }
 .finding-message { margin: 4px 0 6px; }
 .recommendation { color: var(--paper); }
+.remediation-code { position: relative; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow: auto; }
+.remediation-code code { white-space: pre; }
 .explain { margin-bottom: 14px; background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
 .explain p { margin: 4px 0; color: var(--paper); }
 .explain .confidence-note { color: var(--mute); }
@@ -250,6 +253,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
 <section class="filter-bar">
   <div class="chips" id="severity-chips"></div>
   <div class="chips" id="confidence-chips"></div>
+  <div class="chips" id="group-chips"></div>
   <input id="finding-search" type="search" placeholder="Filter by rule, file, message, method, or evidence…">
 </section>
 
@@ -281,7 +285,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
   <ul class="plain-list small" id="parse-failures"></ul>
 </section>
 
-<footer class="foot">DiagScope — static diagnostic coverage for Java applications. This file has no external dependencies and makes no network requests.</footer>
+<footer class="foot">DiagScope — static diagnostic coverage for Java and Kotlin applications. This file has no external dependencies and makes no network requests.</footer>
 
 <script id="diagscope-data" type="application/json">__DIAGSCOPE_DATA__</script>
 <script>
@@ -294,7 +298,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
     { id: 'impact', label: 'Flow impact' },
     { id: 'source', label: 'Source' }
   ];
-  var state = { severity: 'ALL', confidence: 'ALL', flow: null, query: '', open: {}, tab: {} };
+  var state = { severity: 'ALL', confidence: 'ALL', group: 'NONE', flow: null, query: '', open: {}, tab: {} };
   var report = null;
   var flowsById = {};
   var findingsByFlow = {};
@@ -473,6 +477,12 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
     if (scanScope.baselineSuppressedFindings) {
       cards.push([scanScope.baselineSuppressedFindings, 'Baseline suppressed']);
     }
+    if (scanScope.baselineRemovedFindings) {
+      cards.push([scanScope.baselineRemovedFindings, 'Baseline removed']);
+    }
+    if (scanScope.baselineFingerprintMigrations) {
+      cards.push([scanScope.baselineFingerprintMigrations, 'Fingerprint migrations']);
+    }
     if (scanScope.changeScopeExcludedFindings) {
       cards.push([scanScope.changeScopeExcludedFindings, 'Outside change scope']);
     }
@@ -500,6 +510,10 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
         return '<button class="chip ' + confClass(confidence) + '" data-filter-confidence="' + confidence + '">' +
           title(confidence) + ' (' + countBy('confidence', confidence) + ')</button>';
       }).join('');
+    document.getElementById('group-chips').innerHTML =
+      '<button class="chip active" data-group="NONE">Flat</button>' +
+      '<button class="chip" data-group="FLOW">Group by flow</button>' +
+      '<button class="chip" data-group="FILE">Group by file</button>';
   }
 
   function snippetHtml(snippet) {
@@ -556,6 +570,12 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
       '<table class="kv"><tbody>' + rows.join('') + '</tbody></table></div>' +
       (finding.recommendation
         ? '<p class="recommendation"><strong>Suggested action:</strong> ' + esc(finding.recommendation) + '</p>'
+        : '') +
+      (finding.remediation
+        ? '<div><h3>Copy-ready remediation</h3><pre class="remediation-code"><code>' +
+          esc(finding.remediation.snippet) + '</code></pre>' +
+          '<button class="copy" type="button" data-copy="' + esc(finding.remediation.snippet) + '">Copy snippet</button>' +
+          '<p class="muted small">' + esc(finding.remediation.note) + '</p></div>'
         : '') +
       (methods
         ? '<div><h3>Affected methods (' + (finding.affectedMethods || []).length + ')</h3>' +
@@ -701,8 +721,38 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
   function renderFindings() {
     var all = report.findings || [];
     var visible = all.filter(matches);
+    var content = '';
+    if (state.group === 'FILE') {
+      var files = {};
+      visible.forEach(function (finding) {
+        var file = (finding.location || {}).file || '(unknown file)';
+        (files[file] = files[file] || []).push(finding);
+      });
+      content = Object.keys(files).sort().map(function (file) {
+        return '<h3 class="finding-group">' + esc(file) + ' (' + files[file].length + ')</h3>' +
+          files[file].map(findingHtml).join('');
+      }).join('');
+    } else if (state.group === 'FLOW') {
+      var assigned = {};
+      visible.forEach(function (finding) {
+        var related = finding.relatedFlows || [];
+        if (!related.length) { (assigned[''] = assigned[''] || []).push(finding); }
+        related.forEach(function (flow) { (assigned[flow.id] = assigned[flow.id] || []).push(finding); });
+      });
+      content = Object.keys(assigned).sort(function (left, right) {
+        var a = left && flowsById[left] ? flowsById[left].name : 'Unassigned';
+        var b = right && flowsById[right] ? flowsById[right].name : 'Unassigned';
+        return a.localeCompare(b);
+      }).map(function (id) {
+        var name = id && flowsById[id] ? flowsById[id].name : 'Unassigned findings';
+        return '<h3 class="finding-group">' + esc(name) + ' (' + assigned[id].length + ')</h3>' +
+          assigned[id].map(findingHtml).join('');
+      }).join('');
+    } else {
+      content = visible.map(findingHtml).join('');
+    }
     document.getElementById('findings-list').innerHTML = visible.length
-      ? visible.map(findingHtml).join('')
+      ? content
       : '<p class="empty">No findings match the current filters.</p>';
     document.getElementById('result-count').textContent =
       'Showing ' + visible.length + ' of ' + all.length + ' finding(s)';
@@ -722,6 +772,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
       }).join('');
       var hidden = (flow.boundaries || []).length - 5;
       var findings = (findingsByFlow[flow.id] || []).length;
+      var coverage = flow.diagnosticCoverage || {};
       return '<article class="flow-card' + (state.flow === flow.id ? ' active' : '') + '" data-flow-id="' + esc(flow.id) +
         '" tabindex="0" role="button" aria-pressed="' + (state.flow === flow.id) + '">' +
         '<div class="flow-head"><span class="badge type-badge">' + esc(flow.type) + '</span>' +
@@ -730,7 +781,9 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
         '<p class="muted small">' + esc(flow.method) + '</p>' +
         '<p class="small">' + (flow.methods || []).length + ' method(s) reached \u00b7 ' +
         (flow.boundaryCount != null ? flow.boundaryCount : (flow.boundaries || []).length) + ' boundary(ies) \u00b7 ' +
-        findings + ' finding(s)</p>' +
+        findings + ' finding(s) · coverage ' + esc(coverage.score == null ? 0 : coverage.score) + '% ' +
+        '(' + esc(coverage.instrumentationSignals == null ? 0 : coverage.instrumentationSignals) + ' signals / ' +
+        esc(coverage.evidenceDestroyingFindings == null ? findings : coverage.evidenceDestroyingFindings) + ' gaps)</p>' +
         (boundaries ? '<ul class="plain-list small">' + boundaries +
           (hidden > 0 ? '<li class="muted">+ ' + hidden + ' more</li>' : '') + '</ul>' : '') +
       '</article>';
@@ -816,6 +869,13 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
       renderFindings();
       return;
     }
+    var groupChip = target.closest('[data-group]');
+    if (groupChip) {
+      state.group = groupChip.getAttribute('data-group');
+      syncChips();
+      renderFindings();
+      return;
+    }
     var copyButton = target.closest('[data-copy]');
     if (copyButton) {
       var text = copyButton.getAttribute('data-copy');
@@ -886,6 +946,9 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
     document.querySelectorAll('[data-filter-confidence]').forEach(function (chip) {
       chip.classList.toggle('active', chip.getAttribute('data-filter-confidence') === state.confidence);
     });
+    document.querySelectorAll('[data-group]').forEach(function (chip) {
+      chip.classList.toggle('active', chip.getAttribute('data-group') === state.group);
+    });
   }
 
   document.getElementById('finding-search').addEventListener('input', function (event) {
@@ -896,6 +959,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
   function load(data) {
     report = data;
     state.flow = null;
+    state.group = 'NONE';
     state.open = {};
     state.tab = {};
     renderAll();

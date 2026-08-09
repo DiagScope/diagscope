@@ -3,7 +3,9 @@ package dev.diagscope.cli.report;
 import dev.diagscope.cli.BuildInfo;
 import dev.diagscope.cli.ReportFormat;
 import dev.diagscope.core.application.AnalysisResult;
+import dev.diagscope.core.application.FlowDiagnosticCoverage;
 import dev.diagscope.core.application.rule.RuleCatalog;
+import dev.diagscope.core.application.rule.RuleRemediationCatalog;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,6 +32,7 @@ public final class MarkdownReporter implements AnalysisReporter {
         var builder = new StringBuilder(8192);
         appendSummary(builder, result);
         appendExecutiveSummary(builder, result);
+        appendCoverageAndGroups(builder, result);
         appendFindings(builder, result);
         appendAspects(builder, result);
         appendFlows(builder, result);
@@ -79,6 +82,8 @@ public final class MarkdownReporter implements AnalysisReporter {
                                 .collect(Collectors.joining(", "))).append("\n")
                 .append("- Baseline: ").append(valueOrNone(result.scanPolicy().baselineFile()))
                 .append(" (suppressed ").append(result.scanPolicy().baselineSuppressedFindings())
+                .append(", removed ").append(result.scanPolicy().baselineRemovedFindings())
+                .append(", migrated ").append(result.scanPolicy().baselineFingerprintMigrations())
                 .append(")\n")
                 .append("- Changed since: ").append(valueOrNone(result.scanPolicy().changedSince()))
                 .append(" (excluded ").append(result.scanPolicy().changeScopeExcludedFindings())
@@ -191,6 +196,11 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append(escape(RuleCatalog.confidenceRationale(finding.confidence()))).append("\n")
                     .append("- Affected flows: ").append(flows.isEmpty() ? "none" : flows).append("\n")
                     .append("- Fingerprint: `").append(finding.fingerprint()).append("`\n\n");
+            RuleRemediationCatalog.forFinding(finding).ifPresent(remediation -> builder
+                    .append("**Copy-ready remediation (review before applying):**\n\n")
+                    .append("```").append(remediation.language()).append('\n')
+                    .append(remediation.snippet()).append("\n```\n\n")
+                    .append(escape(remediation.note())).append("\n\n"));
             appendCallPaths(builder, finding);
             if (!finding.evidence().isEmpty()) {
                 builder.append("<details><summary>Evidence</summary>\n\n");
@@ -199,6 +209,69 @@ public final class MarkdownReporter implements AnalysisReporter {
                 builder.append("\n</details>\n\n");
             }
         }
+    }
+
+    private static void appendCoverageAndGroups(StringBuilder builder, AnalysisResult result) {
+        builder.append("## Diagnostic coverage by flow\n\n")
+                .append("Score = explicit logging, metric, and instrumentation-annotation signals divided by ")
+                .append("those signals plus evidence-destroying findings reachable on the same flow. ")
+                .append("A zero with no findings means that no explicit instrumentation signal was observed.\n\n");
+        if (result.flows().isEmpty()) {
+            builder.append("No supported entrypoints were found.\n\n");
+        } else {
+            builder.append("| Flow | Type | Score | Signals | Findings | Logging | Metrics | Annotations |\n")
+                    .append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+            for (var flow : result.flows()) {
+                String flowId = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+                var coverage = result.diagnosticCoverage().stream()
+                        .filter(candidate -> candidate.flowId().equals(flowId)).findFirst()
+                        .orElseGet(() -> FlowDiagnosticCoverage.calculate(flow, result.findings()));
+                builder.append("| ").append(escape(flow.entrypoint().displayName()))
+                        .append(" | `").append(flow.entrypoint().type()).append("` | ")
+                        .append(coverage.score()).append("% | ")
+                        .append(coverage.instrumentationSignals()).append(" | ")
+                        .append(coverage.evidenceDestroyingFindings()).append(" | ")
+                        .append(coverage.loggingSignals()).append(" | ")
+                        .append(coverage.metricSignals()).append(" | ")
+                        .append(coverage.annotationSignals()).append(" |\n");
+            }
+            builder.append('\n');
+        }
+
+        builder.append("### Findings grouped by flow\n\n");
+        boolean anyFlowFindings = false;
+        for (var flow : result.flows()) {
+            String id = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+            var findings = result.findings().stream()
+                    .filter(finding -> finding.relatedFlows().stream().anyMatch(related -> related.id().equals(id)))
+                    .toList();
+            if (findings.isEmpty()) continue;
+            anyFlowFindings = true;
+            builder.append("- Flow `").append(escape(flow.entrypoint().displayName())).append("`: ")
+                    .append(findings.stream().map(finding -> '`' + finding.ruleId() + "` at `"
+                                    + escape(finding.location().file().toString()) + ':'
+                                    + finding.location().startLine() + '`')
+                            .collect(Collectors.joining(", ")))
+                    .append('\n');
+        }
+        if (!anyFlowFindings) builder.append("No findings are attached to a detected flow.\n");
+
+        builder.append("\n### Findings grouped by file\n\n");
+        var byFile = new java.util.TreeMap<String, java.util.List<dev.diagscope.core.domain.Finding>>();
+        result.findings().forEach(finding -> byFile
+                .computeIfAbsent(dev.diagscope.core.domain.Finding.normalizedPath(finding.location()),
+                        ignored -> new java.util.ArrayList<>())
+                .add(finding));
+        if (byFile.isEmpty()) {
+            builder.append("No findings.\n\n");
+            return;
+        }
+        byFile.forEach((file, findings) -> builder.append("- `").append(escape(file)).append("`: ")
+                .append(findings.stream().map(finding -> '`' + finding.ruleId() + "` (line "
+                                + finding.location().startLine() + ')')
+                        .collect(Collectors.joining(", ")))
+                .append('\n'));
+        builder.append('\n');
     }
 
     /** Renders the traced call path from every affected entrypoint down to the evidence method. */

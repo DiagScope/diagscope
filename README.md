@@ -75,6 +75,10 @@ java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
 # Supply generated sources and the already-built dependency classpath explicitly
 java -jar diagscope.jar scan --project . --source-root build/generated/sources \
   --classpath build/classes/java/main,libs/domain-api.jar
+
+# Compare two compatible scans by stable fingerprint
+java -jar diagscope.jar trend --base previous/result.json --current current/result.json \
+  --output trend.md
 ```
 
 ### Options
@@ -90,6 +94,8 @@ java -jar diagscope.jar scan --project . --source-root build/generated/sources \
 | `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |
 | `--baseline [path]` | Suppress fingerprints recorded in a baseline; without a path uses `diagscope-baseline.json` | off |
 | `--update-baseline` | Atomically rewrite the selected/default baseline with all current findings | off |
+| `--baseline-migration <OLD=NEW>` | Record an intentional fingerprint migration during baseline update | off |
+| `--prune-removed-baseline` | Drop reviewed removed-finding tombstones during baseline update | off |
 | `--changed-since <ref>` | Keep findings only in files changed since a Git revision | off |
 | `--config <path>` | Load a strict project policy; otherwise auto-discovers `diagscope.yml` | auto |
 | `--source-root <path>` | Additional production root inside the project; repeat or comma-separate | off |

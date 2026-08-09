@@ -39,6 +39,7 @@ final class AnalysisResultFilter {
                 result.parseFailures(),
                 result.flows(),
                 retained,
+                result.diagnosticCoverage(),
                 filteredStatistics,
                 result.aspects(),
                 result.scanPolicy()
@@ -48,8 +49,8 @@ final class AnalysisResultFilter {
     static AnalysisResult withScanPolicy(AnalysisResult result, ScanPolicyMetadata scanPolicy) {
         return new AnalysisResult(
                 result.projectName(), result.projectRoot(), result.projectLayout(), result.options(),
-                result.parseFailures(), result.flows(), result.findings(), result.statistics(),
-                result.aspects(), scanPolicy
+                result.parseFailures(), result.flows(), result.findings(), result.diagnosticCoverage(),
+                result.statistics(), result.aspects(), scanPolicy
         );
     }
 }

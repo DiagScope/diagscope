@@ -5,6 +5,8 @@ public record ScanPolicyMetadata(
         String configurationFile,
         String baselineFile,
         int baselineSuppressedFindings,
+        int baselineRemovedFindings,
+        int baselineFingerprintMigrations,
         String changedSince,
         int changeScopeExcludedFindings
 ) {
@@ -12,12 +14,13 @@ public record ScanPolicyMetadata(
         configurationFile = configurationFile == null ? "" : configurationFile;
         baselineFile = baselineFile == null ? "" : baselineFile;
         changedSince = changedSince == null ? "" : changedSince;
-        if (baselineSuppressedFindings < 0 || changeScopeExcludedFindings < 0) {
+        if (baselineSuppressedFindings < 0 || baselineRemovedFindings < 0
+                || baselineFingerprintMigrations < 0 || changeScopeExcludedFindings < 0) {
             throw new IllegalArgumentException("Policy finding counts must not be negative");
         }
     }
 
     public static ScanPolicyMetadata none() {
-        return new ScanPolicyMetadata("", "", 0, "", 0);
+        return new ScanPolicyMetadata("", "", 0, 0, 0, "", 0);
     }
 }

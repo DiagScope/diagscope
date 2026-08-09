@@ -20,7 +20,8 @@ class ResultSchemaCompatibilityTest {
     @Test
     void current_result_preserves_the_previous_contract_and_satisfies_the_current_one() throws Exception {
         JsonNode previousContract = contract("1.0-alpha.1");
-        JsonNode currentContract = contract("1.1-alpha.1");
+        JsonNode intermediateContract = contract("1.1-alpha.1");
+        JsonNode currentContract = contract("1.2-alpha.1");
 
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         Path output = temp.resolve("out");
@@ -42,11 +43,18 @@ class ResultSchemaCompatibilityTest {
         assertFields(finding, previousContract.path("finding"));
         assertFields(finding.path("location"), previousContract.path("location"));
 
-        assertFields(result, currentContract.path("root"));
+        assertFields(result, intermediateContract.path("root"));
         JsonNode configuration = result.path("configuration");
-        assertFields(configuration, currentContract.path("configuration"));
-        assertFields(configuration.path("projectPolicy"), currentContract.path("projectPolicy"));
+        assertFields(configuration, intermediateContract.path("configuration"));
+        assertFields(configuration.path("projectPolicy"), intermediateContract.path("projectPolicy"));
+        assertFields(configuration.path("scanScope"), intermediateContract.path("scanScope"));
+
+        assertFields(result, currentContract.path("root"));
+        assertFields(result.path("groups"), currentContract.path("groups"));
         assertFields(configuration.path("scanScope"), currentContract.path("scanScope"));
+        JsonNode flow = result.path("flows").get(0);
+        assertFields(flow, currentContract.path("flow"));
+        assertFields(flow.path("diagnosticCoverage"), currentContract.path("diagnosticCoverage"));
     }
 
     private static JsonNode contract(String version) throws Exception {

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.2-alpha.1",
+  "root": [
+    "schemaVersion",
+    "tool",
+    "project",
+    "configuration",
+    "statistics",
+    "summary",
+    "groups",
+    "parseFailures",
+    "aspects",
+    "flows",
+    "findings"
+  ],
+  "groups": [
+    "byFlow",
+    "byFile"
+  ],
+  "scanScope": [
+    "configurationFile",
+    "baselineFile",
+    "baselineSuppressedFindings",
+    "baselineRemovedFindings",
+    "baselineFingerprintMigrations",
+    "changedSince",
+    "changeScopeExcludedFindings"
+  ],
+  "flow": [
+    "id",
+    "type",
+    "name",
+    "method",
+    "location",
+    "confidence",
+    "diagnosticCoverage",
+    "methods",
+    "edges",
+    "boundaryCount",
+    "boundaries"
+  ],
+  "diagnosticCoverage": [
+    "score",
+    "instrumentationSignals",
+    "evidenceDestroyingFindings",
+    "loggingSignals",
+    "metricSignals",
+    "annotationSignals"
+  ]
+}

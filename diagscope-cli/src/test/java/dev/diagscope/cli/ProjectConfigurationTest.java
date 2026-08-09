@@ -28,7 +28,7 @@ class ProjectConfigurationTest {
 
         assertThat(exit).isZero();
         JsonNode result = JSON.readTree(output.resolve("result.json").toFile());
-        assertThat(result.path("schemaVersion").asText()).isEqualTo("1.1-alpha.1");
+        assertThat(result.path("schemaVersion").asText()).isEqualTo("1.2-alpha.1");
         assertThat(result.path("statistics").path("sourceFiles").asInt()).isEqualTo(2);
         assertThat(result.path("configuration").path("scanScope").path("configurationFile").asText())
                 .isEqualTo("diagscope.yml");

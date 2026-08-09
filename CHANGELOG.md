@@ -47,6 +47,13 @@ All notable project changes are recorded in this file.
 - Durable consolidation decisions in `docs/ALPHA_CONSOLIDATION.md`.
 - `PROJECT_MEMORY.md` as a compact handoff for future Codex threads.
 - Quantitative real-repository validation gates and a phase-containment rule.
+- Additive `result.json` contract `1.2-alpha.1` with diagnostic coverage components, flow/file
+  groupings, and deterministic Java/Kotlin remediation snippets where safe.
+- `trend` comparison of compatible scan results as new, fixed, and persisting findings.
+- Baseline schema `1.1` with removed-finding tombstones, intentional fingerprint migrations, and
+  explicit history pruning.
+- Reproducible corpus-validation harness and Kotlin PSI JFR event for the conditional resolution,
+  parallelism, and IDE/linter comparison gates.
 
 ### Changed
 

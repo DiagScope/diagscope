@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.1-alpha.1",
+  "schemaVersion" : "1.2-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -29,6 +29,8 @@
       "configurationFile" : "",
       "baselineFile" : "",
       "baselineSuppressedFindings" : 0,
+      "baselineRemovedFindings" : 0,
+      "baselineFingerprintMigrations" : 0,
       "changedSince" : "",
       "changeScopeExcludedFindings" : 0
     }
@@ -119,6 +121,72 @@
       }
     } ]
   },
+  "groups" : {
+    "byFlow" : [ {
+      "flowId" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
+      "name" : "Kafka topic=payments",
+      "type" : "KAFKA_LISTENER",
+      "diagnosticCoverage" : {
+        "score" : 0,
+        "instrumentationSignals" : 0,
+        "evidenceDestroyingFindings" : 2,
+        "loggingSignals" : 0,
+        "metricSignals" : 0,
+        "annotationSignals" : 0
+      },
+      "findingCount" : 2,
+      "findings" : [ "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
+    }, {
+      "flowId" : "REST:example.PaymentController.capture(String)",
+      "name" : "POST /payments/{id}/capture",
+      "type" : "REST",
+      "diagnosticCoverage" : {
+        "score" : 25,
+        "instrumentationSignals" : 1,
+        "evidenceDestroyingFindings" : 3,
+        "loggingSignals" : 0,
+        "metricSignals" : 1,
+        "annotationSignals" : 0
+      },
+      "findingCount" : 3,
+      "findings" : [ "sha256:619967b3ba07a12c50eab539f93995c4940292c8f9397ba6916b70778ab0a75b", "sha256:9ed6a377b9b7224a3c9e7f257564d66390481e9372fbd338184c11bc18169a49", "sha256:cdeb8989de1ccd84a2f232807d8fb5b5c8b39c1c5361dda5523d02ebdda23d9f" ]
+    }, {
+      "flowId" : "SCHEDULED:example.ReconciliationJob.execute()",
+      "name" : "Scheduled cron=0 */5 * * * *",
+      "type" : "SCHEDULED",
+      "diagnosticCoverage" : {
+        "score" : 0,
+        "instrumentationSignals" : 0,
+        "evidenceDestroyingFindings" : 1,
+        "loggingSignals" : 0,
+        "metricSignals" : 0,
+        "annotationSignals" : 0
+      },
+      "findingCount" : 1,
+      "findings" : [ "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
+    } ],
+    "byFile" : [ {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "findingCount" : 2,
+      "findings" : [ "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
+    }, {
+      "file" : "src/main/java/example/PaymentMetrics.java",
+      "findingCount" : 1,
+      "findings" : [ "sha256:619967b3ba07a12c50eab539f93995c4940292c8f9397ba6916b70778ab0a75b" ]
+    }, {
+      "file" : "src/main/java/example/PaymentPublisher.java",
+      "findingCount" : 1,
+      "findings" : [ "sha256:cdeb8989de1ccd84a2f232807d8fb5b5c8b39c1c5361dda5523d02ebdda23d9f" ]
+    }, {
+      "file" : "src/main/java/example/PaymentService.java",
+      "findingCount" : 1,
+      "findings" : [ "sha256:9ed6a377b9b7224a3c9e7f257564d66390481e9372fbd338184c11bc18169a49" ]
+    }, {
+      "file" : "src/main/java/example/ReconciliationJob.java",
+      "findingCount" : 1,
+      "findings" : [ "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
+    } ]
+  },
   "parseFailures" : [ ],
   "aspects" : [ ],
   "flows" : [ {
@@ -132,6 +200,14 @@
       "endLine" : 7
     },
     "confidence" : "HIGH",
+    "diagnosticCoverage" : {
+      "score" : 0,
+      "instrumentationSignals" : 0,
+      "evidenceDestroyingFindings" : 2,
+      "loggingSignals" : 0,
+      "metricSignals" : 0,
+      "annotationSignals" : 0
+    },
     "methods" : [ {
       "method" : "example.PaymentListener.consume(String)",
       "location" : {
@@ -179,6 +255,14 @@
       "endLine" : 9
     },
     "confidence" : "HIGH",
+    "diagnosticCoverage" : {
+      "score" : 25,
+      "instrumentationSignals" : 1,
+      "evidenceDestroyingFindings" : 3,
+      "loggingSignals" : 0,
+      "metricSignals" : 1,
+      "annotationSignals" : 0
+    },
     "methods" : [ {
       "method" : "example.PaymentController.capture(String)",
       "location" : {
@@ -390,6 +474,14 @@
       "endLine" : 5
     },
     "confidence" : "HIGH",
+    "diagnosticCoverage" : {
+      "score" : 0,
+      "instrumentationSignals" : 0,
+      "evidenceDestroyingFindings" : 1,
+      "loggingSignals" : 0,
+      "metricSignals" : 0,
+      "annotationSignals" : 0
+    },
     "methods" : [ {
       "method" : "example.ReconciliationJob.execute()",
       "location" : {
@@ -550,6 +642,11 @@
     },
     "message" : "KafkaTemplate.send() result is ignored by this flow.",
     "recommendation" : "Verify whether the flow requires broker acknowledgement or explicit asynchronous failure handling.",
+    "remediation" : {
+      "language" : "java",
+      "snippet" : "kafkaTemplate.send(topic, payload).whenComplete((result, error) -> {/n    if (error != null) logger.error(/"Kafka send failed for {}/", messageId, error);/n});",
+      "note" : "A ProducerListener configured centrally is also valid; avoid duplicate callbacks. Adapt names and domain fields, then review the change in context."
+    },
     "explanation" : {
       "title" : "Kafka send result ignored",
       "whatItMeans" : "The asynchronous result of a Kafka producer send is discarded.",
@@ -621,6 +718,11 @@
     },
     "message" : "System output is used instead of application logging.",
     "recommendation" : "Use the configured logger so the message participates in structured production telemetry.",
+    "remediation" : {
+      "language" : "java",
+      "snippet" : "logger.info(/"Operation completed for {}/", operationId);",
+      "note" : "Use the application's configured logger and a stable, structured message. Adapt names and domain fields, then review the change in context."
+    },
     "explanation" : {
       "title" : "Diagnostics written to standard output",
       "whatItMeans" : "Diagnostic text is written with System.out or System.err instead of the logger.",

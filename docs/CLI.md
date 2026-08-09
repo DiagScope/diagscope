@@ -37,6 +37,10 @@ java -jar diagscope-cli/target/diagscope.jar scan \
   the option has no path, `<project>/diagscope-baseline.json` is used;
 - `--update-baseline` — atomically rewrite the selected baseline, or the default baseline when
   `--baseline` is absent, using every finding from the full scan;
+- `--baseline-migration <OLD=NEW>` — while updating, record an intentional stable-fingerprint
+  migration from an old baseline entry to a current finding; repeat for multiple migrations;
+- `--prune-removed-baseline` — while updating, discard removed-finding tombstones after their
+  lifecycle has been reviewed;
 - `--changed-since <ref>` — retain findings only when their source file appears in `git diff <ref>`.
 - `--config <path>` — load a strict project policy; without this option, `diagscope.yml` is loaded
   automatically from the project root when present.
@@ -74,6 +78,19 @@ fingerprint, carry both a baseline schema version and the finding `fingerprintVe
 timestamps, and are written atomically. An incompatible fingerprint version is rejected instead of
 silently suppressing the wrong findings.
 
+Baseline schema `1.1` retains findings that disappeared from a scan under `removedFindings`, with
+`status: REMOVED`. This distinguishes a real fix/removal from accidental baseline churn. When a
+fingerprint changes intentionally, migrate it during the next full update:
+
+```bash
+java -jar diagscope.jar scan --project . --update-baseline \
+  --baseline-migration sha256:<old>=sha256:<new>
+```
+
+The source must already exist in the baseline, the target must be a current finding, and the old
+fingerprint must no longer be current. Migration targets suppress normally on later `--baseline`
+scans. Use `--prune-removed-baseline` only after the tombstone history has been reviewed.
+
 When `--changed-since` and `--baseline` are combined, changed-file filtering runs first, baseline
 suppression runs second, and `--fail-on` evaluates the remaining findings. Baseline updates always
 use the complete scan so unchanged findings are not accidentally removed.
@@ -92,6 +109,22 @@ Default files are:
 Only requested formats are written. Reports are written through a temporary file and moved into place so an interrupted serialization does not leave a normal-looking partial report. The move falls back safely when the filesystem does not support atomic replacement.
 
 The terminal summary includes tool version, source files, methods, flows, elapsed analysis time, findings, parse failures, flow boundaries, and the resolved output directory.
+
+## Trend command
+
+Compare two results from the same project and compatible fingerprint versions:
+
+```bash
+java -jar diagscope.jar trend \
+  --base previous/result.json \
+  --current current/result.json \
+  --format MARKDOWN \
+  --output trend.md
+```
+
+`--format` accepts `MARKDOWN` (default) or `JSON`. Findings are classified exclusively by stable
+fingerprint as new, fixed, or persisting. Unsupported result schemas, mixed fingerprint versions,
+duplicate fingerprints, and different project names are rejected with exit code `2`.
 
 ## Exit codes
 

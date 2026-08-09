@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import dev.diagscope.cli.BuildInfo;
 import dev.diagscope.cli.ReportFormat;
 import dev.diagscope.core.application.AnalysisResult;
+import dev.diagscope.core.application.FlowDiagnosticCoverage;
 import dev.diagscope.core.domain.CallEdge;
 import dev.diagscope.core.application.rule.RuleCatalog;
+import dev.diagscope.core.application.rule.RuleRemediationCatalog;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
 import dev.diagscope.core.domain.FlowMethod;
@@ -19,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.1-alpha.1";
+    public static final String SCHEMA_VERSION = "1.2-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -66,12 +68,13 @@ public final class JsonReporter implements AnalysisReporter {
         ));
         document.put("statistics", statistics(result));
         document.put("summary", summary(result));
+        document.put("groups", groups(result));
         document.put("parseFailures", result.parseFailures().stream().map(failure -> orderedMap(
                 "file", failure.file().toString(),
                 "message", failure.message()
         )).toList());
         document.put("aspects", result.aspects().stream().map(JsonReporter::aspect).toList());
-        document.put("flows", result.flows().stream().map(JsonReporter::flow).toList());
+        document.put("flows", result.flows().stream().map(flow -> flow(flow, result)).toList());
         document.put("findings", result.findings().stream().map(JsonReporter::finding).toList());
         return document;
     }
@@ -96,6 +99,8 @@ public final class JsonReporter implements AnalysisReporter {
                 "configurationFile", scope.configurationFile(),
                 "baselineFile", scope.baselineFile(),
                 "baselineSuppressedFindings", scope.baselineSuppressedFindings(),
+                "baselineRemovedFindings", scope.baselineRemovedFindings(),
+                "baselineFingerprintMigrations", scope.baselineFingerprintMigrations(),
                 "changedSince", scope.changedSince(),
                 "changeScopeExcludedFindings", scope.changeScopeExcludedFindings()
         );
@@ -176,7 +181,7 @@ public final class JsonReporter implements AnalysisReporter {
         return counts;
     }
 
-    private static Map<String, Object> flow(Flow flow) {
+    private static Map<String, Object> flow(Flow flow, AnalysisResult result) {
         var item = new LinkedHashMap<String, Object>();
         item.put("id", flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName());
         item.put("type", flow.entrypoint().type().name());
@@ -184,11 +189,61 @@ public final class JsonReporter implements AnalysisReporter {
         item.put("method", flow.entrypoint().method().displayName());
         item.put("location", location(flow.entrypoint().location()));
         item.put("confidence", flow.confidence().name());
+        item.put("diagnosticCoverage", coverage(coverageFor(result, flow)));
         item.put("methods", flow.methods().stream().map(JsonReporter::flowMethod).toList());
         item.put("edges", flow.edges().stream().map(JsonReporter::edge).toList());
         item.put("boundaryCount", flow.boundaries().size());
         item.put("boundaries", flow.boundaries().stream().map(JsonReporter::edge).toList());
         return item;
+    }
+
+    private static Map<String, Object> groups(AnalysisResult result) {
+        var byFlow = result.flows().stream().map(flow -> {
+            var score = coverageFor(result, flow);
+            var flowFindings = result.findings().stream()
+                    .filter(finding -> finding.relatedFlows().stream()
+                            .anyMatch(related -> related.id().equals(score.flowId())))
+                    .map(Finding::fingerprint).sorted().toList();
+            return orderedMap(
+                    "flowId", score.flowId(),
+                    "name", flow.entrypoint().displayName(),
+                    "type", flow.entrypoint().type().name(),
+                    "diagnosticCoverage", coverage(score),
+                    "findingCount", flowFindings.size(),
+                    "findings", flowFindings
+            );
+        }).toList();
+
+        var findingsByFile = new java.util.TreeMap<String, java.util.List<String>>();
+        result.findings().forEach(finding -> findingsByFile
+                .computeIfAbsent(Finding.normalizedPath(finding.location()), ignored -> new java.util.ArrayList<>())
+                .add(finding.fingerprint()));
+        var byFile = findingsByFile.entrySet().stream().map(entry -> {
+            entry.getValue().sort(String::compareTo);
+            return orderedMap(
+                    "file", entry.getKey(),
+                    "findingCount", entry.getValue().size(),
+                    "findings", java.util.List.copyOf(entry.getValue())
+            );
+        }).toList();
+        return orderedMap("byFlow", byFlow, "byFile", byFile);
+    }
+
+    private static Map<String, Object> coverage(FlowDiagnosticCoverage coverage) {
+        return orderedMap(
+                "score", coverage.score(),
+                "instrumentationSignals", coverage.instrumentationSignals(),
+                "evidenceDestroyingFindings", coverage.evidenceDestroyingFindings(),
+                "loggingSignals", coverage.loggingSignals(),
+                "metricSignals", coverage.metricSignals(),
+                "annotationSignals", coverage.annotationSignals()
+        );
+    }
+
+    private static FlowDiagnosticCoverage coverageFor(AnalysisResult result, Flow flow) {
+        String id = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+        return result.diagnosticCoverage().stream().filter(coverage -> coverage.flowId().equals(id))
+                .findFirst().orElseGet(() -> FlowDiagnosticCoverage.calculate(flow, result.findings()));
     }
 
     private static Map<String, Object> flowMethod(FlowMethod flowMethod) {
@@ -223,6 +278,11 @@ public final class JsonReporter implements AnalysisReporter {
         item.put("location", location(finding.location()));
         item.put("message", finding.message());
         item.put("recommendation", finding.recommendation());
+        RuleRemediationCatalog.forFinding(finding).ifPresent(remediation -> item.put("remediation", orderedMap(
+                "language", remediation.language(),
+                "snippet", remediation.snippet(),
+                "note", remediation.note()
+        )));
         item.put("explanation", explanation(finding));
         item.put("confidenceRationale", RuleCatalog.confidenceRationale(finding.confidence()));
         item.put("relatedFlows", finding.relatedFlows().stream().map(JsonReporter::relatedFlow).toList());

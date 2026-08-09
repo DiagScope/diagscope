@@ -132,6 +132,11 @@ Run with Java Flight Recorder:
 ./scripts/profile-jfr.sh /path/to/project
 ```
 
+Kotlin scans emit the custom `dev.diagscope.KotlinPsiAnalysis` interval. The profiling script also
+writes its JSON events to `target/profile/kotlin-psi-events.json`. Use
+`scripts/validate-corpus.sh` for repeated semantic-digest checks and corpus evidence; do not infer a
+parallelism decision from the small bundled fixtures.
+
 Investigate:
 
 - allocation pressure;

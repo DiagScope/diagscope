@@ -87,7 +87,7 @@ with adding more unvalidated rules.
   atomic updates, and suppression before `--fail-on`;
 - [x] `--changed-since <git-ref>` filtering combined safely with baselines and severity gating;
 - [x] documented `result.json` version policy and an executable compatibility contract for
-  `1.0-alpha.1` and `1.1-alpha.1`;
+  `1.0-alpha.1`, `1.1-alpha.1`, and `1.2-alpha.1`;
 - [x] strict, versioned `diagscope.yml` with rule enable/disable and severity overrides, pre-parse
   ignored paths, custom sensitive names, custom logger types, and method-level custom entrypoint
   annotations for Java and Kotlin;
@@ -184,17 +184,30 @@ published scanner Action described here.
 - [ ] comparison with standard IDE and linter inspections on the validation corpus to prove
   differential value, using [VALIDATION_MATRIX.md](VALIDATION_MATRIX.md).
 
+The three boxes remain intentionally open: they require scans of adopted, Kotlin-heavy repositories
+and maintainer verdicts, not fixtures. The repository now contains the executable evidence harness
+for that decision: `scripts/validate-corpus.sh` captures repeatable normalized scans, resource
+measurements, unresolved Kotlin boundary candidates, and a JFR recording; the Kotlin adapter emits a
+dedicated `dev.diagscope.KotlinPsiAnalysis` JFR event; and
+`docs/validation/INSPECTION_COMPARISON.csv` is the importable review ledger. No compiler-grade
+Kotlin resolver or PSI worker pool is enabled before those records cross the gates in
+`VALIDATION_MATRIX.md`.
+
 Every resolver must preserve terminal boundaries, path-local confidence, cycle safety, deterministic
 aggregation, and benchmark equivalence.
 
-## Next — Step 4: reporting after adoption feedback
+## Delivered in this increment — Step 4 reporting and adoption lifecycle
 
-- [ ] diagnostic coverage score per flow: instrumentation present versus evidence-destroying
-  constructs on the same path;
-- [ ] explicit grouping by flow and by file in addition to the current filters;
-- [ ] trend command comparing two compatible `result.json` files as new, fixed, and persisting;
-- [ ] copy-ready remediation snippets where a deterministic, framework-safe example exists;
-- [ ] baseline lifecycle support for removed findings and intentional fingerprint migrations.
+- [x] diagnostic coverage score per flow, with logging/metric/annotation signal counts and
+  evidence-destroying finding counts exposed beside the percentage;
+- [x] explicit grouping by flow and by file in versioned JSON, Markdown, and the interactive HTML
+  report, in addition to severity, confidence, flow, and search filters;
+- [x] `trend` command comparing compatible `result.json` files by stable fingerprint as new, fixed,
+  and persisting, with deterministic Markdown or JSON output;
+- [x] copy-ready Java/Kotlin remediation snippets only where the catalog has a deterministic,
+  framework-safe shape, always accompanied by a context-review note;
+- [x] baseline schema `1.1` lifecycle with removed-finding tombstones, intentional `OLD=NEW`
+  fingerprint migrations, migrated suppression, deterministic history, and explicit pruning.
 
 ## Still out of scope
 

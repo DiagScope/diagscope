@@ -115,7 +115,16 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         }
 
         boolean kotlinSpringEnabled = detectsKotlinSpringPlugin(root);
-        ParseBatch batch = parseFiles(root, sourceFiles, kotlinSpringEnabled, options.policy());
+        var psiEvent = new KotlinPsiAnalysisEvent();
+        psiEvent.sourceFiles = sourceFiles.size();
+        psiEvent.explicitClasspathEntries = options.explicitClasspath().size();
+        ParseBatch batch;
+        psiEvent.begin();
+        try {
+            batch = parseFiles(root, sourceFiles, kotlinSpringEnabled, options.policy());
+        } finally {
+            psiEvent.commit();
+        }
         MappedProject mapped = merge(batch.units());
         List<AspectAdvice> aspects = collectAspects(mapped);
         Map<MethodId, MethodModel> methods = resolveCalls(mapped, aspects);

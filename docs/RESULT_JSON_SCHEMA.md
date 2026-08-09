@@ -37,7 +37,16 @@ shape stays the same.
    an intentional major-version break.
 4. Document migration notes in `CHANGELOG.md`.
 
-The current contract is `1.1-alpha.1`; it adds effective project-policy and scan-scope metadata.
+The current contract is `1.2-alpha.1`; it adds diagnostic coverage components per flow, explicit
+flow/file finding groups, optional deterministic remediation snippets, and baseline lifecycle
+counts. These are additive fields: consumers of `1.0-alpha.1` and `1.1-alpha.1` remain valid.
 The retained `result-contract-1.0-alpha.1.json` lists the fields older automation depends on, while
-`result-contract-1.1-alpha.1.json` covers the additions. `ResultSchemaCompatibilityTest` validates a
-real scan against both contracts.
+`result-contract-1.1-alpha.1.json` and `result-contract-1.2-alpha.1.json` cover the additions.
+`ResultSchemaCompatibilityTest` validates a real scan against all retained contracts.
+
+The flow coverage percentage is intentionally decomposed in JSON. Each reached method contributes
+at most one logging, metric, and instrumentation-annotation signal; findings linked to the same flow
+are evidence-destroying constructs. The score is `signals / (signals + findings)`, rounded to the
+nearest integer, and is zero when neither side has evidence.
+Coverage is calculated from the complete scan before changed-file and baseline suppression, so an
+accepted finding remains a diagnostic gap instead of silently improving the score.

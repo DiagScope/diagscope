@@ -53,6 +53,7 @@ class BaselineWorkflowTest {
 
         assertThat(filteredExit).isZero();
         JsonNode result = JSON.readTree(filteredOutput.resolve("result.json").toFile());
+        JsonNode unfiltered = JSON.readTree(firstOutput.resolve("result.json").toFile());
         assertThat(result.path("findings")).isEmpty();
         assertThat(result.path("statistics").path("findings").asLong()).isZero();
         assertThat(result.path("summary").path("totalFindings").asLong()).isZero();
@@ -60,6 +61,9 @@ class BaselineWorkflowTest {
                 .isEqualTo(FindingBaseline.DEFAULT_FILE_NAME);
         assertThat(result.path("configuration").path("scanScope")
                 .path("baselineSuppressedFindings").asInt()).isEqualTo(baselineJson.path("findings").size());
+        assertThat(result.path("flows").findValues("diagnosticCoverage"))
+                .as("baseline suppression must not improve diagnostic coverage")
+                .isEqualTo(unfiltered.path("flows").findValues("diagnosticCoverage"));
     }
 
     @Test
@@ -125,5 +129,51 @@ class BaselineWorkflowTest {
 
         assertThat(exit).isEqualTo(2);
         assertThat(escaped).doesNotExist();
+    }
+
+    @Test
+    void update_tracks_removed_findings_and_intentional_fingerprint_migrations() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
+        Path baseline = project.resolve(FindingBaseline.DEFAULT_FILE_NAME);
+        assertThat(DiagScopeMain.createCommandLine().execute(
+                "scan", "--project", project.toString(), "--output", temp.resolve("initial").toString(),
+                "--format", "JSON", "--parallelism", "1", "--update-baseline")).isZero();
+
+        var document = (com.fasterxml.jackson.databind.node.ObjectNode) JSON.readTree(baseline.toFile());
+        String migratedSource = "sha256:" + "a".repeat(64);
+        String removedSource = "sha256:" + "b".repeat(64);
+        var active = (com.fasterxml.jackson.databind.node.ObjectNode) document.path("findings");
+        active.putObject(migratedSource).put("ruleId", "OLD_RULE").put("file", "old.kt").put("message", "old");
+        active.putObject(removedSource).put("ruleId", "REMOVED_RULE").put("file", "gone.java").put("message", "gone");
+        JSON.writerWithDefaultPrettyPrinter().writeValue(baseline.toFile(), document);
+        String target = java.util.stream.StreamSupport.stream(
+                        java.util.Spliterators.spliteratorUnknownSize(document.path("findings").fieldNames(), 0), false)
+                .filter(value -> !value.equals(migratedSource) && !value.equals(removedSource))
+                .findFirst().orElseThrow();
+
+        Path output = temp.resolve("updated");
+        int exit = DiagScopeMain.createCommandLine().execute(
+                "scan", "--project", project.toString(), "--output", output.toString(),
+                "--format", "JSON", "--parallelism", "1", "--update-baseline",
+                "--baseline-migration", migratedSource + '=' + target);
+
+        assertThat(exit).isZero();
+        JsonNode updated = JSON.readTree(baseline.toFile());
+        assertThat(updated.path("schemaVersion").asText()).isEqualTo("1.1");
+        assertThat(updated.path("removedFindings").path(migratedSource).path("migratedTo").asText())
+                .isEqualTo(target);
+        assertThat(updated.path("removedFindings").path(removedSource).path("status").asText())
+                .isEqualTo("REMOVED");
+        assertThat(updated.path("migrations").path(migratedSource).asText()).isEqualTo(target);
+        JsonNode scope = JSON.readTree(output.resolve("result.json").toFile())
+                .path("configuration").path("scanScope");
+        assertThat(scope.path("baselineRemovedFindings").asInt()).isEqualTo(2);
+        assertThat(scope.path("baselineFingerprintMigrations").asInt()).isEqualTo(1);
+
+        assertThat(DiagScopeMain.createCommandLine().execute(
+                "scan", "--project", project.toString(), "--output", temp.resolve("pruned").toString(),
+                "--format", "JSON", "--parallelism", "1", "--update-baseline",
+                "--prune-removed-baseline")).isZero();
+        assertThat(JSON.readTree(baseline.toFile()).path("removedFindings")).isEmpty();
     }
 }

@@ -21,9 +21,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -61,6 +61,13 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--update-baseline",
             description = "Rewrite the selected baseline, or diagscope-baseline.json, with all current findings")
     private boolean updateBaseline;
+
+    @Option(names = "--baseline-migration", description = "Intentional fingerprint migration OLD=NEW; repeat for multiple mappings")
+    private List<String> baselineMigrations = List.of();
+
+    @Option(names = "--prune-removed-baseline",
+            description = "Discard removed-finding history while updating the baseline")
+    private boolean pruneRemovedBaseline;
 
     @Option(names = "--changed-since",
             description = "Report only findings in files changed since this Git revision")
@@ -107,17 +114,25 @@ public final class ScanCommand implements Callable<Integer> {
                     : changedFileScope(projectRoot, rawResult);
 
             var baselineStore = new FindingBaseline();
+            if ((!baselineMigrations.isEmpty() || pruneRemovedBaseline) && !updateBaseline) {
+                throw new IllegalArgumentException(
+                        "--baseline-migration and --prune-removed-baseline require --update-baseline");
+            }
             Path selectedBaseline = baseline == null ? null
                     : resolveProjectFile(projectRoot, baseline, "Baseline");
-            Set<String> knownFingerprints = readBaseline(baselineStore, selectedBaseline);
-            var baselineApplication = baselineStore.suppress(changeScope.result(), knownFingerprints);
+            var selectedState = readBaseline(baselineStore, selectedBaseline, updateBaseline);
+            var baselineApplication = baselineStore.suppress(changeScope.result(), selectedState);
             var result = baselineApplication.result();
 
             Path updatedBaseline = null;
+            var baselineLifecycle = new FindingBaseline.Lifecycle(0, 0);
             if (updateBaseline) {
                 updatedBaseline = selectedBaseline != null ? selectedBaseline
                         : projectRoot.resolve(FindingBaseline.DEFAULT_FILE_NAME);
-                baselineStore.write(updatedBaseline, rawResult);
+                var previousState = selectedBaseline != null
+                        ? selectedState : readBaseline(baselineStore, updatedBaseline, true);
+                baselineLifecycle = baselineStore.write(updatedBaseline, rawResult, previousState,
+                        parseBaselineMigrations(), pruneRemovedBaseline);
             }
 
             Path effectiveBaseline = selectedBaseline != null ? selectedBaseline : updatedBaseline;
@@ -125,13 +140,15 @@ public final class ScanCommand implements Callable<Integer> {
                     displayPath(projectRoot, loadedConfiguration.source()),
                     displayPath(projectRoot, effectiveBaseline),
                     baselineApplication.suppressedFindings(),
+                    baselineLifecycle.removedFindings(),
+                    baselineLifecycle.migratedFindings(),
                     changedSince,
                     changeScope.excludedFindings()
             ));
 
             writeReports(result, outputDirectory);
             printSummary(result, outputDirectory, changedSince, changeScope.excludedFindings(),
-                    baselineApplication.suppressedFindings(), updatedBaseline);
+                    baselineApplication.suppressedFindings(), updatedBaseline, baselineLifecycle);
             return exitCode(result);
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());
@@ -259,20 +276,37 @@ public final class ScanCommand implements Callable<Integer> {
                 : normalized.toString();
     }
 
-    private Set<String> readBaseline(FindingBaseline store, Path selectedBaseline) throws IOException {
+    private FindingBaseline.BaselineState readBaseline(
+            FindingBaseline store, Path selectedBaseline, boolean allowMissing
+    ) throws IOException {
         if (selectedBaseline == null) {
-            return Set.of();
+            return FindingBaseline.BaselineState.empty();
         }
         if (!Files.exists(selectedBaseline)) {
-            if (updateBaseline) {
-                return Set.of();
-            }
+            if (allowMissing) return FindingBaseline.BaselineState.empty();
             throw new IllegalArgumentException("Baseline file does not exist: " + selectedBaseline);
         }
         if (!Files.isRegularFile(selectedBaseline)) {
             throw new IllegalArgumentException("Baseline is not a regular file: " + selectedBaseline);
         }
         return store.read(selectedBaseline);
+    }
+
+    private Map<String, String> parseBaselineMigrations() {
+        var migrations = new LinkedHashMap<String, String>();
+        for (String configured : baselineMigrations) {
+            int separator = configured.indexOf('=');
+            if (separator <= 0 || separator == configured.length() - 1) {
+                throw new IllegalArgumentException("Baseline migration must use OLD=NEW: " + configured);
+            }
+            String source = configured.substring(0, separator).trim();
+            String target = configured.substring(separator + 1).trim();
+            String previous = migrations.putIfAbsent(source, target);
+            if (previous != null && !previous.equals(target)) {
+                throw new IllegalArgumentException("Baseline migration source has multiple targets: " + source);
+            }
+        }
+        return Map.copyOf(migrations);
     }
 
     private ChangedFileScope.ScopeApplication changedFileScope(Path projectRoot, AnalysisResult result)
@@ -315,7 +349,8 @@ public final class ScanCommand implements Callable<Integer> {
             String changedSince,
             int changeScopeExcludedFindings,
             int suppressedFindings,
-            Path updatedBaseline
+            Path updatedBaseline,
+            FindingBaseline.Lifecycle baselineLifecycle
     ) {
         var statistics = result.statistics();
         long boundaries = result.flows().stream().mapToLong(flow -> flow.boundaries().size()).sum();
@@ -333,6 +368,10 @@ public final class ScanCommand implements Callable<Integer> {
         }
         if (updatedBaseline != null) {
             System.out.printf("Baseline updated: %s%n", updatedBaseline);
+            if (baselineLifecycle.removedFindings() > 0 || baselineLifecycle.migratedFindings() > 0) {
+                System.out.printf("Baseline lifecycle: %d removed finding(s), %d fingerprint migration(s).%n",
+                        baselineLifecycle.removedFindings(), baselineLifecycle.migratedFindings());
+            }
         }
     }
 }
