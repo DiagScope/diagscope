@@ -135,6 +135,10 @@ public final class ScanCommand implements Callable<Integer> {
                         parseBaselineMigrations(), pruneRemovedBaseline);
             }
 
+            var suppressionApplication = new FindingSuppressions()
+                    .apply(result, loadedConfiguration.waivers());
+            result = suppressionApplication.result();
+
             Path effectiveBaseline = selectedBaseline != null ? selectedBaseline : updatedBaseline;
             result = AnalysisResultFilter.withScanPolicy(result, new ScanPolicyMetadata(
                     displayPath(projectRoot, loadedConfiguration.source()),
@@ -143,12 +147,16 @@ public final class ScanCommand implements Callable<Integer> {
                     baselineLifecycle.removedFindings(),
                     baselineLifecycle.migratedFindings(),
                     changedSince,
-                    changeScope.excludedFindings()
+                    changeScope.excludedFindings(),
+                    suppressionApplication.suppressedFindings(),
+                    suppressionApplication.expiredFingerprints().size(),
+                    suppressionApplication.unusedFingerprints().size()
             ));
 
             writeReports(result, outputDirectory);
             printSummary(result, outputDirectory, changedSince, changeScope.excludedFindings(),
-                    baselineApplication.suppressedFindings(), updatedBaseline, baselineLifecycle);
+                    baselineApplication.suppressedFindings(), updatedBaseline, baselineLifecycle,
+                    suppressionApplication);
             return exitCode(result);
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());
@@ -350,7 +358,8 @@ public final class ScanCommand implements Callable<Integer> {
             int changeScopeExcludedFindings,
             int suppressedFindings,
             Path updatedBaseline,
-            FindingBaseline.Lifecycle baselineLifecycle
+            FindingBaseline.Lifecycle baselineLifecycle,
+            FindingSuppressions.Application suppressions
     ) {
         var statistics = result.statistics();
         long boundaries = result.flows().stream().mapToLong(flow -> flow.boundaries().size()).sum();
@@ -365,6 +374,18 @@ public final class ScanCommand implements Callable<Integer> {
         }
         if (suppressedFindings > 0) {
             System.out.printf("Baseline suppressed %d known finding(s).%n", suppressedFindings);
+        }
+        if (suppressions.suppressedFindings() > 0) {
+            System.out.printf("Reviewed waivers hid %d finding(s) from diagscope.yml.%n",
+                    suppressions.suppressedFindings());
+        }
+        if (!suppressions.expiredFingerprints().isEmpty()) {
+            System.out.printf("Expired waiver(s) no longer hiding findings: %s%n",
+                    String.join(", ", suppressions.expiredFingerprints()));
+        }
+        if (!suppressions.unusedFingerprints().isEmpty()) {
+            System.out.printf("Unused waiver(s), the matching finding is gone: %s%n",
+                    String.join(", ", suppressions.unusedFingerprints()));
         }
         if (updatedBaseline != null) {
             System.out.printf("Baseline updated: %s%n", updatedBaseline);

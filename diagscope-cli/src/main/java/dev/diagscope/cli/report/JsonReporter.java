@@ -21,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.2-alpha.1";
+    public static final String SCHEMA_VERSION = "1.3-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -66,6 +66,8 @@ public final class JsonReporter implements AnalysisReporter {
                 "projectPolicy", projectPolicy(result.options().policy()),
                 "scanScope", scanScope(result)
         ));
+        document.put("ruleVersions", new java.util.TreeMap<>(
+                dev.diagscope.core.application.rule.RuleVersions.all()));
         document.put("statistics", statistics(result));
         document.put("summary", summary(result));
         document.put("groups", groups(result));
@@ -102,7 +104,10 @@ public final class JsonReporter implements AnalysisReporter {
                 "baselineRemovedFindings", scope.baselineRemovedFindings(),
                 "baselineFingerprintMigrations", scope.baselineFingerprintMigrations(),
                 "changedSince", scope.changedSince(),
-                "changeScopeExcludedFindings", scope.changeScopeExcludedFindings()
+                "changeScopeExcludedFindings", scope.changeScopeExcludedFindings(),
+                "waivedFindings", scope.waivedFindings(),
+                "expiredWaivers", scope.expiredWaivers(),
+                "unusedWaivers", scope.unusedWaivers()
         );
     }
 

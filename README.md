@@ -76,6 +76,10 @@ java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
 java -jar diagscope.jar scan --project . --source-root build/generated/sources \
   --classpath build/classes/java/main,libs/domain-api.jar
 
+# Inspect the rule catalog and a single rule
+java -jar diagscope.jar rules
+java -jar diagscope.jar explain SILENT_CATCH
+
 # Compare two compatible scans by stable fingerprint
 java -jar diagscope.jar trend --base previous/result.json --current current/result.json \
   --output trend.md
@@ -101,6 +105,8 @@ java -jar diagscope.jar trend --base previous/result.json --current current/resu
 | `--source-root <path>` | Additional production root inside the project; repeat or comma-separate | off |
 | `--classpath <path>` | Dependency JAR/classes directory for opt-in Java symbol solving; repeat or comma-separate | off |
 
+Subcommands: `scan`, `trend`, `rules`, `explain`.
+
 By default, findings do not fail the command. Exit code `1` is reserved for a completed scan that
 breached `--fail-on`; invalid configuration returns `2`, and unsupported project input returns `3`.
 Baseline and changed-file filters run before the severity gate. `--format SARIF` writes
@@ -110,6 +116,30 @@ documented in [result.json schema policy](docs/RESULT_JSON_SCHEMA.md).
 Project policy supports rule enable/disable and severity overrides, ignored source globs, custom
 sensitive names, logger receiver types, and method-level entrypoint annotations for Java and Kotlin.
 See [project configuration](docs/CONFIGURATION.md).
+
+### Reviewed waivers
+
+A baseline accepts existing findings in bulk. A waiver is the opposite: an explicit, reviewed
+decision about one finding, declared in `diagscope.yml`.
+
+```yaml
+suppressions:
+  - fingerprint: "sha256:1f0c..."
+    reason: "Handled by the API gateway; the caller already receives the original cause."
+    expires: "2026-12-31"
+```
+
+Every waiver requires a fingerprint and a non-empty reason; `expires` is optional. An expired waiver
+stops hiding its finding, and a waiver that matches nothing is reported as unused, so stale
+configuration surfaces in the terminal summary and in `configuration.scanScope` of `result.json`
+instead of quietly rotting.
+
+### Rule documentation
+
+`rules` prints every rule with its severity, default state, and evidence-contract version;
+`--format JSON` makes the catalog diffable in CI. `explain <RULE_ID>` prints what a rule means, why
+it matters, and how it is detected. Rule contract versions change only when the evidence a rule
+emits changes, independently of catalog wording.
 
 
 Full reference: [docs/CLI.md](docs/CLI.md).
