@@ -21,7 +21,8 @@ class ResultSchemaCompatibilityTest {
     void current_result_preserves_the_previous_contract_and_satisfies_the_current_one() throws Exception {
         JsonNode previousContract = contract("1.0-alpha.1");
         JsonNode intermediateContract = contract("1.1-alpha.1");
-        JsonNode currentContract = contract("1.2-alpha.1");
+        JsonNode legacyContract = contract("1.2-alpha.1");
+        JsonNode currentContract = contract("1.3-alpha.1");
 
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         Path output = temp.resolve("out");
@@ -49,12 +50,17 @@ class ResultSchemaCompatibilityTest {
         assertFields(configuration.path("projectPolicy"), intermediateContract.path("projectPolicy"));
         assertFields(configuration.path("scanScope"), intermediateContract.path("scanScope"));
 
-        assertFields(result, currentContract.path("root"));
-        assertFields(result.path("groups"), currentContract.path("groups"));
-        assertFields(configuration.path("scanScope"), currentContract.path("scanScope"));
+        assertFields(result, legacyContract.path("root"));
+        assertFields(result.path("groups"), legacyContract.path("groups"));
+        assertFields(configuration.path("scanScope"), legacyContract.path("scanScope"));
         JsonNode flow = result.path("flows").get(0);
-        assertFields(flow, currentContract.path("flow"));
-        assertFields(flow.path("diagnosticCoverage"), currentContract.path("diagnosticCoverage"));
+        assertFields(flow, legacyContract.path("flow"));
+        assertFields(flow.path("diagnosticCoverage"), legacyContract.path("diagnosticCoverage"));
+
+        assertFields(result, currentContract.path("root"));
+        assertFields(configuration.path("scanScope"), currentContract.path("scanScope"));
+        assertThat(result.path("ruleVersions").isObject()).isTrue();
+        assertThat(result.path("ruleVersions").path("SILENT_CATCH").asText()).isNotBlank();
     }
 
     private static JsonNode contract(String version) throws Exception {

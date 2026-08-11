@@ -209,6 +209,24 @@ aggregation, and benchmark equivalence.
 - [x] baseline schema `1.1` lifecycle with removed-finding tombstones, intentional `OLD=NEW`
   fingerprint migrations, migrated suppression, deterministic history, and explicit pruning.
 
+## Delivered in this increment — Step 5 stable public contracts
+
+- [x] reviewed waivers in `diagscope.yml` with mandatory reasons, optional expiry, and expired/unused
+  waiver reporting in the terminal and in `configuration.scanScope`;
+- [x] per-rule evidence contract versions decoupled from catalog wording, published in
+  `result.json` under `ruleVersions` and in the CLI catalog;
+- [x] `rules` and `explain` subcommands, with JSON catalog output for CI diffing;
+- [x] additive `result.json` contract `1.3-alpha.1` with a retained `1.2-alpha.1` compatibility test.
+
+## Remaining before 1.0
+
+- [ ] a published capability model stating exactly which frameworks, annotations, and language
+  constructs are analyzed, and which are knowingly out of reach;
+- [ ] a written fingerprint stability policy: what may change a fingerprint, what must not, and how
+  migrations are announced;
+- [ ] a documented rule deprecation path so removing or renaming a rule is a versioned event;
+- [ ] field validation on three real repositories with maintainer verdicts (unchanged product gate).
+
 ## Still out of scope
 
 - blocking CI recommendations before field validation and a baseline exist;

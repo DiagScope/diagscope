@@ -126,6 +126,42 @@ java -jar diagscope.jar trend \
 fingerprint as new, fixed, or persisting. Unsupported result schemas, mixed fingerprint versions,
 duplicate fingerprints, and different project names are rejected with exit code `2`.
 
+## Reviewed waivers
+
+Baselines accept findings in bulk; waivers record a reviewed decision about a single finding in
+`diagscope.yml`:
+
+```yaml
+suppressions:
+  - fingerprint: "sha256:1f0c..."
+    reason: "Handled by the API gateway; the caller still receives the original cause."
+    expires: "2026-12-31"
+```
+
+`fingerprint` accepts the value printed in reports, with or without the `sha256:` prefix. `reason`
+is mandatory and must be non-empty; an entry without one is a configuration error (exit code `2`).
+`expires` is an ISO date; from the day after it, the waiver no longer hides its finding.
+
+Waivers are applied after baseline and changed-file filtering and before `--fail-on`. The terminal
+summary and `configuration.scanScope` report `waivedFindings`, `expiredWaivers`, and
+`unusedWaivers`, so a waiver that no longer matches anything is visible instead of silently rotting.
+
+## Rule catalog commands
+
+```bash
+java -jar diagscope.jar rules
+java -jar diagscope.jar rules --format JSON
+java -jar diagscope.jar explain SILENT_CATCH
+```
+
+`rules` lists every registered rule with its default severity, enabled state, and evidence contract
+version; the JSON form is stable enough to diff in CI. `explain` accepts a rule id case-insensitively
+and prints what the rule means, why it matters, and how it is detected; an unknown id exits `2`.
+
+Rule contract versions track the *evidence* a rule emits, not the wording of its catalog entry, so a
+documentation improvement does not look like a detection change to automation. They are also
+published under `ruleVersions` in `result.json`.
+
 ## Exit codes
 
 - `0` — scan and all requested report writes completed successfully;

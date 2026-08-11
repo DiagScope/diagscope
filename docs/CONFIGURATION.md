@@ -52,6 +52,24 @@ customEntrypointAnnotations:
   qualified names are reduced to their simple annotation name. Custom entrypoints use conservative
   display metadata because a project-specific route/topic/schedule contract is unknown.
 
+## Reviewed waivers
+
+```yaml
+suppressions:
+  - fingerprint: "sha256:1f0c..."
+    reason: "Handled by the API gateway; the caller still receives the original cause."
+    expires: "2026-12-31"
+```
+
+- `fingerprint` is required and accepts the report value with or without the `sha256:` prefix;
+- `reason` is required and must be non-empty, so every accepted finding carries its justification;
+- `expires` is an optional ISO date; after it, the waiver stops hiding the finding;
+- duplicated fingerprints and unknown keys are rejected like the rest of the strict schema.
+
+Waivers differ from a baseline: a baseline accepts the current state in bulk, whereas a waiver is a
+per-finding reviewed decision. Expired and unused waivers are counted in the terminal summary and in
+`configuration.scanScope`, which keeps the file from accumulating obsolete entries.
+
 ## Precedence
 
 1. Explicit CLI input wins: `--config` overrides automatic `diagscope.yml` discovery, and scan

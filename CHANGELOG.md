@@ -52,6 +52,12 @@ All notable project changes are recorded in this file.
 - `trend` comparison of compatible scan results as new, fixed, and persisting findings.
 - Baseline schema `1.1` with removed-finding tombstones, intentional fingerprint migrations, and
   explicit history pruning.
+- Reviewed waivers in `diagscope.yml` (`suppressions`): per-fingerprint decisions with a mandatory
+  reason and optional expiry, plus expired/unused waiver reporting in the terminal and reports.
+- Per-rule evidence contract versions (`RuleVersions`) exposed in `result.json` and in the CLI
+  catalog, so CI can detect detection-contract changes independently of catalog wording.
+- `rules` and `explain` subcommands for the rule catalog, with JSON output for automation.
+- Additive `result.json` contract `1.3-alpha.1` with `ruleVersions` and waiver lifecycle counts.
 - Reproducible corpus-validation harness and Kotlin PSI JFR event for the conditional resolution,
   parallelism, and IDE/linter comparison gates.
 

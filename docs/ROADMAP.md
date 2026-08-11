@@ -81,6 +81,8 @@ This is the next phase to start. Without it DiagScope cannot enter a real pipeli
 
 - delivered: strict `diagscope.yml`, deterministic fingerprint baselines, `--fail-on`, SARIF,
   diff-aware `--changed-since`, and versioned `result.json` compatibility contracts;
+- delivered: reviewed waivers with mandatory reasons and expiry, per-rule evidence contract versions
+  published in reports, and the `rules`/`explain` catalog commands for automation and review;
 - `diagscope-maven-plugin` and a Gradle equivalent;
 - a published GitHub Action, plus a report artifact and a pull-request summary comment;
 - Spring, logging, Micrometer, and OpenTelemetry configuration context read from the repository, used to lower confidence rather than to assert absence.

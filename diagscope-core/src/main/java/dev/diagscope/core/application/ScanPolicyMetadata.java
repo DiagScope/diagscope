@@ -8,19 +8,23 @@ public record ScanPolicyMetadata(
         int baselineRemovedFindings,
         int baselineFingerprintMigrations,
         String changedSince,
-        int changeScopeExcludedFindings
+        int changeScopeExcludedFindings,
+        int waivedFindings,
+        int expiredWaivers,
+        int unusedWaivers
 ) {
     public ScanPolicyMetadata {
         configurationFile = configurationFile == null ? "" : configurationFile;
         baselineFile = baselineFile == null ? "" : baselineFile;
         changedSince = changedSince == null ? "" : changedSince;
         if (baselineSuppressedFindings < 0 || baselineRemovedFindings < 0
-                || baselineFingerprintMigrations < 0 || changeScopeExcludedFindings < 0) {
+                || baselineFingerprintMigrations < 0 || changeScopeExcludedFindings < 0
+                || waivedFindings < 0 || expiredWaivers < 0 || unusedWaivers < 0) {
             throw new IllegalArgumentException("Policy finding counts must not be negative");
         }
     }
 
     public static ScanPolicyMetadata none() {
-        return new ScanPolicyMetadata("", "", 0, 0, 0, "", 0);
+        return new ScanPolicyMetadata("", "", 0, 0, 0, "", 0, 0, 0, 0);
     }
 }

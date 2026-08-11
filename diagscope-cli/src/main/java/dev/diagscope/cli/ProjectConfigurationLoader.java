@@ -76,14 +76,38 @@ final class ProjectConfigurationLoader {
                     disabledRules,
                     severities
             );
-            return new LoadedConfiguration(policy, file);
+            return new LoadedConfiguration(policy, file, waivers(file, document.suppressions()));
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw invalid(file, exception.getMessage());
         }
     }
 
     static LoadedConfiguration defaults() {
-        return new LoadedConfiguration(AnalysisPolicy.defaults(), null);
+        return new LoadedConfiguration(AnalysisPolicy.defaults(), null, List.of());
+    }
+
+    private static List<FindingSuppressions.Waiver> waivers(Path file, List<SuppressionEntry> entries) {
+        var waivers = new java.util.ArrayList<FindingSuppressions.Waiver>();
+        for (SuppressionEntry entry : values(entries)) {
+            if (entry == null) throw invalid(file, "suppression entry must not be null");
+            java.time.LocalDate expires = null;
+            if (entry.expires() != null && !entry.expires().isBlank()) {
+                try {
+                    expires = java.time.LocalDate.parse(entry.expires().trim());
+                } catch (RuntimeException exception) {
+                    throw invalid(file, "suppression expires must be an ISO date (YYYY-MM-DD): " + entry.expires());
+                }
+            }
+            try {
+                waivers.add(new FindingSuppressions.Waiver(
+                        entry.fingerprint() == null ? "" : entry.fingerprint().trim(),
+                        entry.reason() == null ? "" : entry.reason().trim(),
+                        expires));
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                throw invalid(file, exception.getMessage());
+            }
+        }
+        return List.copyOf(waivers);
     }
 
     private static String simpleName(String value) {
@@ -107,7 +131,7 @@ final class ProjectConfigurationLoader {
         return new IllegalArgumentException("Invalid configuration " + file + ": " + detail);
     }
 
-    record LoadedConfiguration(AnalysisPolicy policy, Path source) {
+    record LoadedConfiguration(AnalysisPolicy policy, Path source, List<FindingSuppressions.Waiver> waivers) {
     }
 
     private record ConfigurationDocument(
@@ -116,8 +140,12 @@ final class ProjectConfigurationLoader {
             List<String> ignoredPaths,
             List<String> sensitiveFields,
             List<String> customLoggerTypes,
-            Map<String, List<String>> customEntrypointAnnotations
+            Map<String, List<String>> customEntrypointAnnotations,
+            List<SuppressionEntry> suppressions
     ) {
+    }
+
+    private record SuppressionEntry(String fingerprint, String reason, String expires) {
     }
 
     private record RulePolicy(Boolean enabled, Severity severity) {

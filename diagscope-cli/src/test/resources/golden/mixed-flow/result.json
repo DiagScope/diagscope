@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.2-alpha.1",
+  "schemaVersion" : "1.3-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -32,8 +32,42 @@
       "baselineRemovedFindings" : 0,
       "baselineFingerprintMigrations" : 0,
       "changedSince" : "",
-      "changeScopeExcludedFindings" : 0
+      "changeScopeExcludedFindings" : 0,
+      "waivedFindings" : 0,
+      "expiredWaivers" : 0,
+      "unusedWaivers" : 0
     }
+  },
+  "ruleVersions" : {
+    "AOP_ADVICE_NOT_APPLIED" : "1.0.0",
+    "AOP_SELF_INVOCATION" : "1.0.0",
+    "AOP_UNMANAGED_ADVICE_TARGET" : "1.0.0",
+    "ASYNC_RESULT_UNOBSERVED" : "1.0.0",
+    "DB_RESOURCE_CLOSE_NOT_GUARDED" : "1.0.0",
+    "DUPLICATE_DIAGNOSTIC_SIGNAL" : "1.0.0",
+    "DYNAMIC_METRIC_NAME" : "1.0.0",
+    "FALLBACK_HIDES_FAILURE" : "1.0.0",
+    "GENERIC_EXCEPTION_MESSAGE" : "1.0.0",
+    "HIGH_CARDINALITY_METRIC_TAG" : "1.1.0",
+    "HTTP_CLIENT_ERROR_DISCARDED" : "1.0.0",
+    "JDBC_RESOURCE_NOT_CLOSED" : "1.0.0",
+    "JDBC_TEMPLATE_CONNECTION_ESCAPE" : "1.0.0",
+    "JPA_ENTITY_MANAGER_NOT_CLOSED" : "1.0.0",
+    "KAFKA_ACK_NOT_INVOKED" : "1.1.0",
+    "KAFKA_LISTENER_ERROR_NOT_PROPAGATED" : "1.0.0",
+    "KAFKA_SEND_RESULT_IGNORED" : "1.2.0",
+    "LOG_WITHOUT_THROWABLE" : "1.0.0",
+    "MDC_CONTEXT_LOST" : "1.0.0",
+    "METRIC_CREATED_IN_LOOP" : "1.0.0",
+    "PRINT_STACK_TRACE" : "1.0.0",
+    "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
+    "SCHEDULED_TASK_SWALLOWS_FAILURE" : "1.0.0",
+    "SENSITIVE_PAYLOAD_LOGGED" : "1.0.0",
+    "SILENT_CATCH" : "1.0.0",
+    "SILENT_FAILURE_CONVERSION" : "1.0.0",
+    "SYSTEM_OUTPUT" : "1.0.0",
+    "TX_PROPAGATION_MISMATCH" : "1.0.0",
+    "TX_ROLLBACK_SUPPRESSED" : "1.1.0"
   },
   "statistics" : {
     "sourceFiles" : 6,

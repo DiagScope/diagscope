@@ -106,6 +106,8 @@ public final class DiagScopeMain {
         return new CommandLine(new RootCommand())
                 .addSubcommand("scan", new ScanCommand(createScanUseCase(), reporters))
                 .addSubcommand("trend", new TrendCommand())
+                .addSubcommand("rules", new RulesCommand())
+                .addSubcommand("explain", new ExplainCommand())
                 .setCaseInsensitiveEnumValuesAllowed(true);
     }
 }
