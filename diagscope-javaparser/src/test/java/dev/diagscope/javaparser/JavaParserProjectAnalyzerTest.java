@@ -8,8 +8,12 @@ import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.application.rule.HighCardinalityMetricTagRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
+import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
+import dev.diagscope.core.application.rule.MutinySubscriptionFailureUnobservedRule;
 import dev.diagscope.core.application.rule.PrintStackTraceRule;
+import dev.diagscope.core.application.rule.ReactiveMessageFailureNotPropagatedRule;
 import dev.diagscope.core.application.rule.RuleEngine;
+import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
 import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
@@ -91,6 +95,57 @@ class JavaParserProjectAnalyzerTest {
                 analyzed, entrypoint(analyzed, EntrypointType.KAFKA_LISTENER), 3);
         assertThat(kafkaFlow.edges()).extracting(CallEdge::resolutionReason)
                 .containsExactly(ResolutionReason.SAME_CLASS);
+    }
+
+    @Test
+    void maps_quarkus_jax_rs_resources_and_scheduler_metadata() {
+        Path project = FixtureCatalog.copyTo(temp, "quarkus-entrypoints");
+
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+
+        assertThat(analyzed.entrypoints())
+                .extracting(Entrypoint::type, Entrypoint::displayName)
+                .containsExactly(
+                        tuple(EntrypointType.REST, "GET /inventory/{id}"),
+                        tuple(EntrypointType.REST, "POST /inventory"),
+                        tuple(EntrypointType.SCHEDULED, "Scheduled every=15s"));
+        assertThat(analyzed.entrypoints())
+                .noneMatch(entrypoint -> entrypoint.method().name().equals("internalOnly"));
+
+        var flow = new LocalFlowBuilder().build(analyzed, entrypoint(analyzed, EntrypointType.REST), 1);
+        assertThat(flow.methods()).extracting(reached -> reached.method().id().displayName())
+                .contains("example.quarkus.InventoryResource.read(String)",
+                        "example.quarkus.InventoryService.read(String)");
+    }
+
+    @Test
+    void maps_quarkus_scheduler_and_reactive_message_entrypoints_without_assuming_kafka() {
+        Path project = FixtureCatalog.copyTo(temp, "quarkus-reactive");
+
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+
+        assertThat(analyzed.entrypoints())
+                .extracting(Entrypoint::type, Entrypoint::displayName)
+                .containsExactly(
+                        tuple(EntrypointType.REACTIVE_MESSAGE, "Reactive message channel=audited-orders"),
+                        tuple(EntrypointType.REACTIVE_MESSAGE, "Reactive message channel=orders"),
+                        tuple(EntrypointType.SCHEDULED, "Scheduled every=30s, identity=orders-refresh"));
+    }
+
+    @Test
+    void applies_scheduler_reactive_message_and_mutiny_rules_to_quarkus_flows() {
+        Path project = FixtureCatalog.copyTo(temp, "quarkus-reactive");
+        var service = service(List.of(new ScheduledTaskSwallowsFailureRule(),
+                new ReactiveMessageFailureNotPropagatedRule(), new MutinyFailureRecoveredSilentlyRule(),
+                new MutinySubscriptionFailureUnobservedRule()));
+
+        var result = service.scan(new AnalysisRequest(project, AnalysisOptions.defaults()));
+
+        assertThat(result.findings()).extracting(Finding::ruleId)
+                .contains(ScheduledTaskSwallowsFailureRule.ID,
+                        ReactiveMessageFailureNotPropagatedRule.ID,
+                        MutinyFailureRecoveredSilentlyRule.ID,
+                        MutinySubscriptionFailureUnobservedRule.ID);
     }
 
     @Test

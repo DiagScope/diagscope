@@ -17,6 +17,9 @@ import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
 import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
 import dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule;
 import dev.diagscope.core.application.rule.MdcContextLostRule;
+import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
+import dev.diagscope.core.application.rule.MutinySubscriptionFailureUnobservedRule;
+import dev.diagscope.core.application.rule.ReactiveMessageFailureNotPropagatedRule;
 import dev.diagscope.core.application.rule.SensitivePayloadLoggedRule;
 import dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
@@ -61,6 +64,7 @@ public final class DiagScopeMain {
                 new IgnoredKafkaSendResultRule(),
                 new KafkaManualAckMissingRule(),
                 new KafkaListenerFailureNotPropagatedRule(),
+                new ReactiveMessageFailureNotPropagatedRule(),
                 new TransactionalRollbackSuppressedRule(),
                 new JdbcResourceLeakRule(),
                 new DatabaseResourceCloseNotGuardedRule(),
@@ -77,6 +81,8 @@ public final class DiagScopeMain {
                 new GenericExceptionMessageRule(),
                 new AsyncResultUnobservedRule(),
                 new HttpClientErrorDiscardedRule(),
+                new MutinyFailureRecoveredSilentlyRule(),
+                new MutinySubscriptionFailureUnobservedRule(),
                 new ScheduledTaskSwallowsFailureRule(),
                 new RetryWithoutDiagnosticsRule(),
                 new FallbackHidesFailureRule(),

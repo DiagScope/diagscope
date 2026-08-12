@@ -29,6 +29,8 @@ customEntrypointAnnotations:
     - BusinessEndpoint
   KAFKA_LISTENER:
     - MessageBoundary
+  REACTIVE_MESSAGE:
+    - ReactiveBoundary
   SCHEDULED:
     - BatchBoundary
 ```

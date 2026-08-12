@@ -16,7 +16,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
   --output target/diagscope \
   --max-depth 3 \
   --parallelism 8 \
-  --entrypoint REST,KAFKA_LISTENER,SCHEDULED \
+  --entrypoint REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED \
   --format MARKDOWN,JSON \
   --config config/diagscope-team.yml \
   --baseline \
@@ -30,7 +30,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `-o`, `--output` — output directory, default `target/diagscope`; a relative path is resolved below the analyzed project and cannot escape it with `..`; an absolute path is used explicitly as supplied;
 - `--max-depth` — maximum local call depth, from `0` through `32`;
 - `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
-- `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, and `SCHEDULED`;
+- `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, and `SCHEDULED`;
 - `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, and/or `SARIF`;
 - `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`);
 - `--baseline [path]` — suppress findings whose stable fingerprint is in the selected baseline; when

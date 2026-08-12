@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
         description = "Compare two compatible result.json files as new, fixed, and persisting findings.")
 public final class TrendCommand implements Callable<Integer> {
     private static final Set<String> SUPPORTED_RESULT_SCHEMAS = Set.of(
-            "1.0-alpha.1", "1.1-alpha.1", "1.2-alpha.1");
+            "1.0-alpha.1", "1.1-alpha.1", "1.2-alpha.1", "1.3-alpha.1", "1.4-alpha.1");
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)

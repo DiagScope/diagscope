@@ -15,7 +15,7 @@ The values below are illustrative. The current Markdown contract separates scan 
 - Flow boundaries: 12
 - Maximum flow depth: 3
 - Parser workers: 8
-- Entrypoint types: KAFKA_LISTENER, REST, SCHEDULED
+- Entrypoint types: KAFKA_LISTENER, REACTIVE_MESSAGE, REST, SCHEDULED
 - Total time: 438 ms
 
 ## Flow Overview

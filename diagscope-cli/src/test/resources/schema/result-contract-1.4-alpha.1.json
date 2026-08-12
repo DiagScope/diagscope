@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.4-alpha.1",
+  "root": [
+    "schemaVersion",
+    "tool",
+    "project",
+    "configuration",
+    "ruleVersions",
+    "statistics",
+    "summary",
+    "groups",
+    "parseFailures",
+    "aspects",
+    "flows",
+    "findings"
+  ],
+  "scanScope": [
+    "configurationFile",
+    "baselineFile",
+    "baselineSuppressedFindings",
+    "baselineRemovedFindings",
+    "baselineFingerprintMigrations",
+    "changedSince",
+    "changeScopeExcludedFindings",
+    "waivedFindings",
+    "expiredWaivers",
+    "unusedWaivers"
+  ]
+}

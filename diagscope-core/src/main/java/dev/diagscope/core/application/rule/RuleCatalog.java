@@ -137,6 +137,14 @@ public final class RuleCatalog {
                         + " routing are all skipped and the record is silently dropped.",
                 "A catch block inside a @KafkaListener/@KafkaHandler method that neither rethrows nor"
                         + " records the failure.");
+        put(catalog, ReactiveMessageFailureNotPropagatedRule.ID,
+                "Reactive message failure is not propagated",
+                "An @Incoming consumer catches a failure and returns normally instead of returning a"
+                        + " failed result or throwing.",
+                "The configured channel failure strategy may never see the failure, making a dropped"
+                        + " or unsuccessfully processed message look successful.",
+                "A catch block on the @Incoming entrypoint has no throw. The channel connector and"
+                        + " runtime failure strategy are unknown, so confidence is capped.");
         put(catalog, HighCardinalityMetricTagRule.ID, "High-cardinality metric tag",
                 "A metric tag value comes from unbounded data such as an id, a user input, or a"
                         + " message payload.",
@@ -215,6 +223,19 @@ public final class RuleCatalog {
                         + " so the failure never appears anywhere.",
                 "An async submission whose result is neither assigned, chained, awaited, nor"
                         + " returned.");
+        put(catalog, MutinyFailureRecoveredSilentlyRule.ID, "Mutiny failure recovery loses evidence",
+                "A Mutiny onFailure() recovery returns a fallback without visibly receiving or"
+                        + " recording the failure.",
+                "Degraded responses become indistinguishable from healthy responses, which hides"
+                        + " dependency outages and retry exhaustion.",
+                "A recoverWithItem/recoverWithNull/recoverWithCompletion/recoverWithUni call chained"
+                        + " from onFailure(), whose arguments contain no throwable-looking value.");
+        put(catalog, MutinySubscriptionFailureUnobservedRule.ID, "Mutiny subscription ignores failures",
+                "A Mutiny subscription supplies only the item callback and no callback for failures.",
+                "A later asynchronous failure goes to a global dropped-exception path instead of the"
+                        + " local flow's logs, metrics, or recovery policy.",
+                "A one-argument with(...) call whose receiver is the syntax-visible result of"
+                        + " subscribe().");
         put(catalog, HttpClientErrorDiscardedRule.ID, "HTTP client error replaced without the cause",
                 "A reactive or future error operator substitutes a value for the failure and never"
                         + " references the throwable.",

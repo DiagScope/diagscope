@@ -64,6 +64,8 @@ All notable project changes are recorded in this file.
   catalog, so CI can detect detection-contract changes independently of catalog wording.
 - `rules` and `explain` subcommands for the rule catalog, with JSON output for automation.
 - Additive `result.json` contract `1.3-alpha.1` with `ruleVersions` and waiver lifecycle counts.
+- Additive `result.json` contract `1.4-alpha.1` with the `REACTIVE_MESSAGE` entrypoint enum for
+  SmallRye Reactive Messaging flows.
 - Reproducible corpus-validation harness and Kotlin PSI JFR event for the conditional resolution,
   parallelism, and IDE/linter comparison gates.
 

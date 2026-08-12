@@ -22,7 +22,8 @@ class ResultSchemaCompatibilityTest {
         JsonNode previousContract = contract("1.0-alpha.1");
         JsonNode intermediateContract = contract("1.1-alpha.1");
         JsonNode legacyContract = contract("1.2-alpha.1");
-        JsonNode currentContract = contract("1.3-alpha.1");
+        JsonNode previousCurrentContract = contract("1.3-alpha.1");
+        JsonNode currentContract = contract("1.4-alpha.1");
 
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         Path output = temp.resolve("out");
@@ -61,6 +62,7 @@ class ResultSchemaCompatibilityTest {
         assertFields(configuration.path("scanScope"), currentContract.path("scanScope"));
         assertThat(result.path("ruleVersions").isObject()).isTrue();
         assertThat(result.path("ruleVersions").path("SILENT_CATCH").asText()).isNotBlank();
+        assertFields(result, previousCurrentContract.path("root"));
     }
 
     private static JsonNode contract(String version) throws Exception {

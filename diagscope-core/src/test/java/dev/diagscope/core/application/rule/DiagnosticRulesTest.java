@@ -127,6 +127,64 @@ class DiagnosticRulesTest {
                 .containsExactly(10, 20);
     }
 
+    @Test
+    void scheduled_rule_applies_to_quarkus_scheduled_methods() {
+        MethodModel scheduled = new MethodModel(
+                new MethodId("example.Jobs", "refresh", List.of()), location(1), Set.of("Scheduled"),
+                List.of(catchEvidence(10, false, false, false, false, "", false)), List.of(), List.of(), List.of());
+
+        assertThat(new ScheduledTaskSwallowsFailureRule().evaluate(flow(scheduled, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
+    }
+
+    @Test
+    void reactive_message_rule_is_channel_agnostic_and_requires_a_returning_catch() {
+        MethodModel consumer = method(
+                List.of(catchEvidence(10, false, true, false, false, "", false)), List.of(), List.of());
+        var entrypoint = new Entrypoint(EntrypointType.REACTIVE_MESSAGE, consumer.id(),
+                "Reactive message channel=orders", consumer.location());
+        var flow = new Flow(entrypoint, List.of(new FlowMethod(consumer, 0, Confidence.HIGH,
+                List.of(consumer.id()))), List.of());
+
+        assertThat(new ReactiveMessageFailureNotPropagatedRule().evaluate(flow))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.confidence()).isEqualTo(Confidence.MEDIUM);
+                    assertThat(finding.message()).contains("failure strategy may not see it");
+                });
+    }
+
+    @Test
+    void mutiny_recovery_rule_requires_an_on_failure_recovery_without_visible_failure_handling() {
+        InvocationEvidence silent = new InvocationEvidence(location(10), "uni.onFailure()", "Uni",
+                "recoverWithItem", List.of("\"fallback\""), InvocationResultUsage.IGNORED);
+        InvocationEvidence recorded = new InvocationEvidence(location(20), "uni.onFailure()", "Uni",
+                "recoverWithItem", List.of("failure -> logger.error(\"failed\", failure)"),
+                InvocationResultUsage.IGNORED);
+        InvocationEvidence unrelated = new InvocationEvidence(location(30), "uni", "Uni", "recoverWithItem",
+                List.of("\"fallback\""), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(silent, recorded, unrelated), List.of());
+
+        assertThat(new MutinyFailureRecoveredSilentlyRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
+    }
+
+    @Test
+    void mutiny_subscription_rule_requires_a_second_failure_callback() {
+        InvocationEvidence missingFailure = new InvocationEvidence(location(10), "uni.subscribe()", "",
+                "with", List.of("item -> consume(item)"), InvocationResultUsage.IGNORED);
+        InvocationEvidence observedFailure = new InvocationEvidence(location(20), "uni.subscribe()", "", "with",
+                List.of("item -> consume(item)", "failure -> logger.error(\"failed\", failure)"),
+                InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(missingFailure, observedFailure), List.of());
+
+        assertThat(new MutinySubscriptionFailureUnobservedRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
+    }
+
     private static Flow flow(MethodModel method, Confidence confidence) {
         var entrypoint = new Entrypoint(
                 EntrypointType.REST, method.id(), "GET /test", method.location());

@@ -23,10 +23,13 @@ application, and never reads runtime configuration from outside the repository.
 
 ## Frameworks and constructs recognized
 
-**Entrypoints** — Spring MVC/WebFlux handlers, scheduled methods, Kafka listeners including
-class-level `@KafkaListener` with `@KafkaHandler`/`@DltHandler`, async methods, and any additional
-method-level annotation declared under `customEntrypointAnnotations` in `diagscope.yml`. Inherited
-and recursively meta-annotated variants are resolved in both languages.
+**Entrypoints** — Spring MVC/WebFlux handlers; Quarkus REST JAX-RS resources with a class-level
+`@Path` and a standard method-level HTTP annotation (`@GET`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`,
+`@HEAD`, or `@OPTIONS`); Spring and Quarkus scheduled methods; Kafka listeners including class-level
+`@KafkaListener` with `@KafkaHandler`/`@DltHandler`; SmallRye Reactive Messaging consumers with
+method-level `@Incoming`; async methods; and any additional method-level annotation declared under
+`customEntrypointAnnotations` in `diagscope.yml`. Inherited and recursively meta-annotated variants
+are resolved in both languages.
 
 **Logging** — SLF4J/Log4j2/JUL-shaped logger calls, plus custom logger types declared in
 `diagscope.yml`; MDC put/remove/clear; `printStackTrace` and `System.out`/`System.err`.
@@ -47,6 +50,15 @@ constructs, and HTTP client error handling for `RestTemplate`, `WebClient`, and 
 
 **Spring AOP** — `@Aspect` advice, AspectJ pointcut expressions that are decidable from source,
 self-invocation proxy bypass, non-proxyable targets, and unmanaged advice targets.
+
+**Quarkus boundary** — REST routes are derived from source `@Path` values only. Quarkus HTTP root
+path configuration, `@ApplicationPath`, custom `@HttpMethod` annotations, and Reactive Messaging
+`@Outgoing` channels are not yet modeled. `@Incoming` creates a framework-neutral
+`REACTIVE_MESSAGE` flow: DiagScope reports its declared logical channel but does not infer its
+connector as Kafka. Mutiny coverage is limited to syntax-visible `onFailure()` recovery operators
+and one-callback `subscribe().with(...)` subscriptions; cancellation, back-pressure, retries, and
+context propagation remain out of reach.
+Spring proxy/AOP rules do not claim CDI/ArC interceptor semantics.
 
 ## Resolution model
 

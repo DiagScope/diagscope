@@ -21,6 +21,7 @@ Delivered:
 - modular Java 25 build with a JDK-only core and separate Java/Kotlin adapters;
 - Maven **and** Gradle projects, including multi-module builds, discovered per scan;
 - direct REST, Kafka-listener, and scheduled entrypoints;
+- Quarkus REST JAX-RS entrypoints and Quarkus scheduler metadata (`every`, `delay`, and `identity`);
 - bounded path-aware local-flow analysis with explicit terminal boundaries;
 - deterministic rules with confidence capped by path confidence;
 - Markdown, versioned JSON, and self-contained interactive HTML reports;

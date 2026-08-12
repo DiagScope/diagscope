@@ -19,6 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScanCommandTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Set<String> EXPECTED_ENTRYPOINT_TYPES =
+            Set.of("REST", "KAFKA_LISTENER", "REACTIVE_MESSAGE", "SCHEDULED");
+    private static final Set<String> MIXED_FLOW_ENTRYPOINT_TYPES =
             Set.of("REST", "KAFKA_LISTENER", "SCHEDULED");
 
     @TempDir
@@ -41,7 +43,7 @@ class ScanCommandTest {
         assertThat(output.resolve("result.json")).isRegularFile();
 
         JsonNode report = JSON.readTree(output.resolve("result.json").toFile());
-        assertThat(report.path("schemaVersion").asText()).isEqualTo("1.3-alpha.1");
+        assertThat(report.path("schemaVersion").asText()).isEqualTo("1.4-alpha.1");
         assertThat(report.path("tool").path("name").asText()).isEqualTo("DiagScope");
         assertThat(report.path("tool").path("version").asText()).isNotBlank();
         assertThat(report.path("project").path("root").asText()).isEqualTo(project.toString());
@@ -52,7 +54,7 @@ class ScanCommandTest {
 
         assertThat(report.path("flows")).hasSize(3);
         assertThat(textValuesAt(report.path("flows"), "type"))
-                .containsExactlyInAnyOrderElementsOf(EXPECTED_ENTRYPOINT_TYPES);
+                .containsExactlyInAnyOrderElementsOf(MIXED_FLOW_ENTRYPOINT_TYPES);
         assertThat(report.path("flows").findValues("methods"))
                 .allSatisfy(methods -> assertThat(methods.isArray()).isTrue());
         assertThat(report.path("flows").findValues("edges"))

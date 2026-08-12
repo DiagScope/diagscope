@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.3-alpha.1",
+  "schemaVersion" : "1.4-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -14,7 +14,7 @@
   "configuration" : {
     "maxFlowDepth" : 3,
     "parallelism" : 1,
-    "enabledEntrypointTypes" : [ "KAFKA_LISTENER", "REST", "SCHEDULED" ],
+    "enabledEntrypointTypes" : [ "KAFKA_LISTENER", "REACTIVE_MESSAGE", "REST", "SCHEDULED" ],
     "explicitClasspath" : [ ],
     "additionalSourceRoots" : [ ],
     "projectPolicy" : {
@@ -59,7 +59,9 @@
     "LOG_WITHOUT_THROWABLE" : "1.0.0",
     "MDC_CONTEXT_LOST" : "1.0.0",
     "METRIC_CREATED_IN_LOOP" : "1.0.0",
+    "MUTINY_FAILURE_RECOVERED_SILENTLY" : "1.0.0",
     "PRINT_STACK_TRACE" : "1.0.0",
+    "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED" : "1.0.0",
     "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
     "SCHEDULED_TASK_SWALLOWS_FAILURE" : "1.0.0",
     "SENSITIVE_PAYLOAD_LOGGED" : "1.0.0",

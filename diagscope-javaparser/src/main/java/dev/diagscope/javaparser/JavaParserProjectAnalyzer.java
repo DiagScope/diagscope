@@ -90,6 +90,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static final Set<String> REST_MAPPING_ANNOTATIONS = Set.of(
             "RequestMapping", "GetMapping", "PostMapping", "PutMapping", "PatchMapping", "DeleteMapping"
     );
+    /** Standard JAX-RS method annotations, used by Quarkus REST resource classes. */
+    private static final Set<String> JAX_RS_HTTP_METHOD_ANNOTATIONS = Set.of(
+            "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
+    );
     private static final Set<String> SPRING_STEREOTYPES = Set.of(
             "Component", "Service", "Repository", "Controller", "RestController", "Configuration",
             "ControllerAdvice", "RestControllerAdvice", "Aspect"
@@ -948,6 +952,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             if (enabledTypes.contains(EntrypointType.KAFKA_LISTENER)) {
                 detectKafkaEntrypoint(method, typeAnnotations, methodAnnotations).ifPresent(result::add);
             }
+            if (enabledTypes.contains(EntrypointType.REACTIVE_MESSAGE)) {
+                annotation(methodAnnotations, "Incoming").ifPresent(annotation -> result.add(new Entrypoint(
+                        EntrypointType.REACTIVE_MESSAGE, method.id(), reactiveMessageDisplay(annotation),
+                        method.location())));
+            }
             if (enabledTypes.contains(EntrypointType.SCHEDULED)) {
                 annotation(methodAnnotations, "Scheduled").ifPresent(annotation -> {
                     String schedule = scheduleDisplay(annotation);
@@ -1027,6 +1036,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return "Kafka topic=unknown";
     }
 
+    /** `@Incoming` names a logical channel; its connector is deliberately not guessed as Kafka. */
+    private static String reactiveMessageDisplay(AnnotationDescriptor annotation) {
+        return firstAttribute(annotation, "value", "channel")
+                .map(channel -> "Reactive message channel=" + channel)
+                .orElse("Reactive message channel=unknown");
+    }
+
     private static Optional<Entrypoint> detectRestEntrypoint(
             RawMethod method,
             List<AnnotationDescriptor> typeAnnotations,
@@ -1034,19 +1050,46 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         boolean controller = annotation(typeAnnotations, "RestController").isPresent()
                 || annotation(typeAnnotations, "Controller").isPresent();
-        if (!controller) return Optional.empty();
         Optional<AnnotationDescriptor> mapping = methodAnnotations.stream()
                 .filter(annotation -> REST_MAPPING_ANNOTATIONS.contains(annotation.name()))
                 .findFirst();
-        if (mapping.isEmpty()) return Optional.empty();
+        if (controller && mapping.isPresent()) {
+            String prefix = annotation(typeAnnotations, "RequestMapping")
+                    .flatMap(annotation -> firstAttribute(annotation, "path", "value"))
+                    .orElse("");
+            String methodPath = firstAttribute(mapping.orElseThrow(), "path", "value").orElse("");
+            String path = combinePaths(prefix, methodPath);
+            String verb = restVerb(mapping.orElseThrow());
+            return Optional.of(new Entrypoint(EntrypointType.REST, method.id(),
+                    verb + ' ' + path, method.location()));
+        }
 
-        String prefix = annotation(typeAnnotations, "RequestMapping")
-                .flatMap(annotation -> firstAttribute(annotation, "path", "value"))
+        return detectJaxRsRestEntrypoint(method, typeAnnotations, methodAnnotations);
+    }
+
+    /**
+     * Recognises JAX-RS resources used by Quarkus REST. A resource class must carry {@code @Path}
+     * and an exposed method must carry one of the standard HTTP method annotations. A bare
+     * {@code @Path} method only contributes a URI segment and is not an entrypoint by itself.
+     */
+    private static Optional<Entrypoint> detectJaxRsRestEntrypoint(
+            RawMethod method,
+            List<AnnotationDescriptor> typeAnnotations,
+            List<AnnotationDescriptor> methodAnnotations
+    ) {
+        Optional<AnnotationDescriptor> resourcePath = annotation(typeAnnotations, "Path");
+        if (resourcePath.isEmpty()) return Optional.empty();
+        Optional<AnnotationDescriptor> httpMethod = methodAnnotations.stream()
+                .filter(annotation -> JAX_RS_HTTP_METHOD_ANNOTATIONS.contains(annotation.name()))
+                .findFirst();
+        if (httpMethod.isEmpty()) return Optional.empty();
+
+        String prefix = firstAttribute(resourcePath.orElseThrow(), "value", "path").orElse("");
+        String methodPath = annotation(methodAnnotations, "Path")
+                .flatMap(annotation -> firstAttribute(annotation, "value", "path"))
                 .orElse("");
-        String methodPath = firstAttribute(mapping.orElseThrow(), "path", "value").orElse("");
-        String path = combinePaths(prefix, methodPath);
-        String verb = restVerb(mapping.orElseThrow());
-        return Optional.of(new Entrypoint(EntrypointType.REST, method.id(), verb + ' ' + path, method.location()));
+        return Optional.of(new Entrypoint(EntrypointType.REST, method.id(),
+                httpMethod.orElseThrow().name() + ' ' + combinePaths(prefix, methodPath), method.location()));
     }
 
     private static String restVerb(AnnotationDescriptor annotation) {
@@ -1080,11 +1123,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static String scheduleDisplay(AnnotationDescriptor annotation) {
-        for (String attribute : List.of("cron", "fixedRateString", "fixedRate", "fixedDelayString", "fixedDelay")) {
+        var details = new ArrayList<String>();
+        for (String attribute : List.of("cron", "every", "fixedRateString", "fixedRate", "fixedDelayString",
+                "fixedDelay", "delay", "delayed", "identity")) {
             String value = annotation.attributes().get(attribute);
-            if (value != null && !value.isBlank()) return "Scheduled " + attribute + '=' + value;
+            if (value != null && !value.isBlank()) details.add(attribute + '=' + value);
         }
-        return "Scheduled";
+        return details.isEmpty() ? "Scheduled" : "Scheduled " + String.join(", ", details);
     }
 
     private static Optional<AnnotationDescriptor> annotation(List<AnnotationDescriptor> annotations, String name) {

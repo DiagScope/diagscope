@@ -81,6 +81,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static final Set<String> REST_MAPPING_ANNOTATIONS = Set.of(
             "RequestMapping", "GetMapping", "PostMapping", "PutMapping", "PatchMapping", "DeleteMapping"
     );
+    /** Standard JAX-RS method annotations, used by Quarkus REST resource classes. */
+    private static final Set<String> JAX_RS_HTTP_METHOD_ANNOTATIONS = Set.of(
+            "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
+    );
     private static final Set<String> SPRING_STEREOTYPES = Set.of(
             "Component", "Service", "Repository", "Controller", "RestController", "Configuration",
             "ControllerAdvice", "RestControllerAdvice", "Aspect"
@@ -880,6 +884,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             if (enabledTypes.contains(EntrypointType.KAFKA_LISTENER)) {
                 detectKafka(method, typeAnnotations, methodAnnotations).ifPresent(result::add);
             }
+            if (enabledTypes.contains(EntrypointType.REACTIVE_MESSAGE)) {
+                annotation(methodAnnotations, "Incoming").ifPresent(annotation -> result.add(new Entrypoint(
+                        EntrypointType.REACTIVE_MESSAGE, method.id(), reactiveMessageDisplay(annotation),
+                        method.location())));
+            }
             if (enabledTypes.contains(EntrypointType.SCHEDULED)) {
                 annotation(methodAnnotations, "Scheduled").ifPresent(item -> result.add(new Entrypoint(
                         EntrypointType.SCHEDULED, method.id(), scheduleDisplay(item), method.location())));
@@ -918,15 +927,36 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         boolean controller = annotation(typeAnnotations, "RestController").isPresent()
                 || annotation(typeAnnotations, "Controller").isPresent();
-        if (!controller) return Optional.empty();
         Optional<AnnotationDescriptor> mapping = methodAnnotations.stream()
                 .filter(item -> REST_MAPPING_ANNOTATIONS.contains(item.name())).findFirst();
-        if (mapping.isEmpty()) return Optional.empty();
-        String prefix = annotation(typeAnnotations, "RequestMapping")
-                .flatMap(item -> firstAttribute(item, "path", "value")).orElse("");
-        String suffix = firstAttribute(mapping.orElseThrow(), "path", "value").orElse("");
+        if (controller && mapping.isPresent()) {
+            String prefix = annotation(typeAnnotations, "RequestMapping")
+                    .flatMap(item -> firstAttribute(item, "path", "value")).orElse("");
+            String suffix = firstAttribute(mapping.orElseThrow(), "path", "value").orElse("");
+            return Optional.of(new Entrypoint(EntrypointType.REST, method.id(),
+                    restVerb(mapping.orElseThrow()) + ' ' + combinePaths(prefix, suffix), method.location()));
+        }
+
+        return detectJaxRsRest(method, typeAnnotations, methodAnnotations);
+    }
+
+    /** Recognises the standard JAX-RS resource shape used by Quarkus REST. */
+    private static Optional<Entrypoint> detectJaxRsRest(
+            RawMethod method,
+            List<AnnotationDescriptor> typeAnnotations,
+            List<AnnotationDescriptor> methodAnnotations
+    ) {
+        Optional<AnnotationDescriptor> resourcePath = annotation(typeAnnotations, "Path");
+        if (resourcePath.isEmpty()) return Optional.empty();
+        Optional<AnnotationDescriptor> httpMethod = methodAnnotations.stream()
+                .filter(item -> JAX_RS_HTTP_METHOD_ANNOTATIONS.contains(item.name())).findFirst();
+        if (httpMethod.isEmpty()) return Optional.empty();
+
+        String prefix = firstAttribute(resourcePath.orElseThrow(), "value", "path").orElse("");
+        String suffix = annotation(methodAnnotations, "Path")
+                .flatMap(item -> firstAttribute(item, "value", "path")).orElse("");
         return Optional.of(new Entrypoint(EntrypointType.REST, method.id(),
-                restVerb(mapping.orElseThrow()) + ' ' + combinePaths(prefix, suffix), method.location()));
+                httpMethod.orElseThrow().name() + ' ' + combinePaths(prefix, suffix), method.location()));
     }
 
     private static Optional<Entrypoint> detectKafka(
@@ -968,12 +998,21 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 .orElse("Kafka topic=unknown");
     }
 
+    /** `@Incoming` names a logical channel; its connector is deliberately not guessed as Kafka. */
+    private static String reactiveMessageDisplay(AnnotationDescriptor annotation) {
+        return firstAttribute(annotation, "value", "channel")
+                .map(channel -> "Reactive message channel=" + channel)
+                .orElse("Reactive message channel=unknown");
+    }
+
     private static String scheduleDisplay(AnnotationDescriptor annotation) {
-        for (String name : List.of("cron", "fixedRateString", "fixedRate", "fixedDelayString", "fixedDelay")) {
+        var details = new ArrayList<String>();
+        for (String name : List.of("cron", "every", "fixedRateString", "fixedRate", "fixedDelayString",
+                "fixedDelay", "delay", "delayed", "identity")) {
             String value = annotation.attributes().get(name);
-            if (value != null && !value.isBlank()) return "Scheduled " + name + '=' + value;
+            if (value != null && !value.isBlank()) details.add(name + '=' + value);
         }
-        return "Scheduled";
+        return details.isEmpty() ? "Scheduled" : "Scheduled " + String.join(", ", details);
     }
 
     private static String combinePaths(String prefix, String suffix) {

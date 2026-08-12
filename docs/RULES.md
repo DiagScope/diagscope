@@ -96,6 +96,36 @@ Observed local handling may include returning or storing the future/result, wait
 
 Recommended response: make acknowledgement or failure participate in the business decision, or document and test the application-level policy that handles it elsewhere.
 
+## `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED`
+
+Detects an `@Incoming` Reactive Messaging consumer that catches an exception and returns normally.
+
+- Default severity: `WARNING`.
+- Confidence: `MEDIUM` for broad exception types and `LOW` otherwise, capped by flow reachability.
+- The consumer is intentionally classified as `REACTIVE_MESSAGE`, not Kafka: its channel connector and configured failure strategy are runtime configuration.
+
+Recommended response: rethrow the exception or return a failed reactive result so the configured connector can apply its retry, nack, or dead-letter policy.
+
+## `MUTINY_FAILURE_RECOVERED_SILENTLY`
+
+Detects a Mutiny `onFailure()` recovery (`recoverWithItem`, `recoverWithNull`, `recoverWithCompletion`, or `recoverWithUni`) with no throwable-looking value in its callback or arguments.
+
+- Default severity: `WARNING`.
+- Confidence: `MEDIUM`, capped by flow reachability.
+
+Known limitation: the rule does not prove callback side effects, subscription behavior, or a failure signal produced outside the local method. It only reports an explicit fallback where the source has no visible failure value.
+
+Recommended response: log or count the failure in the recovery callback, or propagate it when a fallback is not an intentional degraded outcome.
+
+## `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED`
+
+Detects the one-callback form of Mutiny `subscribe().with(...)`, which receives items but not failures.
+
+- Default severity: `WARNING`.
+- Confidence: `MEDIUM`, capped by flow reachability.
+
+Recommended response: provide the second failure callback and record the throwable according to the flow's error policy.
+
 ## `HIGH_CARDINALITY_METRIC_TAG`
 
 Detects a likely unbounded value used as a metric tag.

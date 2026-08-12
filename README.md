@@ -2,9 +2,9 @@
 
 **Will this code explain itself when it fails in production?**
 
-DiagScope is a static analyzer for Java, Kotlin/JVM, and Spring Boot projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
+DiagScope is a static analyzer for Java, Kotlin/JVM, Spring Boot, and Quarkus REST projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
 
-It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a Kafka listener, a scheduled job — so you see *which production path* goes blind when something breaks.
+It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a Kafka or Reactive Messaging consumer, a scheduled job — so you see *which production path* goes blind when something breaks.
 
 ## Requirements
 
@@ -34,8 +34,8 @@ root can be supplied explicitly with `--source-root` without executing the build
 
 Kotlin support is syntax-first but covers the complete rule catalog. The adapter maps trailing-lambda
 evidence, injected receiver chains, typed overloads, defaults/varargs, transitive interfaces,
-inherited/default methods, composed or inherited entrypoints and advice targets, Micrometer, and
-Spring proxy/AOP evidence into the same parser-neutral model. Java now has matching hierarchy,
+inherited/default methods, composed or inherited entrypoints and advice targets, Micrometer,
+Spring proxy/AOP evidence, and Quarkus REST JAX-RS entrypoints into the same parser-neutral model. Java now has matching hierarchy,
 composed-annotation, and typed-overload resolution. Cross-language linking understands declared
 varargs, generic candidates, and Kotlin defaults exposed to Java with `@JvmOverloads`. Java dependency
 symbol solving is available only when an explicit `--classpath` is supplied; Kotlin compiler-grade
@@ -92,7 +92,7 @@ java -jar diagscope.jar trend --base previous/result.json --current current/resu
 | `-p`, `--project` | Project directory to analyze (required) | — |
 | `-o`, `--output` | Output directory; a relative path resolves inside the project | `target/diagscope` |
 | `--format` | `MARKDOWN`, `JSON`, `HTML`, `SARIF`, or a comma-separated combination | `MARKDOWN,JSON,HTML` |
-| `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `SCHEDULED` | all |
+| `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, `SCHEDULED` | all |
 | `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
 | `--parallelism` | Java parser worker count; `0` picks automatically (Kotlin PSI is sequential for now) | `0` |
 | `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |

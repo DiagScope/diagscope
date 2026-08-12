@@ -217,6 +217,7 @@ aggregation, and benchmark equivalence.
   `result.json` under `ruleVersions` and in the CLI catalog;
 - [x] `rules` and `explain` subcommands, with JSON catalog output for CI diffing;
 - [x] additive `result.json` contract `1.3-alpha.1` with a retained `1.2-alpha.1` compatibility test.
+- [x] additive `result.json` contract `1.4-alpha.1` with the `REACTIVE_MESSAGE` entrypoint enum.
 
 ## Delivered in this increment — Step 6 published contracts before 1.0
 

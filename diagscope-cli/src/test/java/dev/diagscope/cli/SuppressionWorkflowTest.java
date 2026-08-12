@@ -40,7 +40,7 @@ class SuppressionWorkflowTest {
         assertThat(scope.path("waivedFindings").asInt()).isEqualTo(1);
         assertThat(scope.path("expiredWaivers").asInt()).isZero();
         assertThat(scope.path("unusedWaivers").asInt()).isZero();
-        assertThat(waived.path("schemaVersion").asText()).isEqualTo("1.3-alpha.1");
+        assertThat(waived.path("schemaVersion").asText()).isEqualTo("1.4-alpha.1");
 
         writeConfiguration(project, fingerprint, LocalDate.now().minusDays(1));
         Path expiredOutput = temp.resolve("expired-run");
