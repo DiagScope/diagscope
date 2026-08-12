@@ -218,13 +218,19 @@ aggregation, and benchmark equivalence.
 - [x] `rules` and `explain` subcommands, with JSON catalog output for CI diffing;
 - [x] additive `result.json` contract `1.3-alpha.1` with a retained `1.2-alpha.1` compatibility test.
 
+## Delivered in this increment — Step 6 published contracts before 1.0
+
+- [x] capability model in [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md) stating the analyzed languages,
+  builds, frameworks, annotations, and resolution model, and what is knowingly out of reach;
+- [x] fingerprint stability policy in [FINGERPRINT_POLICY.md](FINGERPRINT_POLICY.md) defining what
+  may change identity, what must not, and the announced migration procedure;
+- [x] rule deprecation path in [RULE_LIFECYCLE.md](RULE_LIFECYCLE.md), executable through
+  `RuleLifecycle`: reserved identifiers, `ACTIVE`/`DEPRECATED`/`REMOVED` states, CLI surfacing via
+  `rules --include-retired`, `rules --format JSON`, and `explain`, deprecation warnings and removal
+  errors in `diagscope.yml`.
+
 ## Remaining before 1.0
 
-- [ ] a published capability model stating exactly which frameworks, annotations, and language
-  constructs are analyzed, and which are knowingly out of reach;
-- [ ] a written fingerprint stability policy: what may change a fingerprint, what must not, and how
-  migrations are announced;
-- [ ] a documented rule deprecation path so removing or renaming a rule is a versioned event;
 - [ ] field validation on three real repositories with maintainer verdicts (unchanged product gate).
 
 ## Still out of scope

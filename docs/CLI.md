@@ -151,6 +151,7 @@ summary and `configuration.scanScope` report `waivedFindings`, `expiredWaivers`,
 ```bash
 java -jar diagscope.jar rules
 java -jar diagscope.jar rules --format JSON
+java -jar diagscope.jar rules --include-retired
 java -jar diagscope.jar explain SILENT_CATCH
 ```
 
@@ -161,6 +162,12 @@ and prints what the rule means, why it matters, and how it is detected; an unkno
 Rule contract versions track the *evidence* a rule emits, not the wording of its catalog entry, so a
 documentation improvement does not look like a detection change to automation. They are also
 published under `ruleVersions` in `result.json`.
+
+Every rule also has a lifecycle state (`ACTIVE`, `DEPRECATED`, `REMOVED`) shown by `rules` and
+`explain`; `--include-retired` also lists reserved identifiers of retired rules, and the JSON form
+adds `status`, `since`, and `replacedBy`. Referencing a deprecated rule in `diagscope.yml` warns,
+and referencing a removed rule fails with the removal release and its replacement. The rules are in
+[RULE_LIFECYCLE.md](RULE_LIFECYCLE.md).
 
 ## Exit codes
 

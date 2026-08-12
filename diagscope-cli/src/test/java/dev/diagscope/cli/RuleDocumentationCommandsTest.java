@@ -44,6 +44,27 @@ class RuleDocumentationCommandsTest {
         assertThat(unknown.err()).contains("Unknown rule");
     }
 
+    @Test
+    void rules_reports_the_lifecycle_state_of_every_rule() {
+        var text = new Capture();
+        assertThat(text.run("rules")).isZero();
+        assertThat(text.out()).contains("ACTIVE");
+
+        var json = new Capture();
+        assertThat(json.run("rules", "--format", "JSON", "--include-retired")).isZero();
+        assertThat(json.out())
+                .contains("\"status\": \"ACTIVE\"")
+                .contains("\"since\":")
+                .contains("\"replacedBy\":");
+    }
+
+    @Test
+    void explain_includes_the_lifecycle_block() {
+        var output = new Capture();
+        assertThat(output.run("explain", "SILENT_CATCH")).isZero();
+        assertThat(output.out()).contains("Lifecycle").contains("ACTIVE");
+    }
+
     private static final class Capture {
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
         private final ByteArrayOutputStream err = new ByteArrayOutputStream();

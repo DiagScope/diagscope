@@ -6,6 +6,12 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Published capability model, fingerprint stability policy, and rule deprecation path
+  (`docs/CAPABILITY_MODEL.md`, `docs/FINGERPRINT_POLICY.md`, `docs/RULE_LIFECYCLE.md`).
+- Rule lifecycle states (`ACTIVE`/`DEPRECATED`/`REMOVED`) in `RuleLifecycle`, surfaced by
+  `rules`, `rules --include-retired`, `rules --format JSON`, and `explain`; `diagscope.yml` warns on
+  deprecated rule ids and fails with an explanation on removed ones.
+
 - Deterministic fingerprint baseline workflow through `--baseline [path]` and
   `--update-baseline`, including schema/fingerprint validation and atomic writes.
 - Git-aware `--changed-since <ref>` filtering for pull-request scans; it composes with baselines and
