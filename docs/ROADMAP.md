@@ -123,6 +123,14 @@ Not a phase; these run continuously and gate every release.
 - **Explainability**: no rule may be enabled without a `RuleCatalog` entry stating what it means, why it matters, how it was detected, and what to do.
 - **Actionability**: the report must be readable by someone who did not write the code — executive summary first, evidence and call path on demand.
 
+## Public contracts before 1.0
+
+Adoption depends on stated limits as much as on detections. The published contracts are the
+[capability model](CAPABILITY_MODEL.md), the [fingerprint stability policy](FINGERPRINT_POLICY.md),
+and the [rule lifecycle](RULE_LIFECYCLE.md), the last one executable through `RuleLifecycle` and the
+`rules`/`explain` commands. The only remaining 1.0 gate is field validation on three real
+repositories with maintainer verdicts.
+
 ## Explicit non-goals before their phase
 
 - blocking CI without a baseline and policy model;

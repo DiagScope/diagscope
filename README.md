@@ -307,3 +307,4 @@ flow fails, will anyone be able to tell what happened?*
 - [Project overview](docs/PROJECT_OVERVIEW.md) · [CLI reference](docs/CLI.md) · [Rules](docs/RULES.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Performance](docs/PERFORMANCE.md) · [Testing strategy](docs/TESTING_STRATEGY.md)
 - [Development guide](docs/DEVELOPMENT_GUIDE.md) · [Roadmap](docs/ROADMAP.md)
+- [Capability model](docs/CAPABILITY_MODEL.md) · [Fingerprint stability policy](docs/FINGERPRINT_POLICY.md) · [Rule lifecycle](docs/RULE_LIFECYCLE.md)

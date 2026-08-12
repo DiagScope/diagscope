@@ -46,8 +46,18 @@ final class ProjectConfigurationLoader {
         var disabledRules = new TreeSet<String>();
         var severities = new TreeMap<String, Severity>();
         values(document.rules()).forEach((ruleId, rule) -> {
+            var lifecycle = dev.diagscope.core.application.rule.RuleLifecycle.of(ruleId);
+            if (lifecycle.status() == dev.diagscope.core.application.rule.RuleLifecycle.Status.REMOVED) {
+                throw invalid(file, "rule id removed in " + lifecycle.since() + ": " + ruleId
+                        + lifecycle.replacement().map(id -> "; use " + id + " instead").orElse(""));
+            }
             if (!RuleCatalog.all().containsKey(ruleId)) {
                 throw invalid(file, "unknown rule id: " + ruleId);
+            }
+            if (lifecycle.status() == dev.diagscope.core.application.rule.RuleLifecycle.Status.DEPRECATED) {
+                System.err.println("diagscope.yml references deprecated rule " + ruleId + " (deprecated in "
+                        + lifecycle.since() + ")"
+                        + lifecycle.replacement().map(id -> "; migrate to " + id).orElse("") + ".");
             }
             if (rule == null) throw invalid(file, "rule policy must not be null: " + ruleId);
             if (Boolean.FALSE.equals(rule.enabled())) disabledRules.add(ruleId);
