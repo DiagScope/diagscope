@@ -84,3 +84,17 @@ object MDC {
     fun getCopyOfContextMap(): Map<String, String> = emptyMap()
     fun setContextMap(context: Map<String, String>) {}
 }
+
+annotation class Incoming(val value: String)
+
+interface Uni<T> {
+    fun onFailure(): Uni<T>
+    fun recoverWithItem(item: T): Uni<T>
+    fun recoverWithItem(recovery: (Throwable) -> T): Uni<T>
+    fun subscribe(): Subscription<T>
+}
+
+interface Subscription<T> {
+    fun with(item: (T) -> Unit)
+    fun with(item: (T) -> Unit, failure: (Throwable) -> Unit)
+}
