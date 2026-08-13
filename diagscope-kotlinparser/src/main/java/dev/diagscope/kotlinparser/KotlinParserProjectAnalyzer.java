@@ -46,6 +46,8 @@ import org.jetbrains.kotlin.psi.KtClassOrObject;
 import org.jetbrains.kotlin.psi.KtExpression;
 import org.jetbrains.kotlin.psi.KtFinallySection;
 import org.jetbrains.kotlin.psi.KtFile;
+import org.jetbrains.kotlin.psi.KtLambdaArgument;
+import org.jetbrains.kotlin.psi.KtLambdaExpression;
 import org.jetbrains.kotlin.psi.KtLoopExpression;
 import org.jetbrains.kotlin.psi.KtNamedFunction;
 import org.jetbrains.kotlin.psi.KtObjectDeclaration;
@@ -388,6 +390,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
      * Keeps both parenthesized values and trailing lambdas. Kotlin APIs commonly carry the error,
      * context propagation, or completion handling exclusively in a trailing lambda, so dropping it
      * turns a correct async/HTTP/MDC call into an apparent evidence-loss finding.
+     *
+     * <p>{@code getValueArguments()} already reports trailing lambdas (a {@code KtLambdaArgument} is
+     * a {@code ValueArgument}), so lambdas are appended only when the PSI did not list them. Adding
+     * them unconditionally doubled the arity of every trailing-lambda call and silently disabled
+     * arity-sensitive rules such as the one-callback Mutiny subscription check.
      */
     private static List<String> invocationArguments(KtCallExpression call) {
         var arguments = new ArrayList<String>(
@@ -396,8 +403,17 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 .map(ValueArgument::getArgumentExpression)
                 .map(expression -> expression == null ? "" : expression.getText())
                 .forEach(arguments::add);
-        call.getLambdaArguments().stream().map(PsiElement::getText).forEach(arguments::add);
+        trailingLambdasMissingFromValueArguments(call).stream()
+                .map(PsiElement::getText).forEach(arguments::add);
         return List.copyOf(arguments);
+    }
+
+    /** Trailing lambdas the PSI did not already expose through {@code getValueArguments()}. */
+    private static List<KtLambdaArgument> trailingLambdasMissingFromValueArguments(KtCallExpression call) {
+        var declared = call.getValueArguments();
+        return call.getLambdaArguments().stream()
+                .filter(lambda -> !declared.contains(lambda))
+                .toList();
     }
 
     /** Conservative source-only types used to distinguish same-arity Kotlin overloads. */
@@ -405,11 +421,17 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         var types = new ArrayList<String>(call.getValueArguments().size() + call.getLambdaArguments().size());
         call.getValueArguments().stream()
                 .map(ValueArgument::getArgumentExpression)
-                .map(expression -> inferExpressionType(expression, variableTypes))
+                .map(expression -> isLambdaLike(expression) ? "Function"
+                        : inferExpressionType(expression, variableTypes))
                 .forEach(types::add);
-        call.getLambdaArguments().forEach(ignored -> types.add("Function"));
+        trailingLambdasMissingFromValueArguments(call).forEach(ignored -> types.add("Function"));
         return List.copyOf(types);
     }
+
+    private static boolean isLambdaLike(KtExpression expression) {
+        return expression instanceof KtLambdaExpression;
+    }
+
 
     private static String inferExpressionType(KtExpression expression, Map<String, String> variableTypes) {
         if (expression == null) return "";

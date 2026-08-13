@@ -67,3 +67,17 @@ final class MDC {
     static Map<String, String> getCopyOfContextMap() { return Map.of(); }
     static void setContextMap(Map<String, String> context) {}
 }
+
+@interface Incoming { String value(); }
+
+interface Uni<T> {
+    Uni<T> onFailure();
+    Uni<T> recoverWithItem(T item);
+    Uni<T> recoverWithItem(Function<Throwable, T> recovery);
+    Subscription<T> subscribe();
+}
+
+interface Subscription<T> {
+    void with(java.util.function.Consumer<T> item);
+    void with(java.util.function.Consumer<T> item, java.util.function.Consumer<Throwable> failure);
+}
