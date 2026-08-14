@@ -185,6 +185,62 @@ class DiagnosticRulesTest {
                 .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
     }
 
+    @Test
+    void mutiny_recovery_rule_covers_multi_operators_and_typed_failure_filters() {
+        InvocationEvidence typedFilter = new InvocationEvidence(location(10),
+                "uni.onFailure(IllegalStateException.class)", "Uni", "recoverWithNull", List.of(),
+                InvocationResultUsage.IGNORED);
+        InvocationEvidence multi = new InvocationEvidence(location(20), "multi.onFailure()", "Multi",
+                "recoverWithMulti", List.of("Multi.createFrom().empty()"), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(typedFilter, multi), List.of());
+
+        assertThat(new MutinyFailureRecoveredSilentlyRule().evaluate(flow(method, Confidence.HIGH)))
+                .extracting(finding -> finding.location().startLine())
+                .containsExactly(10, 20);
+    }
+
+    @Test
+    void mutiny_recovery_rule_skips_chains_that_already_observe_the_failure() {
+        InvocationEvidence observed = new InvocationEvidence(location(10),
+                "uni.onFailure().invoke(failure -> logger.error(\"lookup failed\", failure))", "Uni",
+                "recoverWithItem", List.of("\"fallback\""), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(observed), List.of());
+
+        assertThat(new MutinyFailureRecoveredSilentlyRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    @Test
+    void mutiny_recovery_rule_lowers_confidence_for_method_reference_recoveries() {
+        InvocationEvidence methodReference = new InvocationEvidence(location(10), "uni.onFailure()", "Uni",
+                "recoverWithItem", List.of("this::fallback"), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(methodReference), List.of());
+
+        assertThat(new MutinyFailureRecoveredSilentlyRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.confidence()).isEqualTo(Confidence.LOW));
+    }
+
+    @Test
+    void mutiny_subscription_rule_covers_every_single_callback_shape() {
+        InvocationEvidence methodReference = new InvocationEvidence(location(10), "uni.subscribe()", "", "with",
+                List.of("this::consume"), InvocationResultUsage.IGNORED);
+        InvocationEvidence typedLambda = new InvocationEvidence(location(20), "multi.subscribe()", "", "with",
+                List.of("(String item) -> consume(item)"), InvocationResultUsage.IGNORED);
+        InvocationEvidence spacedReceiver = new InvocationEvidence(location(30), "uni\n    .subscribe()", "",
+                "with", List.of("item -> consume(item)"), InvocationResultUsage.IGNORED);
+        InvocationEvidence typedFailureCallback = new InvocationEvidence(location(40), "uni.subscribe()", "",
+                "with", List.of("(String item) -> { }", "(Throwable failure) -> logger.error(\"x\", failure)"),
+                InvocationResultUsage.IGNORED);
+        InvocationEvidence failureMethodReference = new InvocationEvidence(location(50), "uni.subscribe()", "",
+                "with", List.of("this::consume", "this::report"), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(methodReference, typedLambda, spacedReceiver,
+                typedFailureCallback, failureMethodReference), List.of());
+
+        assertThat(new MutinySubscriptionFailureUnobservedRule().evaluate(flow(method, Confidence.HIGH)))
+                .extracting(finding -> finding.location().startLine())
+                .containsExactly(10, 20, 30);
+    }
+
     private static Flow flow(MethodModel method, Confidence confidence) {
         var entrypoint = new Entrypoint(
                 EntrypointType.REST, method.id(), "GET /test", method.location());

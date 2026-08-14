@@ -108,10 +108,12 @@ Recommended response: rethrow the exception or return a failed reactive result s
 
 ## `MUTINY_FAILURE_RECOVERED_SILENTLY`
 
-Detects a Mutiny `onFailure()` recovery (`recoverWithItem`, `recoverWithNull`, `recoverWithCompletion`, or `recoverWithUni`) with no throwable-looking value in its callback or arguments.
+Detects a Mutiny `onFailure()` recovery (`recoverWithItem`, `recoverWithNull`, `recoverWithCompletion`, `recoverWithUni`, or `recoverWithMulti`, on `Uni` and `Multi`) with no throwable-looking value in its callback or arguments.
 
 - Default severity: `WARNING`.
-- Confidence: `MEDIUM`, capped by flow reachability.
+- Confidence: `MEDIUM`, or `LOW` when the recovery is a method reference whose body is not visible at the call site; always capped by flow reachability.
+- A typed filter such as `onFailure(TimeoutException.class)` is still reported: narrowing the failure type does not record it.
+- A chain that already observes the failure, such as `onFailure().invoke(failure -> log.error("...", failure)).recoverWithItem("fallback")`, is not reported.
 
 Known limitation: the rule does not prove callback side effects, subscription behavior, or a failure signal produced outside the local method. It only reports an explicit fallback where the source has no visible failure value.
 
@@ -119,10 +121,12 @@ Recommended response: log or count the failure in the recovery callback, or prop
 
 ## `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED`
 
-Detects the one-callback form of Mutiny `subscribe().with(...)`, which receives items but not failures.
+Detects the one-callback form of Mutiny `subscribe().with(...)`, on `Uni` and `Multi`, which receives items but not failures.
 
 - Default severity: `WARNING`.
 - Confidence: `MEDIUM`, capped by flow reachability.
+- The single callback is reported in every syntax shape: lambda, explicitly typed lambda, Kotlin trailing lambda, and method reference.
+- The two-callback form is never reported, including when the failure callback is a method reference or an explicitly typed lambda.
 
 Recommended response: provide the second failure callback and record the throwable according to the flow's error policy.
 
