@@ -58,6 +58,11 @@ public final class RuleVersions {
         overrides.put(HighCardinalityMetricTagRule.ID, "1.1.0");
         // Transactional analysis gained self-invocation and propagation evidence.
         overrides.put(TransactionalRollbackSuppressedRule.ID, "1.1.0");
+        // Mutiny recovery covers Multi operators and no longer reports chains that already observe
+        // the failure through onFailure().invoke/call.
+        overrides.put(MutinyFailureRecoveredSilentlyRule.ID, "1.1.0");
+        // Mutiny subscription detection tolerates formatting variations in the subscribe() receiver.
+        overrides.put(MutinySubscriptionFailureUnobservedRule.ID, "1.0.1");
         return Map.copyOf(overrides);
     }
 }

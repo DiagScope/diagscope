@@ -13,6 +13,7 @@ import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
 import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
+import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.core.domain.Finding;
@@ -113,6 +114,29 @@ class KotlinParserProjectAnalyzerTest {
                         ReactiveMessageFailureNotPropagatedRule.ID,
                         MutinyFailureRecoveredSilentlyRule.ID,
                         MutinySubscriptionFailureUnobservedRule.ID);
+
+        assertThat(result.findings())
+                .filteredOn(finding -> MutinyFailureRecoveredSilentlyRule.ID.equals(finding.ruleId()))
+                .extracting(finding -> finding.evidence().get("method"))
+                .containsExactlyInAnyOrder(
+                        "example.quarkus.MutinyRecovery.silentlyRecovers()",
+                        "example.quarkus.MutinyLambdaVariants.recoversWithMethodReference()",
+                        "example.quarkus.MutinyLambdaVariants.recoversTypedFailureSilently()",
+                        "example.quarkus.MutinyLambdaVariants.recoversMultiSilently()");
+        assertThat(result.findings())
+                .filteredOn(finding -> MutinySubscriptionFailureUnobservedRule.ID.equals(finding.ruleId()))
+                .extracting(finding -> finding.evidence().get("method"))
+                .containsExactlyInAnyOrder(
+                        "example.quarkus.MutinyRecovery.silentlySubscribes()",
+                        "example.quarkus.MutinyLambdaVariants.subscribesWithMethodReference()",
+                        "example.quarkus.MutinyLambdaVariants.subscribesWithTypedLambda()",
+                        "example.quarkus.MutinyLambdaVariants.subscribesMultiWithSingleCallback()");
+        assertThat(result.findings())
+                .filteredOn(finding -> MutinyFailureRecoveredSilentlyRule.ID.equals(finding.ruleId())
+                        && "example.quarkus.MutinyLambdaVariants.recoversWithMethodReference()"
+                                .equals(finding.evidence().get("method")))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.confidence()).isEqualTo(Confidence.LOW));
     }
 
     @Test

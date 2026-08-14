@@ -22,6 +22,7 @@ Delivered:
 - Maven **and** Gradle projects, including multi-module builds, discovered per scan;
 - direct REST, Kafka-listener, and scheduled entrypoints;
 - Quarkus REST JAX-RS entrypoints and Quarkus scheduler metadata (`every`, `delay`, and `identity`);
+- Quarkus/Mutiny reactive coverage with Java/Kotlin parity: `Uni` and `Multi` recovery operators, chains that already observe the failure, and every single-callback `subscribe().with(...)` shape (lambda, typed lambda, Kotlin trailing lambda, method reference);
 - bounded path-aware local-flow analysis with explicit terminal boundaries;
 - deterministic rules with confidence capped by path confidence;
 - Markdown, versioned JSON, and self-contained interactive HTML reports;

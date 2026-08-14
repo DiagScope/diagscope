@@ -42,7 +42,7 @@ public final class MutinySubscriptionFailureUnobservedRule implements Diagnostic
 
     private static boolean isOneCallbackSubscription(InvocationEvidence invocation) {
         if (!"with".equals(invocation.methodName()) || invocation.arguments().size() != 1) return false;
-        String scope = invocation.scope().toLowerCase(Locale.ROOT);
+        String scope = invocation.scope().toLowerCase(Locale.ROOT).replace(" ", "");
         return scope.endsWith(".subscribe()") || scope.equals("subscribe()");
     }
 }

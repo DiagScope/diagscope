@@ -228,14 +228,19 @@ public final class RuleCatalog {
                         + " recording the failure.",
                 "Degraded responses become indistinguishable from healthy responses, which hides"
                         + " dependency outages and retry exhaustion.",
-                "A recoverWithItem/recoverWithNull/recoverWithCompletion/recoverWithUni call chained"
-                        + " from onFailure(), whose arguments contain no throwable-looking value.");
+                "A recoverWithItem/recoverWithNull/recoverWithCompletion/recoverWithUni/"
+                        + "recoverWithMulti call chained from onFailure(), whose arguments contain no"
+                        + " throwable-looking value and whose chain does not already observe the"
+                        + " failure through invoke(...) or call(...). Confidence drops to LOW when the"
+                        + " recovery is a method reference, because the callback body is not visible"
+                        + " at the call site.");
         put(catalog, MutinySubscriptionFailureUnobservedRule.ID, "Mutiny subscription ignores failures",
                 "A Mutiny subscription supplies only the item callback and no callback for failures.",
                 "A later asynchronous failure goes to a global dropped-exception path instead of the"
                         + " local flow's logs, metrics, or recovery policy.",
                 "A one-argument with(...) call whose receiver is the syntax-visible result of"
-                        + " subscribe().");
+                        + " subscribe(), for both Uni and Multi, and regardless of whether the single"
+                        + " callback is a lambda, a typed lambda, or a method reference.");
         put(catalog, HttpClientErrorDiscardedRule.ID, "HTTP client error replaced without the cause",
                 "A reactive or future error operator substitutes a value for the failure and never"
                         + " references the throwable.",

@@ -18,7 +18,8 @@ public final class MutinyFailureRecoveredSilentlyRule implements DiagnosticRule 
     public static final String ID = "MUTINY_FAILURE_RECOVERED_SILENTLY";
 
     private static final Set<String> RECOVERY_OPERATORS = Set.of(
-            "recoverWithItem", "recoverWithNull", "recoverWithCompletion", "recoverWithUni"
+            "recoverWithItem", "recoverWithNull", "recoverWithCompletion", "recoverWithUni",
+            "recoverWithMulti"
     );
 
     @Override
@@ -35,7 +36,9 @@ public final class MutinyFailureRecoveredSilentlyRule implements DiagnosticRule 
                     continue;
                 }
                 if (DiagnosticSignals.mentionsThrowable(invocation.arguments())) continue;
-                Confidence confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
+                if (observesFailureEarlierInTheChain(invocation)) continue;
+                Confidence reported = opaqueRecovery(invocation) ? Confidence.LOW : Confidence.MEDIUM;
+                Confidence confidence = Confidence.min(reported, flowMethod.confidence());
                 findings.add(new Finding(
                         ID, Severity.WARNING, confidence, invocation.location(),
                         "Mutiny failure recovery replaces the failure without visible diagnostic evidence.",
@@ -47,6 +50,23 @@ public final class MutinyFailureRecoveredSilentlyRule implements DiagnosticRule 
             }
         }
         return List.copyOf(findings);
+    }
+
+    /**
+     * True when the same chain already routed the failure through an observing operator such as
+     * {@code onFailure().invoke(failure -> log(...))} before recovering.
+     */
+    private static boolean observesFailureEarlierInTheChain(InvocationEvidence invocation) {
+        String scope = invocation.scope();
+        String normalized = scope.toLowerCase(Locale.ROOT);
+        boolean observingOperator = normalized.contains(".invoke(") || normalized.contains(".call(")
+                || normalized.contains(".invoke {") || normalized.contains(".call {");
+        return observingOperator && DiagnosticSignals.mentionsThrowable(scope);
+    }
+
+    /** True when the recovery is a method reference, so the callback body is not visible here. */
+    private static boolean opaqueRecovery(InvocationEvidence invocation) {
+        return invocation.arguments().stream().anyMatch(argument -> argument.contains("::"));
     }
 
     private static boolean isMutinyFailureRecovery(InvocationEvidence invocation) {
