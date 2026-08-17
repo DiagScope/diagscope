@@ -79,14 +79,19 @@ An LLM may summarize or explain a finding, but it never creates the authoritativ
 
 ## Phase 3A — Configuration, baseline, and CI
 
-This is the next phase to start. Without it DiagScope cannot enter a real pipeline.
+In progress. Without it DiagScope cannot enter a real pipeline.
 
 - delivered: strict `diagscope.yml`, deterministic fingerprint baselines, `--fail-on`, SARIF,
   diff-aware `--changed-since`, and versioned `result.json` compatibility contracts;
 - delivered: reviewed waivers with mandatory reasons and expiry, per-rule evidence contract versions
   published in reports, and the `rules`/`explain` catalog commands for automation and review;
-- `diagscope-maven-plugin` and a Gradle equivalent;
-- a published GitHub Action, plus a report artifact and a pull-request summary comment;
+- delivered: an embeddable scan engine (`ScanWorkflow`) shared by the CLI, build-tool plugins, and
+  CI wrappers, so every channel applies the same configuration, baseline, waiver, and gate logic;
+- delivered: a composite GitHub Action (`action.yml`) with severity gate, SARIF output, job
+  executive summary, and a single continuously updated pull-request comment;
+- delivered: a Gradle integration script (`gradle/diagscope.gradle`) exposing `diagscopeScan`;
+- remaining: a native `diagscope-maven-plugin` binding the workflow to the Maven lifecycle and
+  reusing the compile classpath automatically;
 - Spring, logging, Micrometer, and OpenTelemetry configuration context read from the repository, used to lower confidence rather than to assert absence.
 
 Absence of in-repository configuration is not automatically a failure because configuration may be injected externally.
