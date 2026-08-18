@@ -57,7 +57,8 @@ public final class DiagScopeMain {
         System.exit(exitCode);
     }
 
-    static dev.diagscope.core.application.port.in.ScanProjectUseCase createScanUseCase() {
+    /** Fully wired scan engine; reused by the CLI, build-tool plugins and CI wrappers. */
+    public static dev.diagscope.core.application.port.in.ScanProjectUseCase createScanUseCase() {
         var ruleEngine = new RuleEngine(List.of(
                 new SilentCatchRule(),
                 new SilentFailureConversionRule(),
@@ -102,15 +103,24 @@ public final class DiagScopeMain {
         );
     }
 
-    static CommandLine createCommandLine() {
+    /** Every reporter DiagScope ships, keyed by report format. */
+    public static Map<ReportFormat, AnalysisReporter> createReporters() {
         Map<ReportFormat, AnalysisReporter> reporters = new EnumMap<>(ReportFormat.class);
         reporters.put(ReportFormat.MARKDOWN, new MarkdownReporter());
         reporters.put(ReportFormat.JSON, new JsonReporter());
         reporters.put(ReportFormat.HTML, new HtmlReporter());
         reporters.put(ReportFormat.SARIF, new SarifReporter());
+        return Map.copyOf(reporters);
+    }
 
+    /** Scan engine ready to embed, with the default rule set and reporters. */
+    public static ScanWorkflow createScanWorkflow() {
+        return new ScanWorkflow(createScanUseCase(), createReporters());
+    }
+
+    static CommandLine createCommandLine() {
         return new CommandLine(new RootCommand())
-                .addSubcommand("scan", new ScanCommand(createScanUseCase(), reporters))
+                .addSubcommand("scan", new ScanCommand(createScanWorkflow()))
                 .addSubcommand("trend", new TrendCommand())
                 .addSubcommand("rules", new RulesCommand())
                 .addSubcommand("explain", new ExplainCommand())

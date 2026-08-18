@@ -1,0 +1,61 @@
+/*
+ * DiagScope integration for Gradle builds.
+ *
+ * Usage in build.gradle:
+ *   apply from: 'https://raw.githubusercontent.com/DiagScope/diagscope/main/gradle/diagscope.gradle'
+ * or copy this file into the consuming repository and apply it locally.
+ *
+ * Then run:  ./gradlew diagscopeScan -Pdiagscope.failOn=WARNING
+ */
+
+ext.diagscopeJar = project.findProperty('diagscope.jar') ?:
+        "${rootDir}/tools/diagscope/diagscope.jar"
+
+tasks.register('diagscopeScan', JavaExec) {
+    group = 'verification'
+    description = 'Analyze this project for diagnostic coverage gaps with DiagScope.'
+
+    def reportDir = project.findProperty('diagscope.output') ?: 'build/diagscope'
+    def formats = project.findProperty('diagscope.formats') ?: 'MARKDOWN,JSON,HTML,SARIF'
+    def failOn = project.findProperty('diagscope.failOn') ?: 'NONE'
+    def baseline = project.findProperty('diagscope.baseline')
+    def changedSince = project.findProperty('diagscope.changedSince')
+    def config = project.findProperty('diagscope.config')
+
+    classpath = files(diagscopeJar)
+    mainClass = 'dev.diagscope.cli.DiagScopeMain'
+
+    doFirst {
+        if (!file(diagscopeJar).exists()) {
+            throw new GradleException(
+                    "DiagScope jar not found at ${diagscopeJar}. " +
+                    "Build it with 'mvn -pl diagscope-cli -am -DskipTests package' " +
+                    "or set -Pdiagscope.jar=/path/to/diagscope.jar.")
+        }
+    }
+
+    def scanArgs = ['scan',
+                    '--project', projectDir.absolutePath,
+                    '--output', reportDir,
+                    '--format', formats,
+                    '--fail-on', failOn]
+    if (baseline) scanArgs += ['--baseline', baseline]
+    if (changedSince) scanArgs += ['--changed-since', changedSince]
+    if (config) scanArgs += ['--config', config]
+
+    args = scanArgs
+
+    // The severity gate exits with 1; let it fail the build, but surface other codes clearly.
+    ignoreExitValue = true
+    doLast {
+        def result = executionResult.get()
+        if (result.exitValue == 1) {
+            throw new GradleException("DiagScope severity gate failed (--fail-on ${failOn}). " +
+                    "See ${reportDir}/report.html.")
+        }
+        if (result.exitValue != 0) {
+            throw new GradleException("DiagScope scan failed with exit code ${result.exitValue}.")
+        }
+        logger.lifecycle("DiagScope reports written to ${reportDir}")
+    }
+}

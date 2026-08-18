@@ -1,0 +1,106 @@
+name: DiagScope
+description: Run DiagScope diagnostic coverage analysis and publish the results to the workflow summary, SARIF and pull requests.
+author: DiagScope
+
+branding:
+  icon: activity
+  color: blue
+
+inputs:
+  project:
+    description: Directory of the Maven or Gradle project to analyze.
+    required: false
+    default: .
+  output:
+    description: Report output directory, relative to the analyzed project unless absolute.
+    required: false
+    default: target/diagscope
+  formats:
+    description: Comma-separated report formats (MARKDOWN, JSON, HTML, SARIF).
+    required: false
+    default: MARKDOWN,JSON,HTML,SARIF
+  fail-on:
+    description: Severity gate; the job fails when a finding is at or above it (ERROR, WARNING, INFO, NONE).
+    required: false
+    default: NONE
+  baseline:
+    description: Baseline file used to suppress already-known findings. Empty disables the baseline.
+    required: false
+    default: ''
+  changed-since:
+    description: Report only findings in files changed since this Git revision, for example origin/main.
+    required: false
+    default: ''
+  config:
+    description: Policy file path; defaults to diagscope.yml when present.
+    required: false
+    default: ''
+  extra-args:
+    description: Additional raw arguments appended to the scan command.
+    required: false
+    default: ''
+  comment-on-pr:
+    description: Post or update a summary comment on the pull request.
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: Reserved for callers that run github/codeql-action/upload-sarif on sarif-path.
+    required: false
+    default: 'false'
+  java-version:
+    description: JDK used to build and run DiagScope.
+    required: false
+    default: '25'
+
+outputs:
+  report-directory:
+    description: Absolute path of the generated report directory.
+    value: ${{ steps.scan.outputs.report-directory }}
+  sarif-path:
+    description: Absolute path of the SARIF report, empty when SARIF was not requested.
+    value: ${{ steps.scan.outputs.sarif-path }}
+  findings:
+    description: Number of findings reported after baselines and waivers.
+    value: ${{ steps.scan.outputs.findings }}
+  gate-breached:
+    description: 'true when the severity gate failed the scan.'
+    value: ${{ steps.scan.outputs.gate-breached }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+        cache: maven
+
+    - name: Build DiagScope CLI
+      shell: bash
+      run: ${{ github.action_path }}/scripts/action/build_cli.sh
+      env:
+        DIAGSCOPE_HOME: ${{ github.action_path }}
+
+    - name: Run DiagScope scan
+      id: scan
+      shell: bash
+      run: ${{ github.action_path }}/scripts/action/run_scan.sh
+      env:
+        DIAGSCOPE_HOME: ${{ github.action_path }}
+        DIAGSCOPE_PROJECT: ${{ inputs.project }}
+        DIAGSCOPE_OUTPUT: ${{ inputs.output }}
+        DIAGSCOPE_FORMATS: ${{ inputs.formats }}
+        DIAGSCOPE_FAIL_ON: ${{ inputs['fail-on'] }}
+        DIAGSCOPE_BASELINE: ${{ inputs.baseline }}
+        DIAGSCOPE_CHANGED_SINCE: ${{ inputs['changed-since'] }}
+        DIAGSCOPE_CONFIG: ${{ inputs.config }}
+        DIAGSCOPE_EXTRA_ARGS: ${{ inputs['extra-args'] }}
+
+    - name: Comment on pull request
+      if: ${{ inputs['comment-on-pr'] == 'true' && github.event_name == 'pull_request' && always() }}
+      shell: bash
+      run: ${{ github.action_path }}/scripts/action/comment_pr.sh
+      env:
+        DIAGSCOPE_REPORT_DIR: ${{ steps.scan.outputs.report-directory }}
+        GH_TOKEN: ${{ github.token }}
