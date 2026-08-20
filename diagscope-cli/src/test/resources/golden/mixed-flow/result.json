@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.4-alpha.1",
+  "schemaVersion" : "1.5-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -71,6 +71,25 @@
     "SYSTEM_OUTPUT" : "1.0.0",
     "TX_PROPAGATION_MISMATCH" : "1.0.0",
     "TX_ROLLBACK_SUPPRESSED" : "1.1.0"
+  },
+  "analysisCapabilities" : {
+    "languages" : {
+      "java" : "SUPPORTED",
+      "kotlin" : "NOT_APPLICABLE"
+    },
+    "frameworks" : {
+      "spring" : "SUPPORTED"
+    },
+    "features" : {
+      "restEntrypoints" : "SUPPORTED",
+      "kafkaListeners" : "SUPPORTED",
+      "reactiveMessages" : "SUPPORTED",
+      "scheduledJobs" : "SUPPORTED",
+      "springTransactions" : "SUPPORTED",
+      "springAop" : "PARTIAL",
+      "javaDependencyResolution" : "NOT_CONFIGURED",
+      "kotlinDependencyResolution" : "NOT_APPLICABLE"
+    }
   },
   "statistics" : {
     "sourceFiles" : 6,

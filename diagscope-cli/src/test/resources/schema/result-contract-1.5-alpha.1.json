@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1.5-alpha.1",
+  "root": [
+    "schemaVersion",
+    "tool",
+    "project",
+    "configuration",
+    "ruleVersions",
+    "analysisCapabilities",
+    "statistics",
+    "summary",
+    "groups",
+    "parseFailures",
+    "aspects",
+    "flows",
+    "findings"
+  ],
+  "analysisCapabilities": [
+    "languages",
+    "frameworks",
+    "features"
+  ],
+  "analysisCapabilitiesLanguages": [
+    "java",
+    "kotlin"
+  ],
+  "analysisCapabilitiesFrameworks": [
+    "spring"
+  ],
+  "analysisCapabilitiesFeatures": [
+    "restEntrypoints",
+    "kafkaListeners",
+    "reactiveMessages",
+    "scheduledJobs",
+    "springTransactions",
+    "springAop",
+    "javaDependencyResolution",
+    "kotlinDependencyResolution"
+  ]
+}

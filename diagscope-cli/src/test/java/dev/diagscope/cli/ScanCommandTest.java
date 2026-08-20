@@ -43,7 +43,7 @@ class ScanCommandTest {
         assertThat(output.resolve("result.json")).isRegularFile();
 
         JsonNode report = JSON.readTree(output.resolve("result.json").toFile());
-        assertThat(report.path("schemaVersion").asText()).isEqualTo("1.4-alpha.1");
+        assertThat(report.path("schemaVersion").asText()).isEqualTo("1.5-alpha.1");
         assertThat(report.path("tool").path("name").asText()).isEqualTo("DiagScope");
         assertThat(report.path("tool").path("version").asText()).isNotBlank();
         assertThat(report.path("project").path("root").asText()).isEqualTo(project.toString());
