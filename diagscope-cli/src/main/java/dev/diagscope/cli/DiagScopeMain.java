@@ -103,6 +103,50 @@ public final class DiagScopeMain {
         );
     }
 
+    /**
+     * Returns the rule identifiers registered with the default rule engine.
+     *
+     * <p>This is the authoritative set of active rules in the current release. It is used by
+     * {@code RuleDocumentationContractTest} to verify that every registered rule has a catalog
+     * entry and that the catalog contains no undeclared identifiers.</p>
+     */
+    public static List<String> registeredRuleIds() {
+        return List.of(
+                dev.diagscope.core.application.rule.SilentCatchRule.ID,
+                dev.diagscope.core.application.rule.SilentFailureConversionRule.ID,
+                dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule.ID,
+                dev.diagscope.core.application.rule.KafkaManualAckMissingRule.ID,
+                dev.diagscope.core.application.rule.KafkaListenerFailureNotPropagatedRule.ID,
+                dev.diagscope.core.application.rule.ReactiveMessageFailureNotPropagatedRule.ID,
+                dev.diagscope.core.application.rule.TransactionalRollbackSuppressedRule.ID,
+                dev.diagscope.core.application.rule.JdbcResourceLeakRule.ID,
+                dev.diagscope.core.application.rule.DatabaseResourceCloseNotGuardedRule.ID,
+                dev.diagscope.core.application.rule.EntityManagerLeakRule.ID,
+                dev.diagscope.core.application.rule.JdbcTemplateConnectionEscapeRule.ID,
+                dev.diagscope.core.application.rule.HighCardinalityMetricTagRule.ID,
+                dev.diagscope.core.application.rule.DynamicMetricNameRule.ID,
+                dev.diagscope.core.application.rule.PrintStackTraceRule.ID,
+                dev.diagscope.core.application.rule.SystemOutputRule.ID,
+                dev.diagscope.core.application.rule.SelfInvocationProxyBypassRule.ID,
+                dev.diagscope.core.application.rule.NonProxyableAdviceTargetRule.ID,
+                dev.diagscope.core.application.rule.UnmanagedAdviceTargetRule.ID,
+                dev.diagscope.core.application.rule.LogWithoutThrowableRule.ID,
+                dev.diagscope.core.application.rule.GenericExceptionMessageRule.ID,
+                dev.diagscope.core.application.rule.AsyncResultUnobservedRule.ID,
+                dev.diagscope.core.application.rule.HttpClientErrorDiscardedRule.ID,
+                dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule.ID,
+                dev.diagscope.core.application.rule.MutinySubscriptionFailureUnobservedRule.ID,
+                dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule.ID,
+                dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule.ID,
+                dev.diagscope.core.application.rule.FallbackHidesFailureRule.ID,
+                dev.diagscope.core.application.rule.MetricCreatedInLoopRule.ID,
+                dev.diagscope.core.application.rule.SensitivePayloadLoggedRule.ID,
+                dev.diagscope.core.application.rule.MdcContextLostRule.ID,
+                dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule.ID,
+                dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule.ID
+        );
+    }
+
     /** Every reporter DiagScope ships, keyed by report format. */
     public static Map<ReportFormat, AnalysisReporter> createReporters() {
         Map<ReportFormat, AnalysisReporter> reporters = new EnumMap<>(ReportFormat.class);
