@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import dev.diagscope.cli.BuildInfo;
 import dev.diagscope.cli.ReportFormat;
+import dev.diagscope.core.application.AnalysisCapabilities;
 import dev.diagscope.core.application.AnalysisResult;
+import dev.diagscope.core.application.CapabilityLevel;
 import dev.diagscope.core.application.FlowDiagnosticCoverage;
 import dev.diagscope.core.domain.CallEdge;
 import dev.diagscope.core.application.rule.RuleCatalog;
@@ -21,7 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.4-alpha.1";
+    public static final String SCHEMA_VERSION = "1.5-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -68,6 +70,7 @@ public final class JsonReporter implements AnalysisReporter {
         ));
         document.put("ruleVersions", new java.util.TreeMap<>(
                 dev.diagscope.core.application.rule.RuleVersions.all()));
+        document.put("analysisCapabilities", capabilities(result));
         document.put("statistics", statistics(result));
         document.put("summary", summary(result));
         document.put("groups", groups(result));
@@ -122,6 +125,23 @@ public final class JsonReporter implements AnalysisReporter {
                 "springManagedAspect", advice.springManagedAspect(),
                 "location", location(advice.location())
         );
+    }
+
+    private static Map<String, Object> capabilities(AnalysisResult result) {
+        boolean hasKotlin = result.projectLayout().sourceRoots().stream()
+                .anyMatch(root -> root.toString().contains("kotlin"));
+        AnalysisCapabilities capabilities = AnalysisCapabilities.fromResult(result, hasKotlin);
+        return orderedMap(
+                "languages", toCapabilityMap(capabilities.languages()),
+                "frameworks", toCapabilityMap(capabilities.frameworks()),
+                "features", toCapabilityMap(capabilities.features())
+        );
+    }
+
+    private static Map<String, String> toCapabilityMap(Map<String, CapabilityLevel> levels) {
+        var result = new LinkedHashMap<String, String>();
+        levels.forEach((key, level) -> result.put(key, level.name()));
+        return result;
     }
 
     private static Map<String, Object> statistics(AnalysisResult result) {
