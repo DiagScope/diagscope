@@ -122,6 +122,7 @@ public final class DiagScopeMain {
         return new CommandLine(new RootCommand())
                 .addSubcommand("scan", new ScanCommand(createScanWorkflow()))
                 .addSubcommand("trend", new TrendCommand())
+                .addSubcommand("doctor", new DoctorCommand(createScanUseCase()))
                 .addSubcommand("rules", new RulesCommand())
                 .addSubcommand("explain", new ExplainCommand())
                 .setCaseInsensitiveEnumValuesAllowed(true);
