@@ -29,15 +29,31 @@ public final class ExplainCommand implements Callable<Integer> {
             return 2;
         }
         var lifecycle = RuleLifecycle.of(normalized);
-        var explanation = RuleCatalog.explain(normalized);
-        System.out.printf("%s (%s) — %s%n%n", normalized, RuleVersions.versionOf(normalized), explanation.title());
+        var doc = RuleCatalog.explain(normalized);
+        System.out.printf("%s (%s) — %s%n%n", normalized, RuleVersions.versionOf(normalized), doc.title());
+
+        System.out.printf("Category%n  %s%n%n", doc.category());
+
         System.out.printf("Lifecycle%n  %s%s%n  %s%n%n",
                 lifecycle.status(),
                 lifecycle.since() == null ? "" : " since " + lifecycle.since(),
                 lifecycleNote(lifecycle));
-        System.out.printf("What it means%n  %s%n%n", explanation.whatItMeans());
-        System.out.printf("Why it matters%n  %s%n%n", explanation.whyItMatters());
-        System.out.printf("How we detect it%n  %s%n", explanation.howDetected());
+
+        System.out.printf("Severity%n  %s (default; overridable via project policy)%n%n",
+                doc.defaultSeverity());
+
+        System.out.printf("Languages%n  %s%n%n",
+                String.join(", ", doc.supportedLanguages().stream().sorted().toList()));
+
+        System.out.printf("Applies to%n  %s%n%n", doc.applicability());
+
+        System.out.printf("What it means%n  %s%n%n", doc.whatItMeans());
+        System.out.printf("Why it matters%n  %s%n%n", doc.whyItMatters());
+        System.out.printf("How we detect it%n  %s%n", doc.howDetected());
+
+        if (doc.knownLimitations() != null) {
+            System.out.printf("%nKnown limitations%n  %s%n", doc.knownLimitations());
+        }
         return 0;
     }
 
