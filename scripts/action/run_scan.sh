@@ -5,9 +5,19 @@ set -uo pipefail
 DIAGSCOPE_HOME="${DIAGSCOPE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 JAR="${DIAGSCOPE_JAR:-${DIAGSCOPE_HOME}/diagscope-cli/target/diagscope.jar}"
 PROJECT="$(cd "${DIAGSCOPE_PROJECT:-.}" && pwd)"
-OUTPUT="${DIAGSCOPE_OUTPUT:-target/diagscope}"
 
-args=(scan --project "${PROJECT}" --output "${OUTPUT}"
+# Default output directory follows the project's build system convention when the caller did not
+# supply an explicit value: build/diagscope for Gradle, target/diagscope for Maven.
+if [[ -n "${DIAGSCOPE_OUTPUT:-}" ]]; then
+  OUTPUT="${DIAGSCOPE_OUTPUT}"
+elif [[ -f "${PROJECT}/build.gradle" ]] || [[ -f "${PROJECT}/build.gradle.kts" ]] || \
+     [[ -f "${PROJECT}/settings.gradle" ]] || [[ -f "${PROJECT}/settings.gradle.kts" ]]; then
+  OUTPUT="build/diagscope"
+else
+  OUTPUT="target/diagscope"
+fi
+
+args=(scan --project "${PROJECT}" --output "${OUTPUT:?}"
       --format "${DIAGSCOPE_FORMATS:-MARKDOWN,JSON,HTML,SARIF}"
       --fail-on "${DIAGSCOPE_FAIL_ON:-NONE}")
 

@@ -7,8 +7,10 @@ import dev.diagscope.core.application.AnalysisResult;
 import dev.diagscope.core.application.ScanPolicyMetadata;
 import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
+import dev.diagscope.core.domain.BuildSystem;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.core.domain.Severity;
+import dev.diagscope.jvmanalysis.ProjectLayoutDetector;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -61,7 +63,6 @@ public final class ScanWorkflow {
     ) {
         public Request {
             Objects.requireNonNull(project, "project");
-            output = output == null ? Path.of("target", "diagscope") : output;
             formats = formats == null || formats.isEmpty()
                     ? EnumSet.of(ReportFormat.MARKDOWN, ReportFormat.JSON, ReportFormat.HTML)
                     : EnumSet.copyOf(formats);
@@ -100,7 +101,8 @@ public final class ScanWorkflow {
         var options = new AnalysisOptions(depth, workers, request.entrypointTypes(),
                 loadedConfiguration.policy(), resolveClasspath(projectRoot, request.classpath()),
                 resolveSourceRoots(projectRoot, request.sourceRoots()));
-        Path outputDirectory = resolveOutputDirectory(projectRoot, request.output());
+        Path outputDirectory = resolveOutputDirectory(projectRoot,
+                request.output() != null ? request.output() : defaultOutputFor(projectRoot));
         var rawResult = useCase.scan(new AnalysisRequest(projectRoot, options));
 
         var changeScope = request.changedSince() == null
@@ -169,6 +171,17 @@ public final class ScanWorkflow {
         err.printf("Failing: %d finding(s) at or above %s (--fail-on %s).%n",
                 breaching, threshold, failOn);
         return 1;
+    }
+
+    /**
+     * Returns the conventional output directory for the build system detected at {@code projectRoot}.
+     * Gradle projects use {@code build/diagscope}; Maven (or unknown) use {@code target/diagscope}.
+     */
+    private static Path defaultOutputFor(Path projectRoot) {
+        BuildSystem buildSystem = ProjectLayoutDetector.buildSystemAt(projectRoot).orElse(BuildSystem.MAVEN);
+        return buildSystem == BuildSystem.GRADLE || buildSystem == BuildSystem.MAVEN_AND_GRADLE
+                ? Path.of("build", "diagscope")
+                : Path.of("target", "diagscope");
     }
 
     private static Path resolveOutputDirectory(Path projectRoot, Path output) {

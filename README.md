@@ -41,10 +41,10 @@ varargs, generic candidates, and Kotlin defaults exposed to Java with `@JvmOverl
 symbol solving is available only when an explicit `--classpath` is supplied; Kotlin compiler-grade
 dependency resolution and runtime-only Spring/AspectJ state remain outside the current boundary.
 
-By default all three reports are written to `<your-project>/target/diagscope/`:
+By default all three reports are written to `<your-project>/build/diagscope/` for Gradle projects and `<your-project>/target/diagscope/` for Maven:
 
 ```text
-target/diagscope/
+build/diagscope/          # Gradle (target/diagscope/ for Maven)
 ├── report.md      # human review, code review, pull requests
 ├── result.json    # automation and tooling
 └── report.html    # self-contained interactive report
@@ -90,7 +90,7 @@ java -jar diagscope.jar trend --base previous/result.json --current current/resu
 | Option | Meaning | Default |
 |---|---|---|
 | `-p`, `--project` | Project directory to analyze (required) | — |
-| `-o`, `--output` | Output directory; a relative path resolves inside the project | `target/diagscope` |
+| `-o`, `--output` | Output directory; a relative path resolves inside the project | `build/diagscope` (Gradle) or `target/diagscope` (Maven) |
 | `--format` | `MARKDOWN`, `JSON`, `HTML`, `SARIF`, or a comma-separated combination | `MARKDOWN,JSON,HTML` |
 | `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, `SCHEDULED` | all |
 | `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |

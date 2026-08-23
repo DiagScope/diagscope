@@ -24,7 +24,7 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = {"-p", "--project"}, required = true, description = "Maven or Gradle project directory")
     private Path project;
 
-    @Option(names = {"-o", "--output"}, description = "Output directory, relative to the project by default", defaultValue = "target/diagscope")
+    @Option(names = {"-o", "--output"}, description = "Output directory, relative to the project by default; defaults to build/diagscope for Gradle projects and target/diagscope for Maven")
     private Path output;
 
     @Option(names = "--max-depth", defaultValue = "3", description = "Maximum local call depth, from 0 to 32")

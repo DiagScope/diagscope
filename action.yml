@@ -12,9 +12,9 @@ inputs:
     required: false
     default: .
   output:
-    description: Report output directory, relative to the analyzed project unless absolute.
+    description: Report output directory, relative to the analyzed project unless absolute. Defaults to build/diagscope for Gradle projects and target/diagscope for Maven.
     required: false
-    default: target/diagscope
+    default: ''
   formats:
     description: Comma-separated report formats (MARKDOWN, JSON, HTML, SARIF).
     required: false
