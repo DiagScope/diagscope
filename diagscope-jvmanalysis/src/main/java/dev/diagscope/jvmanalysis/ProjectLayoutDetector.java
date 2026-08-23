@@ -195,7 +195,7 @@ public final class ProjectLayoutDetector {
     }
 
     /** Returns the build system declared by descriptors directly inside {@code directory}. */
-    static java.util.Optional<BuildSystem> buildSystemAt(Path directory) {
+    public static java.util.Optional<BuildSystem> buildSystemAt(Path directory) {
         boolean maven = containsAny(directory, MAVEN_DESCRIPTORS);
         boolean gradle = containsAny(directory, GRADLE_DESCRIPTORS);
         if (maven && gradle) {
