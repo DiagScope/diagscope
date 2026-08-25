@@ -12,11 +12,22 @@ so you see *which production path* goes blind when something breaks.
 
 44 rules. Java and Kotlin. Spring, Quarkus, Micronaut, and framework-free projects.
 
-## Requirements
+## Install
 
-JDK 25 · Maven 3.9+
+**Homebrew (recommended):**
+```bash
+brew tap DiagScope/tap
+brew install diagscope
+```
 
-## Build
+**Manual:** download the fat JAR from [Releases](https://github.com/DiagScope/diagscope/releases) — requires Java 25+.
+```bash
+java -jar diagscope-<version>.jar scan --help
+```
+
+## Build from source
+
+Requirements: JDK 25 · Maven 3.9+
 
 ```bash
 mvn clean verify

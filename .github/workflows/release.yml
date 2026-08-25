@@ -47,9 +47,13 @@ jobs:
 
       # Rename the artifact to include the version for clarity
       - name: Prepare artifact
+        id: artifact
         run: |
-          cp diagscope-cli/target/diagscope.jar \
-             diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
+          JAR="diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar"
+          cp diagscope-cli/target/diagscope.jar "$JAR"
+          SHA256=$(sha256sum "$JAR" | awk '{print $1}')
+          echo "jar=${JAR}"     >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -58,20 +62,34 @@ jobs:
           body: |
             ## DiagScope ${{ steps.version.outputs.version }}
 
-            ### Download
+            ### Install via Homebrew (recommended)
+
+            ```bash
+            brew tap DiagScope/tap
+            brew install diagscope
+            ```
+
+            ### Manual download
 
             Download `diagscope-${{ steps.version.outputs.version }}.jar` below — requires **Java 25+**.
 
             ```bash
-            # Run directly
             java -jar diagscope-${{ steps.version.outputs.version }}.jar scan --help
-
-            # Alias for convenience
-            alias diagscope='java -jar /path/to/diagscope-${{ steps.version.outputs.version }}.jar'
-            diagscope scan /path/to/your/project
             ```
 
             See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full usage.
-          files: diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
+          files: ${{ steps.artifact.outputs.jar }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+
+      # Notify the Homebrew tap to update its formula.
+      # Requires a PAT with 'repo' scope stored as HOMEBREW_TAP_TOKEN.
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          gh api repos/DiagScope/homebrew-tap/dispatches \
+            --method POST \
+            --field event_type=new-release \
+            --field client_payload[version]="${{ steps.version.outputs.version }}" \
+            --field client_payload[sha256]="${{ steps.artifact.outputs.sha256 }}"
