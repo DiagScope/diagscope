@@ -7,6 +7,9 @@ class KotlinRepository(
     private val jdbcTemplate: JdbcTemplate
 ) {
     fun save(id: String) {}
+    fun findById(id: String): String = id
+    fun findAllById(ids: List<String>): List<String> = ids
+    fun findOptional(id: String): java.util.Optional<String> = java.util.Optional.empty()
 
     fun connectionLeak() {
         val connection = dataSource.getConnection()

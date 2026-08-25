@@ -13,6 +13,9 @@ class JavaRepository {
     }
 
     void save(String id) {}
+    String findById(String id) { return id; }
+    java.util.List<String> findAllById(java.util.List<String> ids) { return ids; }
+    java.util.Optional<String> findOptional(String id) { return java.util.Optional.empty(); }
 
     void connectionLeak() {
         Connection connection = dataSource.getConnection();

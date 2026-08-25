@@ -1,7 +1,10 @@
 package example.kotlin.parity
 
 @RestController
-class KotlinParityController(private val service: KotlinParityService) {
+class KotlinParityController(
+    private val service: KotlinParityService,
+    private val concurrency: KotlinConcurrencyAndSafetyService
+) {
     @GetMapping("/kotlin-parity")
     fun inspect(id: String, token: String): String {
         service.logFailure(id)
@@ -35,6 +38,20 @@ class KotlinParityController(private val service: KotlinParityService) {
         service.repository.entityManagerLeak(id)
         service.repository.entityManagerClosedInFinally(id)
         service.repository.escapeJdbcTemplate()
+        // Concurrency, performance and null-safety rules
+        runCatching { concurrency.processUnsafe(id) }
+        concurrency.processSafe(id)
+        concurrency.handleRequest(id)
+        concurrency.handleRequestSafe(id)
+        runCatching { concurrency.awaitResultBlocking() }
+        runCatching { concurrency.awaitWithTimeout() }
+        concurrency.awaitJoinBlocking()
+        runCatching { concurrency.reactiveHandlerBlockingSleep(id) }
+        runCatching { concurrency.consumeBlocking(id) }
+        concurrency.enrichOrders(listOf(id))
+        concurrency.enrichOrdersSafe(listOf(id))
+        concurrency.loadUnchecked(id)
+        concurrency.loadSafe(id)
         return id
     }
 }
