@@ -74,6 +74,7 @@ class ScanWorkflowTest {
 
         assertThat(outcome.exitCode()).isZero();
         assertThat(outcome.gateBreached()).isFalse();
+        // writeSampleProject creates a pom.xml (Maven), so the default output is target/diagscope
         assertThat(projectRoot.resolve("target/diagscope").resolve(ReportFormat.HTML.fileName())).exists();
     }
 

@@ -51,7 +51,7 @@ jobs:
 | Input | Default | Purpose |
 | --- | --- | --- |
 | `project` | `.` | Maven or Gradle project directory |
-| `output` | `target/diagscope` | Report directory |
+| `output` | `build/diagscope` (Gradle) or `target/diagscope` (Maven) | Report directory |
 | `formats` | `MARKDOWN,JSON,HTML,SARIF` | Report formats to produce |
 | `fail-on` | `NONE` | Severity gate: `ERROR`, `WARNING`, `INFO`, `NONE` |
 | `baseline` | *(empty)* | Baseline file used to hide already-known findings |
@@ -122,8 +122,9 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 
 ```java
 var workflow = DiagScopeMain.createScanWorkflow();
+// Pass null for output to let DiagScope pick build/diagscope (Gradle) or target/diagscope (Maven)
 var outcome = workflow.run(new ScanWorkflow.Request(
-        projectDir, Path.of("target/diagscope"), 3, 0,
+        projectDir, null, 3, 0,
         EnumSet.of(ReportFormat.JSON, ReportFormat.SARIF), FailOn.ERROR,
         null, false, List.of(), false, null, null, List.of(), List.of(), null));
 if (outcome.gateBreached()) {

@@ -13,7 +13,7 @@ The Maven artifact uses `-SNAPSHOT` while `0.1.0-alpha.1` is under validation.
 ```bash
 java -jar diagscope-cli/target/diagscope.jar scan \
   --project /path/to/project \
-  --output target/diagscope \
+  --output build/diagscope \
   --max-depth 3 \
   --parallelism 8 \
   --entrypoint REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED \
@@ -27,7 +27,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 ## Options
 
 - `-p`, `--project` — required directory for a conventional Maven or Gradle JVM project;
-- `-o`, `--output` — output directory, default `target/diagscope`; a relative path is resolved below the analyzed project and cannot escape it with `..`; an absolute path is used explicitly as supplied;
+- `-o`, `--output` — output directory; default is `build/diagscope` for Gradle projects and `target/diagscope` for Maven; a relative path is resolved below the analyzed project and cannot escape it with `..`; an absolute path is used explicitly as supplied;
 - `--max-depth` — maximum local call depth, from `0` through `32`;
 - `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
 - `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, and `SCHEDULED`;

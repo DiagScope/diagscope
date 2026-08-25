@@ -485,6 +485,93 @@ public final class RuleCatalog {
                 "A call that extracts the underlying Connection from a Spring datasource"
                         + " abstraction.");
 
+        // ── Concurrency / Threads ─────────────────────────────────────────────
+        put(catalog, LockNotReleasedRule.ID,
+                "Lock not released on every path",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Any Java or Kotlin application using java.util.concurrent.locks",
+                "A Lock.lock() call is not paired with an unlock() inside a finally block.",
+                "If any code between lock() and unlock() throws, the lock is never released,"
+                        + " causing a deadlock the next time any thread attempts to acquire it.",
+                "A lock() invocation in the method body with no corresponding unlock() guarded"
+                        + " by a finally block on the same receiver.",
+                "Best-effort receiver matching compares scope names; fields accessed through"
+                        + " different aliases may not be correlated, which can cause false negatives.");
+
+        put(catalog, ThreadLocalLeakRule.ID,
+                "ThreadLocal value never removed",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application using thread pools",
+                "ThreadLocal.set() is called but remove() is never called in the same method.",
+                "Pooled threads are reused. A value stored in a ThreadLocal that is never removed"
+                        + " persists to the next request on the same thread, leaking state"
+                        + " (and potentially sensitive data) across requests, or growing the heap"
+                        + " without bound.",
+                "A set() call on a ThreadLocal or InheritableThreadLocal with no matching remove()"
+                        + " on the same receiver in the same method body.",
+                "remove() called in a finally block in a different method (e.g., a servlet filter"
+                        + " or interceptor) is not visible here and may cause a false positive.");
+
+        put(catalog, FutureGetWithoutTimeoutRule.ID,
+                "Future.get() blocks without a timeout",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application using CompletableFuture, Future, or ListenableFuture",
+                "Future.get() or CompletableFuture.join() is called without a timeout, blocking"
+                        + " the calling thread indefinitely.",
+                "In a container or thread pool, an unbounded block ties up the thread for as long"
+                        + " as the remote computation takes. If the dependency degrades, all threads"
+                        + " block and the service becomes unresponsive.",
+                "A get() call with zero arguments or a join()/getNow() call on a future-looking"
+                        + " receiver.",
+                "get(long, TimeUnit) with a very large timeout may not be detected as safe;"
+                        + " the rule only checks for the presence of arguments, not their values.");
+
+        put(catalog, BlockingCallInReactiveContextRule.ID,
+                "Blocking call on reactive/event-loop thread",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Quarkus, Spring WebFlux, Vert.x or any Project Reactor / Mutiny application",
+                "A blocking operation (Thread.sleep, Object.wait, CountDownLatch.await, etc.) is"
+                        + " called inside a method declared as non-blocking or reactive.",
+                "Reactive runtimes multiplex many requests onto a small number of event-loop"
+                        + " threads. A single blocking call stalls the thread and prevents other"
+                        + " events from being processed, cascading into a full service hang under"
+                        + " load.",
+                "A call to a known blocking method inside a method carrying @NonBlocking,"
+                        + " @Incoming, @Outgoing, @MessageMapping, or @ReactiveTransactional.",
+                "The rule detects reactive context from annotations only; methods that are reactive"
+                        + " because they return Mono/Flux without annotation are not detected.");
+
+        // ── Performance ───────────────────────────────────────────────────────
+        put(catalog, NPlusOneQueryRiskRule.ID,
+                "N+1 query risk: database call inside a loop",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Data, JPA / Hibernate, JdbcTemplate, Micronaut Data, or any DAO layer",
+                "A repository or persistence method is called inside a loop body.",
+                "One outer query returns N records, then the loop fires one additional query per"
+                        + " record. The total number of queries grows linearly with the data set,"
+                        + " overwhelming the database at scale and inflating response latency.",
+                "An invocation of a Spring Data finder, JPA EntityManager operation, or"
+                        + " JdbcTemplate query method whose insideLoop flag is true.",
+                "The rule uses method name patterns and receiver type heuristics; it may flag"
+                        + " calls that are intentionally batched or cached at a lower layer.");
+
+        // ── Null safety ───────────────────────────────────────────────────────
+        put(catalog, OptionalGetWithoutCheckRule.ID,
+                "Optional.get() without presence check",
+                "null-safety", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application using java.util.Optional",
+                "Optional.get() is called in a method that does not call isPresent(), isEmpty(),"
+                        + " or any safe Optional accessor on the same value.",
+                "Optional.get() on an empty Optional throws NoSuchElementException, which is"
+                        + " indistinguishable from a NullPointerException to callers and carries"
+                        + " no context about which value was missing.",
+                "A get() call on an Optional-typed receiver in a method that does not also invoke"
+                        + " isPresent(), isEmpty(), ifPresent(), orElse(), or map() on the same"
+                        + " receiver.",
+                "The rule compares receiver scope names to determine if the guard applies to the"
+                        + " same Optional; a guard on a different Optional in the same method will"
+                        + " not suppress the finding. Kotlin nullable types are not in scope.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

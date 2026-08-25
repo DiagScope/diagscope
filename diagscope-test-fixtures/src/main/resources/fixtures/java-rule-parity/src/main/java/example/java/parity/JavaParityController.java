@@ -3,8 +3,12 @@ package example.java.parity;
 @RestController
 class JavaParityController {
     private final JavaParityService service;
+    private final JavaConcurrencyAndSafetyService concurrency;
 
-    JavaParityController(JavaParityService service) { this.service = service; }
+    JavaParityController(JavaParityService service, JavaConcurrencyAndSafetyService concurrency) {
+        this.service = service;
+        this.concurrency = concurrency;
+    }
 
     @GetMapping("/java-parity")
     String inspect(String id, String token) {
@@ -40,6 +44,20 @@ class JavaParityController {
         service.repository.entityManagerLeak(id);
         service.repository.entityManagerClosedInFinally(id);
         service.repository.escapeJdbcTemplate();
+        // Concurrency, performance and null-safety rules
+        try { concurrency.processUnsafe(id); } catch (Exception ignored) {}
+        concurrency.processSafe(id);
+        concurrency.handleRequest(id);
+        concurrency.handleRequestSafe(id);
+        try { concurrency.awaitResultBlocking(); } catch (Exception ignored) {}
+        try { concurrency.awaitWithTimeout(); } catch (Exception ignored) {}
+        concurrency.awaitJoinBlocking();
+        try { concurrency.reactiveHandlerBlockingSleep(id); } catch (Exception ignored) {}
+        try { concurrency.consumeBlocking(id); } catch (Exception ignored) {}
+        concurrency.enrichOrders(java.util.List.of(id));
+        concurrency.enrichOrdersSafe(java.util.List.of(id));
+        concurrency.loadUnchecked(id);
+        concurrency.loadSafe(id);
         return id;
     }
 }

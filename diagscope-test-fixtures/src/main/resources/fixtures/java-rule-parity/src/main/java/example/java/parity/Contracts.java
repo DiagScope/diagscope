@@ -69,6 +69,26 @@ final class MDC {
 }
 
 @interface Incoming { String value(); }
+@interface NonBlocking {}
+
+interface Lock {
+    void lock();
+    void unlock();
+    boolean tryLock();
+}
+
+interface CompletableFuture<T> {
+    T get() throws Exception;
+    T get(long timeout, java.util.concurrent.TimeUnit unit) throws Exception;
+    T join();
+    T getNow(T valueIfAbsent);
+}
+
+class ThreadLocal<T> {
+    void set(T value) {}
+    T get() { return null; }
+    void remove() {}
+}
 
 interface Uni<T> {
     Uni<T> onFailure();

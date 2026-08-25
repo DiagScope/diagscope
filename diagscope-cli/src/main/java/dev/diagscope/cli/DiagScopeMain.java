@@ -8,13 +8,19 @@ import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
+import dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
+import dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule;
 import dev.diagscope.core.application.rule.GenericExceptionMessageRule;
 import dev.diagscope.core.application.rule.HttpClientErrorDiscardedRule;
+import dev.diagscope.core.application.rule.LockNotReleasedRule;
 import dev.diagscope.core.application.rule.LogWithoutThrowableRule;
 import dev.diagscope.core.application.rule.MetricCreatedInLoopRule;
+import dev.diagscope.core.application.rule.NPlusOneQueryRiskRule;
+import dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule;
 import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
 import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
+import dev.diagscope.core.application.rule.ThreadLocalLeakRule;
 import dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule;
 import dev.diagscope.core.application.rule.MdcContextLostRule;
 import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
@@ -91,7 +97,16 @@ public final class DiagScopeMain {
                 new SensitivePayloadLoggedRule(),
                 new MdcContextLostRule(),
                 new DuplicateDiagnosticSignalRule(),
-                new TransactionalPropagationMismatchRule()
+                new TransactionalPropagationMismatchRule(),
+                // Concurrency & threads
+                new LockNotReleasedRule(),
+                new ThreadLocalLeakRule(),
+                new FutureGetWithoutTimeoutRule(),
+                new BlockingCallInReactiveContextRule(),
+                // Performance
+                new NPlusOneQueryRiskRule(),
+                // Null safety
+                new OptionalGetWithoutCheckRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -143,7 +158,13 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.SensitivePayloadLoggedRule.ID,
                 dev.diagscope.core.application.rule.MdcContextLostRule.ID,
                 dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule.ID,
-                dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule.ID
+                dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule.ID,
+                dev.diagscope.core.application.rule.LockNotReleasedRule.ID,
+                dev.diagscope.core.application.rule.ThreadLocalLeakRule.ID,
+                dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule.ID,
+                dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule.ID,
+                dev.diagscope.core.application.rule.NPlusOneQueryRiskRule.ID,
+                dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule.ID
         );
     }
 

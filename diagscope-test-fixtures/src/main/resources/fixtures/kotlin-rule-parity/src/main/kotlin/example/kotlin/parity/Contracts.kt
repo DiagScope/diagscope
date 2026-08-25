@@ -86,6 +86,25 @@ object MDC {
 }
 
 annotation class Incoming(val value: String)
+annotation class NonBlocking
+
+interface Lock {
+    fun lock()
+    fun unlock()
+    fun tryLock(): Boolean
+}
+
+class CompletableFuture<T> {
+    @Throws(Exception::class) fun get(): T = throw Exception()
+    @Throws(Exception::class) fun get(timeout: Long, unit: java.util.concurrent.TimeUnit): T = throw Exception()
+    fun join(): T = throw Exception()
+}
+
+class ThreadLocal<T> {
+    fun set(value: T) {}
+    fun get(): T? = null
+    fun remove() {}
+}
 
 interface Uni<T> {
     fun onFailure(): Uni<T>
