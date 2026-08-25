@@ -2,13 +2,13 @@ package example.kotlin.parity
 
 annotation class RestController
 annotation class GetMapping(val value: String)
-annotation class Scheduled(val cron: String = "")
+annotation class Scheduled(val cron: String = "", val fixedDelay: Long = -1L)
 annotation class Retryable
 annotation class Recover
 annotation class Timed(val value: String = "")
 annotation class Service
 annotation class Repository
-annotation class KafkaListener(val topics: Array<String>)
+annotation class KafkaListener(val topics: Array<String>, val errorHandler: String = "")
 annotation class KafkaHandler
 annotation class Transactional(val propagation: Propagation = Propagation.REQUIRED)
 
@@ -30,6 +30,14 @@ interface Completion {
 
 interface ExecutorService {
     fun submit(task: () -> Unit): Completion
+    fun shutdown()
+    fun shutdownNow()
+}
+
+object Executors {
+    fun newFixedThreadPool(nThreads: Int): ExecutorService = throw UnsupportedOperationException()
+    fun newCachedThreadPool(): ExecutorService = throw UnsupportedOperationException()
+    fun newSingleThreadExecutor(): ExecutorService = throw UnsupportedOperationException()
 }
 
 interface KafkaTemplate {
@@ -85,8 +93,13 @@ object MDC {
     fun setContextMap(context: Map<String, String>) {}
 }
 
+annotation class Async
 annotation class Incoming(val value: String)
 annotation class NonBlocking
+
+// --- Tracing stubs (for SPAN_NOT_CLOSED) ---
+interface Span { fun end() }
+interface Tracer { fun startSpan(name: String): Span }
 
 interface Lock {
     fun lock()

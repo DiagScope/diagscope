@@ -10,12 +10,15 @@ import dev.diagscope.core.domain.InvocationEvidence;
 import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.MethodId;
 import dev.diagscope.core.domain.MethodModel;
+import dev.diagscope.core.domain.MethodVisibility;
 import dev.diagscope.core.domain.MetricTagEvidence;
+import dev.diagscope.core.domain.ProxyProfile;
 import dev.diagscope.core.domain.SourceLocation;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -239,6 +242,307 @@ class DiagnosticRulesTest {
         assertThat(new MutinySubscriptionFailureUnobservedRule().evaluate(flow(method, Confidence.HIGH)))
                 .extracting(finding -> finding.location().startLine())
                 .containsExactly(10, 20, 30);
+    }
+
+    // ── InterruptedExceptionSwallowedRule ─────────────────────────────────────
+
+    @Test
+    void interrupted_exception_swallowed_fires_when_catch_has_no_rethrow_and_no_interrupt_restore() {
+        var interrupted = new CatchEvidence(location(15), "InterruptedException",
+                true, false, false, false, "", false, false, false);
+        MethodModel method = method(List.of(interrupted), List.of(), List.of());
+
+        assertThat(new InterruptedExceptionSwallowedRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.location().startLine()).isEqualTo(15);
+                    assertThat(finding.ruleId()).isEqualTo(InterruptedExceptionSwallowedRule.ID);
+                });
+    }
+
+    @Test
+    void interrupted_exception_swallowed_is_suppressed_when_rethrown() {
+        var interrupted = new CatchEvidence(location(15), "InterruptedException",
+                false, false, true, false, "", false, false, false);
+        MethodModel method = method(List.of(interrupted), List.of(), List.of());
+
+        assertThat(new InterruptedExceptionSwallowedRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void interrupted_exception_swallowed_is_suppressed_when_interrupt_restored() {
+        var interrupted = new CatchEvidence(location(15), "InterruptedException",
+                true, false, false, false, "", false, false, false);
+        var interruptCall = new InvocationEvidence(location(16), "Thread.currentThread()", "Thread",
+                "interrupt", List.of(), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(interrupted), List.of(interruptCall), List.of());
+
+        assertThat(new InterruptedExceptionSwallowedRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── CompletableFutureExceptionNotHandledRule ──────────────────────────────
+
+    @Test
+    void completable_future_fires_when_async_submitted_without_exception_handler() {
+        var submit = new InvocationEvidence(location(20), "", "CompletableFuture",
+                "supplyAsync", List.of("() -> compute()"), InvocationResultUsage.ASSIGNED);
+        MethodModel method = method(List.of(), List.of(submit), List.of());
+
+        assertThat(new CompletableFutureExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(20));
+    }
+
+    @Test
+    void completable_future_is_suppressed_when_exceptionally_present() {
+        var submit = new InvocationEvidence(location(20), "", "CompletableFuture",
+                "supplyAsync", List.of("() -> compute()"), InvocationResultUsage.ASSIGNED);
+        var handler = new InvocationEvidence(location(21), "future", "CompletableFuture",
+                "exceptionally", List.of("ex -> null"), InvocationResultUsage.CHAINED);
+        MethodModel method = method(List.of(), List.of(submit, handler), List.of());
+
+        assertThat(new CompletableFutureExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void completable_future_is_suppressed_when_result_is_returned_to_caller() {
+        var submit = new InvocationEvidence(location(20), "", "CompletableFuture",
+                "supplyAsync", List.of("() -> compute()"), InvocationResultUsage.RETURNED);
+        MethodModel method = method(List.of(), List.of(submit), List.of());
+
+        assertThat(new CompletableFutureExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── ExecutorNotShutdownRule ────────────────────────────────────────────────
+
+    @Test
+    void executor_not_shutdown_fires_for_locally_created_executor_without_shutdown() {
+        var factory = new InvocationEvidence(location(30), "Executors", "Executors",
+                "newFixedThreadPool", List.of("4"), InvocationResultUsage.ASSIGNED);
+        MethodModel method = method(List.of(), List.of(factory), List.of());
+
+        assertThat(new ExecutorNotShutdownRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(30));
+    }
+
+    @Test
+    void executor_not_shutdown_is_suppressed_when_shutdown_called() {
+        var factory = new InvocationEvidence(location(30), "Executors", "Executors",
+                "newFixedThreadPool", List.of("4"), InvocationResultUsage.ASSIGNED);
+        var shutdown = new InvocationEvidence(location(40), "executor", "ExecutorService",
+                "shutdown", List.of(), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(factory, shutdown), List.of());
+
+        assertThat(new ExecutorNotShutdownRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void executor_not_shutdown_is_suppressed_when_result_is_returned() {
+        var factory = new InvocationEvidence(location(30), "Executors", "Executors",
+                "newFixedThreadPool", List.of("4"), InvocationResultUsage.RETURNED);
+        MethodModel method = method(List.of(), List.of(factory), List.of());
+
+        assertThat(new ExecutorNotShutdownRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── AsyncOnPrivateMethodRule ───────────────────────────────────────────────
+
+    @Test
+    void async_on_private_method_fires_for_private_async_spring_bean() {
+        var proxy = new ProxyProfile(MethodVisibility.PRIVATE, false, false, false, true, false,
+                Set.of("Async"), List.of());
+        MethodModel method = new MethodModel(
+                new MethodId("example.Service", "sendEmail", List.of()),
+                location(1), Set.of("@Async"), List.of(), List.of(), List.of(), List.of(), List.of(), proxy);
+
+        assertThat(new AsyncOnPrivateMethodRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(AsyncOnPrivateMethodRule.ID);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.HIGH);
+                });
+    }
+
+    @Test
+    void async_on_private_method_is_suppressed_for_public_async_method() {
+        var proxy = new ProxyProfile(MethodVisibility.PUBLIC, false, false, false, true, false,
+                Set.of("Async"), List.of());
+        MethodModel method = new MethodModel(
+                new MethodId("example.Service", "sendEmail", List.of()),
+                location(1), Set.of("@Async"), List.of(), List.of(), List.of(), List.of(), List.of(), proxy);
+
+        assertThat(new AsyncOnPrivateMethodRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── ScheduledExceptionNotHandledRule ──────────────────────────────────────
+
+    @Test
+    void scheduled_exception_fires_when_no_catch_and_has_external_calls() {
+        var externalCall = new InvocationEvidence(location(10), "repository", "ReportRepository",
+                "computeStats", List.of(), InvocationResultUsage.IGNORED);
+        MethodModel method = new MethodModel(
+                new MethodId("example.Job", "generateReport", List.of()),
+                location(1), Set.of("@Scheduled"), List.of(), List.of(externalCall),
+                List.of(), List.of(), List.of());
+
+        assertThat(new ScheduledExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.ruleId())
+                        .isEqualTo(ScheduledExceptionNotHandledRule.ID));
+    }
+
+    @Test
+    void scheduled_exception_is_suppressed_when_catch_block_present() {
+        var catchBlock = new CatchEvidence(location(15), "Exception",
+                false, true, false, false, "", false, false, false);
+        var externalCall = new InvocationEvidence(location(10), "repository", "ReportRepository",
+                "computeStats", List.of(), InvocationResultUsage.IGNORED);
+        MethodModel method = new MethodModel(
+                new MethodId("example.Job", "generateReport", List.of()),
+                location(1), Set.of("@Scheduled"), List.of(catchBlock), List.of(externalCall),
+                List.of(), List.of(), List.of());
+
+        assertThat(new ScheduledExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void scheduled_exception_is_suppressed_when_no_external_calls() {
+        MethodModel method = new MethodModel(
+                new MethodId("example.Job", "tick", List.of()),
+                location(1), Set.of("@Scheduled"), List.of(), List.of(),
+                List.of(), List.of(), List.of());
+
+        assertThat(new ScheduledExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── BulkOperationInLoopRule ───────────────────────────────────────────────
+
+    @Test
+    void bulk_operation_in_loop_fires_for_save_inside_loop_on_repository() {
+        var save = new InvocationEvidence(location(10), "userRepo", "UserRepository",
+                "save", List.of("user"), InvocationResultUsage.IGNORED,
+                false, false, "", false, true, false);
+        MethodModel method = method(List.of(), List.of(save), List.of());
+
+        assertThat(new BulkOperationInLoopRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(BulkOperationInLoopRule.ID);
+                    assertThat(finding.location().startLine()).isEqualTo(10);
+                    assertThat(finding.evidence()).containsKey("batchAlternative");
+                });
+    }
+
+    @Test
+    void bulk_operation_in_loop_is_suppressed_for_saveAll() {
+        var saveAll = new InvocationEvidence(location(10), "userRepo", "UserRepository",
+                "saveAll", List.of("users"), InvocationResultUsage.IGNORED,
+                false, false, "", false, true, false);
+        MethodModel method = method(List.of(), List.of(saveAll), List.of());
+
+        assertThat(new BulkOperationInLoopRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void bulk_operation_in_loop_is_suppressed_for_save_outside_loop() {
+        var save = new InvocationEvidence(location(10), "userRepo", "UserRepository",
+                "save", List.of("user"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel method = method(List.of(), List.of(save), List.of());
+
+        assertThat(new BulkOperationInLoopRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── SpanNotClosedRule ─────────────────────────────────────────────────────
+
+    @Test
+    void span_not_closed_fires_when_start_has_no_guarded_end() {
+        var startSpan = new InvocationEvidence(location(10), "tracer", "Tracer",
+                "startSpan", List.of("\"op\""), InvocationResultUsage.ASSIGNED,
+                false, false, "span", false, false, false);
+        MethodModel method = method(List.of(), List.of(startSpan), List.of());
+
+        assertThat(new SpanNotClosedRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(SpanNotClosedRule.ID);
+                    assertThat(finding.location().startLine()).isEqualTo(10);
+                });
+    }
+
+    @Test
+    void span_not_closed_is_suppressed_when_end_is_in_finally() {
+        var startSpan = new InvocationEvidence(location(10), "tracer", "Tracer",
+                "startSpan", List.of("\"op\""), InvocationResultUsage.ASSIGNED,
+                false, false, "span", false, false, false);
+        var endSpan = new InvocationEvidence(location(20), "span", "Span",
+                "end", List.of(), InvocationResultUsage.IGNORED,
+                false, false, "", true, false, false);
+        MethodModel method = method(List.of(), List.of(startSpan, endSpan), List.of());
+
+        assertThat(new SpanNotClosedRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    @Test
+    void span_not_closed_is_suppressed_when_resource_managed() {
+        var startSpan = new InvocationEvidence(location(10), "tracer", "Tracer",
+                "startSpan", List.of("\"op\""), InvocationResultUsage.ASSIGNED,
+                false, true, "span", false, false, false);
+        MethodModel method = method(List.of(), List.of(startSpan), List.of());
+
+        assertThat(new SpanNotClosedRule().evaluate(flow(method, Confidence.HIGH)))
+                .isEmpty();
+    }
+
+    // ── KafkaDeadLetterNotConfiguredRule ──────────────────────────────────────
+
+    @Test
+    void kafka_dead_letter_fires_for_listener_without_error_handler() {
+        var listenerMethod = new MethodModel(
+                new MethodId("example.Consumer", "onMessage", List.of()),
+                location(1), Set.of("@KafkaListener"), List.of(), List.of(),
+                List.of(), List.of(), List.of());
+        var entrypoint = new Entrypoint(EntrypointType.KAFKA_LISTENER, listenerMethod.id(),
+                "Kafka listener topic=orders", listenerMethod.location());
+        var flow = new Flow(entrypoint,
+                List.of(new FlowMethod(listenerMethod, 0, Confidence.HIGH,
+                        List.of(listenerMethod.id()))),
+                List.of());
+
+        assertThat(new KafkaDeadLetterNotConfiguredRule().evaluate(flow))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.ruleId())
+                        .isEqualTo(KafkaDeadLetterNotConfiguredRule.ID));
+    }
+
+    @Test
+    void kafka_dead_letter_is_suppressed_when_error_handler_attribute_set() {
+        var listenerMethod = new MethodModel(
+                new MethodId("example.Consumer", "onMessage", List.of()),
+                location(1), Set.of("@KafkaListener"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("KafkaListener", Map.of("errorHandler", "myErrorHandler")));
+        var entrypoint = new Entrypoint(EntrypointType.KAFKA_LISTENER, listenerMethod.id(),
+                "Kafka listener topic=orders", listenerMethod.location());
+        var flow = new Flow(entrypoint,
+                List.of(new FlowMethod(listenerMethod, 0, Confidence.HIGH,
+                        List.of(listenerMethod.id()))),
+                List.of());
+
+        assertThat(new KafkaDeadLetterNotConfiguredRule().evaluate(flow)).isEmpty();
     }
 
     private static Flow flow(MethodModel method, Confidence confidence) {

@@ -659,6 +659,151 @@ public final class RuleCatalog {
                         + " define a contract rather than an implementation and may warrant a project"
                         + " policy exclusion. Threshold is configurable.");
 
+        // ── Exception handling: interrupt contract ────────────────────────────
+        put(catalog, InterruptedExceptionSwallowedRule.ID,
+                "InterruptedException caught without restoring the interrupt flag",
+                "exception-handling", Severity.ERROR, ALL_LANGUAGES,
+                "Any Java or Kotlin application using thread pools or blocking operations",
+                "An InterruptedException is caught but Thread.currentThread().interrupt() is"
+                        + " not called, and the exception is not rethrown.",
+                "The JVM thread-interrupted flag is permanently cleared. Executor frameworks,"
+                        + " shutdown hooks, and test runners that rely on interruption to stop"
+                        + " threads can no longer do so. The thread runs indefinitely with no"
+                        + " signal that the interrupt was consumed.",
+                "A catch block whose declared exception type contains InterruptedException,"
+                        + " where the block neither rethrows nor contains a call to"
+                        + " Thread.currentThread().interrupt().",
+                "The rule checks for interrupt() anywhere in the method body, not specifically"
+                        + " inside the catch block. A re-interrupt in a finally block or a"
+                        + " different catch arm will suppress the finding.");
+
+        // ── Concurrency: CompletableFuture ────────────────────────────────────
+        put(catalog, CompletableFutureExceptionNotHandledRule.ID,
+                "CompletableFuture pipeline has no exception handler",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Any Java or Kotlin application using CompletableFuture",
+                "An async computation is submitted (supplyAsync, runAsync, or an Async-suffixed"
+                        + " stage) but the pipeline has no terminal exception handler"
+                        + " (exceptionally, handle, or whenComplete).",
+                "An unhandled exception in a CompletableFuture pipeline is silently discarded"
+                        + " in fire-and-forget patterns. No log entry, no metric, no alert —"
+                        + " the operation failed and nothing recorded it.",
+                "At least one async submission method call is present in the method body,"
+                        + " and no invocation matching exceptionally, handle, or whenComplete"
+                        + " is found on any future-looking receiver in the same method.",
+                "When the future is returned to the caller the exception handling responsibility"
+                        + " is delegated upstream, and the rule is suppressed. A handler"
+                        + " registered in a calling scope outside this method is not visible.");
+
+        // ── Concurrency: executor lifecycle ───────────────────────────────────
+        put(catalog, ExecutorNotShutdownRule.ID,
+                "ExecutorService created locally but never shut down",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application that creates thread pools",
+                "An ExecutorService is created via Executors factory methods inside a method"
+                        + " body, its result is stored in a local variable, and shutdown() or"
+                        + " shutdownNow() is never called in the same method.",
+                "The thread pool holds live threads that are GC roots. They keep the JVM alive"
+                        + " and retain references to everything they have processed. In code"
+                        + " called repeatedly (per-request, per-message) this creates a new"
+                        + " thread pool on each invocation — a thread leak that manifests as"
+                        + " slow heap growth and increasing thread count.",
+                "An Executors factory method call whose result is assigned to a local variable,"
+                        + " in a method that has no corresponding shutdown/shutdownNow call and"
+                        + " is not annotated @Bean.",
+                "shutdown() called in a @PreDestroy method, a Spring DisposableBean, or another"
+                        + " lifecycle callback is not visible at the creation site and may"
+                        + " cause false positives. Suppress with @Bean or an explicit ignore.");
+
+        // ── AOP / Proxy: async visibility ─────────────────────────────────────
+        put(catalog, AsyncOnPrivateMethodRule.ID,
+                "@Async on a private method is silently ignored",
+                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using @Async",
+                "A method declared private carries the @Async annotation.",
+                "Spring's proxy cannot override a private method. The @Async annotation is"
+                        + " silently ignored and the method runs synchronously on the calling"
+                        + " thread. The caller receives the result immediately, believing the"
+                        + " work was dispatched asynchronously when it was not.",
+                "The method's declared visibility is PRIVATE and it carries an @Async annotation.",
+                "Some AOP frameworks (AspectJ LTW, Quarkus @Asynchronous) may behave"
+                        + " differently. The rule fires on @Async specifically; other async"
+                        + " annotations are not covered.");
+
+        // ── Resilience: scheduler error boundary ──────────────────────────────
+        put(catalog, ScheduledExceptionNotHandledRule.ID,
+                "@Scheduled method has no exception boundary",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Scheduled",
+                "A @Scheduled method has no try/catch block and no instrumentation annotation,"
+                        + " leaving any exception to propagate directly to the scheduler.",
+                "Before Spring 6, an uncaught exception from a @Scheduled method causes the"
+                        + " scheduler to permanently cancel future executions of that task —"
+                        + " silently. In Spring 6+ future executions continue but the exception"
+                        + " is swallowed at the scheduler boundary with only a generic log entry"
+                        + " and no job-level context.",
+                "A @Scheduled method that has no catch blocks, carries no instrumentation"
+                        + " annotation, and makes at least one external method call.",
+                "A global TaskScheduler ErrorHandler configured elsewhere is not visible here"
+                        + " and will not suppress the finding. If a central error handler is"
+                        + " in place, suppress per-method with a diagscope:ignore comment.");
+
+        // ── Database / Performance: bulk writes ───────────────────────────────
+        put(catalog, BulkOperationInLoopRule.ID,
+                "Repository write inside a loop",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Data, JPA / Hibernate, or any DAO layer",
+                "A repository write operation (save, delete, update, persist, merge) is called"
+                        + " inside a loop body, issuing one database round-trip per iteration.",
+                "With N items: N network round-trips, N lock acquisitions, N transaction log"
+                        + " entries. Spring Data saveAll() and deleteAllById() collapse all of"
+                        + " these into one or two round-trips. The performance difference is"
+                        + " 10–100× under production data volumes.",
+                "An invocation of a repository write method whose insideLoop flag is true,"
+                        + " on a receiver whose type suggests a Spring Data repository or JPA"
+                        + " EntityManager.",
+                "Batch methods already used in the loop (saveAll, deleteAll, deleteAllById)"
+                        + " are not flagged. A globally-batched strategy at a lower layer is not"
+                        + " visible here and may cause false positives.");
+
+        // ── Observability: span lifecycle ─────────────────────────────────────
+        put(catalog, SpanNotClosedRule.ID,
+                "Span started but not closed on all paths",
+                "observability", Severity.ERROR, ALL_LANGUAGES,
+                "OpenTelemetry, Micrometer Tracing, Zipkin Brave, or any tracer API",
+                "A tracing span is started but its end() (or finish()) call is not guarded by a"
+                        + " finally block, leaving the span open on exception paths.",
+                "An unclosed span leaks in the tracer's in-memory buffer. Under Zipkin/Jaeger"
+                        + " it may never be exported, or exports with a nonsensical duration."
+                        + " Under high traffic, leaked spans exhaust the export buffer and cause"
+                        + " span drops across all operations, not just the affected one.",
+                "A span-start invocation (startSpan, start, buildAndStart) on a tracer-like"
+                        + " receiver, where no corresponding span-end invocation (end, finish)"
+                        + " is found inside a finally block or try-with-resources in the same"
+                        + " method.",
+                "If the span is stored in a field or handed to another method responsible for"
+                        + " closing it, this rule produces a false positive. If try-with-resources"
+                        + " on the Scope wraps the span, the resource-managed flag suppresses it.");
+
+        // ── Kafka: dead-letter topic ──────────────────────────────────────────
+        put(catalog, KafkaDeadLetterNotConfiguredRule.ID,
+                "Kafka listener has no dead-letter topic configured",
+                "kafka", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Kafka (@KafkaListener)",
+                "A @KafkaListener method has no errorHandler attribute and no"
+                        + " DeadLetterPublishingRecoverer visible at its call site.",
+                "After retry exhaustion the failed message is silently discarded. No DLT means"
+                        + " no visibility into what failed, no ability to replay, and no audit"
+                        + " trail. In financial or event-sourced systems this is data loss"
+                        + " disguised as successful processing.",
+                "The @KafkaListener annotation has no errorHandler attribute, and no"
+                        + " invocation in the method body references a dead-letter recoverer"
+                        + " by name (DeadLetterPublishingRecoverer, DLT, DLQ).",
+                "A globally-configured DefaultErrorHandler bean with a"
+                        + " DeadLetterPublishingRecoverer is not visible at the listener call"
+                        + " site and will not suppress this finding. If a central error handler"
+                        + " is in place, suppress per-listener with a diagscope:ignore comment.");
+
         // ── Concurrency: atomic operations ────────────────────────────────────
         put(catalog, CheckThenActOnMapRule.ID,
                 "Non-atomic check-then-act on Map or Collection",

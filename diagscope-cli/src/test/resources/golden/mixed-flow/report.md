@@ -1,13 +1,13 @@
 # DiagScope Report
 
-`mixed-flow` — 6 finding(s) across 3 flow(s).
+`mixed-flow` — 8 finding(s) across 3 flow(s).
 
 | Metric | Value |
 | --- | --- |
 | Build system | Maven |
-| Findings | 6 |
+| Findings | 8 |
 | Errors | 3 |
-| Warnings | 3 |
+| Warnings | 5 |
 | Info | 0 |
 | Flows | 3 |
 | Source files | 6 |
@@ -33,15 +33,17 @@
 
 ## Executive summary
 
-6 finding(s): 3 error(s), 3 warning(s), 0 info. 5 are high confidence and worth triaging first.
+8 finding(s): 3 error(s), 5 warning(s), 0 info. 5 are high confidence and worth triaging first.
 
 ### Findings by rule
 
 | Rule | What it flags | Findings | Highest severity | High | Medium | Low |
 | --- | --- | --- | --- | --- | --- | --- |
 | `HIGH_CARDINALITY_METRIC_TAG` | High-cardinality metric tag | 1 | `ERROR` | 0 | 1 | 0 |
+| `KAFKA_DEAD_LETTER_NOT_CONFIGURED` | Kafka listener has no dead-letter topic configured | 1 | `WARNING` | 0 | 1 | 0 |
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
+| `SCHEDULED_EXCEPTION_NOT_HANDLED` | @Scheduled method has no exception boundary | 1 | `WARNING` | 0 | 1 | 0 |
 | `SILENT_CATCH` | Exception caught and ignored | 1 | `ERROR` | 1 | 0 | 0 |
 | `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
 | `SYSTEM_OUTPUT` | Diagnostics written to standard output | 1 | `WARNING` | 1 | 0 | 0 |
@@ -51,7 +53,7 @@
 | Confidence | Findings | What it means |
 | --- | --- | --- |
 | `HIGH` | 5 | HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding. |
-| `MEDIUM` | 1 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
+| `MEDIUM` | 3 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
 | `LOW` | 0 | LOW — the situation is plausible but depends on runtime behaviour DiagScope cannot observe (dynamic targets, global handlers, or deep or ambiguous call edges). Use it as a hint, not as a defect. |
 
 ## Diagnostic coverage by flow
@@ -60,25 +62,56 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 
 | Flow | Type | Score | Signals | Findings | Logging | Metrics | Annotations |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Kafka topic=payments | `KAFKA_LISTENER` | 0% | 0 | 2 | 0 | 0 | 0 |
+| Kafka topic=payments | `KAFKA_LISTENER` | 0% | 0 | 3 | 0 | 0 | 0 |
 | POST /payments/{id}/capture | `REST` | 25% | 1 | 3 | 0 | 1 | 0 |
-| Scheduled cron=0 */5 * * * * | `SCHEDULED` | 0% | 0 | 1 | 0 | 0 | 0 |
+| Scheduled cron=0 */5 * * * * | `SCHEDULED` | 0% | 0 | 2 | 0 | 0 | 0 |
 
 ### Findings grouped by flow
 
-- Flow `Kafka topic=payments`: `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` at `src/main/java/example/PaymentListener.java:6`, `SILENT_CATCH` at `src/main/java/example/PaymentListener.java:6`
+- Flow `Kafka topic=payments`: `KAFKA_DEAD_LETTER_NOT_CONFIGURED` at `src/main/java/example/PaymentListener.java:4`, `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` at `src/main/java/example/PaymentListener.java:6`, `SILENT_CATCH` at `src/main/java/example/PaymentListener.java:6`
 - Flow `POST /payments/{id}/capture`: `HIGH_CARDINALITY_METRIC_TAG` at `src/main/java/example/PaymentMetrics.java:7`, `KAFKA_SEND_RESULT_IGNORED` at `src/main/java/example/PaymentPublisher.java:6`, `SILENT_FAILURE_CONVERSION` at `src/main/java/example/PaymentService.java:15`
-- Flow `Scheduled cron=0 */5 * * * *`: `SYSTEM_OUTPUT` at `src/main/java/example/ReconciliationJob.java:5`
+- Flow `Scheduled cron=0 */5 * * * *`: `SCHEDULED_EXCEPTION_NOT_HANDLED` at `src/main/java/example/ReconciliationJob.java:4`, `SYSTEM_OUTPUT` at `src/main/java/example/ReconciliationJob.java:5`
 
 ### Findings grouped by file
 
-- `src/main/java/example/PaymentListener.java`: `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (line 6), `SILENT_CATCH` (line 6)
+- `src/main/java/example/PaymentListener.java`: `KAFKA_DEAD_LETTER_NOT_CONFIGURED` (line 4), `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (line 6), `SILENT_CATCH` (line 6)
 - `src/main/java/example/PaymentMetrics.java`: `HIGH_CARDINALITY_METRIC_TAG` (line 7)
 - `src/main/java/example/PaymentPublisher.java`: `KAFKA_SEND_RESULT_IGNORED` (line 6)
 - `src/main/java/example/PaymentService.java`: `SILENT_FAILURE_CONVERSION` (line 15)
-- `src/main/java/example/ReconciliationJob.java`: `SYSTEM_OUTPUT` (line 5)
+- `src/main/java/example/ReconciliationJob.java`: `SCHEDULED_EXCEPTION_NOT_HANDLED` (line 4), `SYSTEM_OUTPUT` (line 5)
 
 ## Findings
+
+### ⚠️ KAFKA_DEAD_LETTER_NOT_CONFIGURED — `src/main/java/example/PaymentListener.java:4`
+
+Kafka listener has no dead-letter topic configured. Failed messages after retry exhaustion will be silently discarded.
+
+**What this means:** A @KafkaListener method has no errorHandler attribute and no DeadLetterPublishingRecoverer visible at its call site.
+
+**Why it matters:** After retry exhaustion the failed message is silently discarded. No DLT means no visibility into what failed, no ability to replay, and no audit trail. In financial or event-sourced systems this is data loss disguised as successful processing.
+
+**How it was detected:** The @KafkaListener annotation has no errorHandler attribute, and no invocation in the method body references a dead-letter recoverer by name (DeadLetterPublishingRecoverer, DLT, DLQ).
+
+**Suggested action:** Configure a DeadLetterPublishingRecoverer in a DefaultErrorHandler bean, or set the errorHandler attribute on @KafkaListener. This ensures failed messages are preserved for inspection and replay.
+
+- Severity: `WARNING` · Confidence: `MEDIUM`
+- Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
+- Affected flows: Kafka topic=payments (`MEDIUM`, depth 0)
+- Fingerprint: `sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f`
+
+<details><summary>Call paths (1)</summary>
+
+- `KAFKA_LISTENER` Kafka topic=payments
+  - `example.PaymentListener.consume(String)` ← evidence
+
+</details>
+
+<details><summary>Evidence</summary>
+
+- `errorHandlerSet`: `false`
+- `method`: `example.PaymentListener.consume(String)`
+
+</details>
 
 ### ⚠️ KAFKA_LISTENER_ERROR_NOT_PROPAGATED — `src/main/java/example/PaymentListener.java:6`
 
@@ -256,6 +289,36 @@ Exception is converted to a normal return value without preserving diagnostic ev
 
 - `method`: `example.PaymentService.capture(String)`
 - `returnedExpression`: `false`
+
+</details>
+
+### ⚠️ SCHEDULED_EXCEPTION_NOT_HANDLED — `src/main/java/example/ReconciliationJob.java:4`
+
+@Scheduled method has no exception boundary. An uncaught exception may stop future executions or be silently discarded by the scheduler.
+
+**What this means:** A @Scheduled method has no try/catch block and no instrumentation annotation, leaving any exception to propagate directly to the scheduler.
+
+**Why it matters:** Before Spring 6, an uncaught exception from a @Scheduled method causes the scheduler to permanently cancel future executions of that task — silently. In Spring 6+ future executions continue but the exception is swallowed at the scheduler boundary with only a generic log entry and no job-level context.
+
+**How it was detected:** A @Scheduled method that has no catch blocks, carries no instrumentation annotation, and makes at least one external method call.
+
+**Suggested action:** Wrap the method body in a try/catch that logs the exception with context (job name, last input), or configure a TaskScheduler with a custom ErrorHandler that records all scheduler failures centrally.
+
+- Severity: `WARNING` · Confidence: `MEDIUM`
+- Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
+- Affected flows: Scheduled cron=0 */5 * * * * (`MEDIUM`, depth 0)
+- Fingerprint: `sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3`
+
+<details><summary>Call paths (1)</summary>
+
+- `SCHEDULED` Scheduled cron=0 */5 * * * *
+  - `example.ReconciliationJob.execute()` ← evidence
+
+</details>
+
+<details><summary>Evidence</summary>
+
+- `method`: `example.ReconciliationJob.execute()`
 
 </details>
 

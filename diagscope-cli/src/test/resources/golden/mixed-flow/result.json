@@ -42,13 +42,17 @@
     "AOP_ADVICE_NOT_APPLIED" : "1.0.0",
     "AOP_SELF_INVOCATION" : "1.0.0",
     "AOP_UNMANAGED_ADVICE_TARGET" : "1.0.0",
+    "ASYNC_ON_PRIVATE_METHOD" : "1.0.0",
     "ASYNC_RESULT_UNOBSERVED" : "1.0.0",
     "BLOCKING_CALL_IN_REACTIVE_CONTEXT" : "1.0.0",
+    "BULK_OPERATION_IN_LOOP" : "1.0.0",
     "CHECK_THEN_ACT_ON_MAP" : "1.0.0",
+    "COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "DB_RESOURCE_CLOSE_NOT_GUARDED" : "1.0.0",
     "DUPLICATE_DIAGNOSTIC_SIGNAL" : "1.0.0",
     "DYNAMIC_METRIC_NAME" : "1.0.0",
     "EXCESSIVE_METHOD_PARAMETERS" : "1.0.0",
+    "EXECUTOR_NOT_SHUTDOWN" : "1.0.0",
     "FALLBACK_HIDES_FAILURE" : "1.0.0",
     "FUTURE_GET_WITHOUT_TIMEOUT" : "1.0.0",
     "GENERIC_EXCEPTION_MESSAGE" : "1.0.0",
@@ -57,10 +61,12 @@
     "HIGH_METHOD_COMPLEXITY" : "1.0.0",
     "HTTP_CLIENT_ERROR_DISCARDED" : "1.0.0",
     "HTTP_TIMEOUT_NOT_SET" : "1.0.0",
+    "INTERRUPTED_EXCEPTION_SWALLOWED" : "1.0.0",
     "JDBC_RESOURCE_NOT_CLOSED" : "1.0.0",
     "JDBC_TEMPLATE_CONNECTION_ESCAPE" : "1.0.0",
     "JPA_ENTITY_MANAGER_NOT_CLOSED" : "1.0.0",
     "KAFKA_ACK_NOT_INVOKED" : "1.1.0",
+    "KAFKA_DEAD_LETTER_NOT_CONFIGURED" : "1.0.0",
     "KAFKA_LISTENER_ERROR_NOT_PROPAGATED" : "1.0.0",
     "KAFKA_SEND_RESULT_IGNORED" : "1.2.0",
     "LOCK_NOT_RELEASED" : "1.0.0",
@@ -75,10 +81,12 @@
     "PRINT_STACK_TRACE" : "1.0.0",
     "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED" : "1.0.0",
     "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
+    "SCHEDULED_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "SCHEDULED_TASK_SWALLOWS_FAILURE" : "1.0.0",
     "SENSITIVE_PAYLOAD_LOGGED" : "1.0.0",
     "SILENT_CATCH" : "1.0.0",
     "SILENT_FAILURE_CONVERSION" : "1.0.0",
+    "SPAN_NOT_CLOSED" : "1.0.0",
     "SYSTEM_OUTPUT" : "1.0.0",
     "THREAD_LOCAL_LEAK" : "1.0.0",
     "TX_PROPAGATION_MISMATCH" : "1.0.0",
@@ -108,7 +116,7 @@
     "parsedMethods" : 7,
     "entrypoints" : 3,
     "flows" : 3,
-    "findings" : 6,
+    "findings" : 8,
     "parseFailures" : 0,
     "projectAnalysisNanos" : 0,
     "flowConstructionNanos" : 0,
@@ -116,15 +124,15 @@
     "totalNanos" : 0
   },
   "summary" : {
-    "totalFindings" : 6,
+    "totalFindings" : 8,
     "bySeverity" : {
       "ERROR" : 3,
-      "WARNING" : 3,
+      "WARNING" : 5,
       "INFO" : 0
     },
     "byConfidence" : {
       "HIGH" : 5,
-      "MEDIUM" : 1,
+      "MEDIUM" : 3,
       "LOW" : 0
     },
     "byRule" : [ {
@@ -132,6 +140,16 @@
       "title" : "High-cardinality metric tag",
       "count" : 1,
       "highestSeverity" : "ERROR",
+      "byConfidence" : {
+        "HIGH" : 0,
+        "MEDIUM" : 1,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "KAFKA_DEAD_LETTER_NOT_CONFIGURED",
+      "title" : "Kafka listener has no dead-letter topic configured",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
       "byConfidence" : {
         "HIGH" : 0,
         "MEDIUM" : 1,
@@ -155,6 +173,16 @@
       "byConfidence" : {
         "HIGH" : 1,
         "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "SCHEDULED_EXCEPTION_NOT_HANDLED",
+      "title" : "@Scheduled method has no exception boundary",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 0,
+        "MEDIUM" : 1,
         "LOW" : 0
       }
     }, {
@@ -197,13 +225,13 @@
       "diagnosticCoverage" : {
         "score" : 0,
         "instrumentationSignals" : 0,
-        "evidenceDestroyingFindings" : 2,
+        "evidenceDestroyingFindings" : 3,
         "loggingSignals" : 0,
         "metricSignals" : 0,
         "annotationSignals" : 0
       },
-      "findingCount" : 2,
-      "findings" : [ "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
+      "findingCount" : 3,
+      "findings" : [ "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f", "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
     }, {
       "flowId" : "REST:example.PaymentController.capture(String)",
       "name" : "POST /payments/{id}/capture",
@@ -225,18 +253,18 @@
       "diagnosticCoverage" : {
         "score" : 0,
         "instrumentationSignals" : 0,
-        "evidenceDestroyingFindings" : 1,
+        "evidenceDestroyingFindings" : 2,
         "loggingSignals" : 0,
         "metricSignals" : 0,
         "annotationSignals" : 0
       },
-      "findingCount" : 1,
-      "findings" : [ "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
+      "findingCount" : 2,
+      "findings" : [ "sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3", "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
     } ],
     "byFile" : [ {
       "file" : "src/main/java/example/PaymentListener.java",
-      "findingCount" : 2,
-      "findings" : [ "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
+      "findingCount" : 3,
+      "findings" : [ "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f", "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
     }, {
       "file" : "src/main/java/example/PaymentMetrics.java",
       "findingCount" : 1,
@@ -251,8 +279,8 @@
       "findings" : [ "sha256:9ed6a377b9b7224a3c9e7f257564d66390481e9372fbd338184c11bc18169a49" ]
     }, {
       "file" : "src/main/java/example/ReconciliationJob.java",
-      "findingCount" : 1,
-      "findings" : [ "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
+      "findingCount" : 2,
+      "findings" : [ "sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3", "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
     } ]
   },
   "parseFailures" : [ ],
@@ -271,7 +299,7 @@
     "diagnosticCoverage" : {
       "score" : 0,
       "instrumentationSignals" : 0,
-      "evidenceDestroyingFindings" : 2,
+      "evidenceDestroyingFindings" : 3,
       "loggingSignals" : 0,
       "metricSignals" : 0,
       "annotationSignals" : 0
@@ -545,7 +573,7 @@
     "diagnosticCoverage" : {
       "score" : 0,
       "instrumentationSignals" : 0,
-      "evidenceDestroyingFindings" : 1,
+      "evidenceDestroyingFindings" : 2,
       "loggingSignals" : 0,
       "metricSignals" : 0,
       "annotationSignals" : 0
@@ -590,6 +618,40 @@
     } ]
   } ],
   "findings" : [ {
+    "fingerprint" : "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f",
+    "fingerprintVersion" : 1,
+    "ruleId" : "KAFKA_DEAD_LETTER_NOT_CONFIGURED",
+    "severity" : "WARNING",
+    "confidence" : "MEDIUM",
+    "location" : {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "startLine" : 4,
+      "endLine" : 7
+    },
+    "message" : "Kafka listener has no dead-letter topic configured. Failed messages after retry exhaustion will be silently discarded.",
+    "recommendation" : "Configure a DeadLetterPublishingRecoverer in a DefaultErrorHandler bean, or set the errorHandler attribute on @KafkaListener. This ensures failed messages are preserved for inspection and replay.",
+    "explanation" : {
+      "title" : "Kafka listener has no dead-letter topic configured",
+      "whatItMeans" : "A @KafkaListener method has no errorHandler attribute and no DeadLetterPublishingRecoverer visible at its call site.",
+      "whyItMatters" : "After retry exhaustion the failed message is silently discarded. No DLT means no visibility into what failed, no ability to replay, and no audit trail. In financial or event-sourced systems this is data loss disguised as successful processing.",
+      "howDetected" : "The @KafkaListener annotation has no errorHandler attribute, and no invocation in the method body references a dead-letter recoverer by name (DeadLetterPublishingRecoverer, DLT, DLQ)."
+    },
+    "confidenceRationale" : "MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.",
+    "relatedFlows" : [ {
+      "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",
+      "name" : "Kafka topic=payments",
+      "type" : "KAFKA_LISTENER",
+      "confidence" : "MEDIUM",
+      "depth" : 0,
+      "affectedMethod" : "example.PaymentListener.consume(String)",
+      "path" : [ "example.PaymentListener.consume(String)" ]
+    } ],
+    "affectedMethods" : [ "example.PaymentListener.consume(String)" ],
+    "evidence" : {
+      "errorHandlerSet" : "false",
+      "method" : "example.PaymentListener.consume(String)"
+    }
+  }, {
     "fingerprint" : "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd",
     "fingerprintVersion" : 1,
     "ruleId" : "KAFKA_LISTENER_ERROR_NOT_PROPAGATED",
@@ -772,6 +834,39 @@
     "evidence" : {
       "method" : "example.PaymentService.capture(String)",
       "returnedExpression" : "false"
+    }
+  }, {
+    "fingerprint" : "sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3",
+    "fingerprintVersion" : 1,
+    "ruleId" : "SCHEDULED_EXCEPTION_NOT_HANDLED",
+    "severity" : "WARNING",
+    "confidence" : "MEDIUM",
+    "location" : {
+      "file" : "src/main/java/example/ReconciliationJob.java",
+      "startLine" : 4,
+      "endLine" : 5
+    },
+    "message" : "@Scheduled method has no exception boundary. An uncaught exception may stop future executions or be silently discarded by the scheduler.",
+    "recommendation" : "Wrap the method body in a try/catch that logs the exception with context (job name, last input), or configure a TaskScheduler with a custom ErrorHandler that records all scheduler failures centrally.",
+    "explanation" : {
+      "title" : "@Scheduled method has no exception boundary",
+      "whatItMeans" : "A @Scheduled method has no try/catch block and no instrumentation annotation, leaving any exception to propagate directly to the scheduler.",
+      "whyItMatters" : "Before Spring 6, an uncaught exception from a @Scheduled method causes the scheduler to permanently cancel future executions of that task — silently. In Spring 6+ future executions continue but the exception is swallowed at the scheduler boundary with only a generic log entry and no job-level context.",
+      "howDetected" : "A @Scheduled method that has no catch blocks, carries no instrumentation annotation, and makes at least one external method call."
+    },
+    "confidenceRationale" : "MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.",
+    "relatedFlows" : [ {
+      "id" : "SCHEDULED:example.ReconciliationJob.execute()",
+      "name" : "Scheduled cron=0 */5 * * * *",
+      "type" : "SCHEDULED",
+      "confidence" : "MEDIUM",
+      "depth" : 0,
+      "affectedMethod" : "example.ReconciliationJob.execute()",
+      "path" : [ "example.ReconciliationJob.execute()" ]
+    } ],
+    "affectedMethods" : [ "example.ReconciliationJob.execute()" ],
+    "evidence" : {
+      "method" : "example.ReconciliationJob.execute()"
     }
   }, {
     "fingerprint" : "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483",

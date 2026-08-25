@@ -6,13 +6,13 @@ import java.util.function.Function;
 
 @interface RestController {}
 @interface GetMapping { String value(); }
-@interface Scheduled { String cron() default ""; }
+@interface Scheduled { String cron() default ""; long fixedDelay() default -1L; }
 @interface Retryable {}
 @interface Recover {}
 @interface Timed { String value() default ""; }
 @interface Service {}
 @interface Repository {}
-@interface KafkaListener { String[] topics(); }
+@interface KafkaListener { String[] topics(); String errorHandler() default ""; }
 @interface KafkaHandler {}
 @interface Transactional { Propagation propagation() default Propagation.REQUIRED; }
 
@@ -28,7 +28,11 @@ interface Completion {
     Completion whenComplete(BiConsumer<Object, Throwable> callback);
 }
 
-interface ExecutorService { Completion submit(Runnable task); }
+interface ExecutorService {
+    Completion submit(Runnable task);
+    void shutdown();
+    void shutdownNow();
+}
 interface KafkaTemplate { Completion send(String topic, String payload); }
 interface Acknowledgment { void acknowledge(); }
 
@@ -68,8 +72,20 @@ final class MDC {
     static void setContextMap(Map<String, String> context) {}
 }
 
+@interface Async {}
 @interface Incoming { String value(); }
 @interface NonBlocking {}
+
+// --- Tracing stubs (for SPAN_NOT_CLOSED) ---
+interface Span { void end(); }
+interface Tracer { Span startSpan(String name); }
+
+// --- Executor stubs (for EXECUTOR_NOT_SHUTDOWN) ---
+final class Executors {
+    static ExecutorService newFixedThreadPool(int nThreads) { return null; }
+    static ExecutorService newCachedThreadPool() { return null; }
+    static ExecutorService newSingleThreadExecutor() { return null; }
+}
 
 interface Lock {
     void lock();

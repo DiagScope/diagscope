@@ -7,8 +7,15 @@ import dev.diagscope.cli.report.MarkdownReporter;
 import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
+import dev.diagscope.core.application.rule.AsyncOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
+import dev.diagscope.core.application.rule.BulkOperationInLoopRule;
 import dev.diagscope.core.application.rule.CheckThenActOnMapRule;
+import dev.diagscope.core.application.rule.CompletableFutureExceptionNotHandledRule;
+import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
+import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
+import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
+import dev.diagscope.core.application.rule.SpanNotClosedRule;
 import dev.diagscope.core.application.rule.ExcessiveMethodParametersRule;
 import dev.diagscope.core.application.rule.GodClassRule;
 import dev.diagscope.core.application.rule.HighMethodComplexityRule;
@@ -26,6 +33,7 @@ import dev.diagscope.core.application.rule.MetricCreatedInLoopRule;
 import dev.diagscope.core.application.rule.NPlusOneQueryRiskRule;
 import dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule;
 import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
+import dev.diagscope.core.application.rule.ScheduledExceptionNotHandledRule;
 import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
 import dev.diagscope.core.application.rule.ThreadLocalLeakRule;
 import dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule;
@@ -122,7 +130,23 @@ public final class DiagScopeMain {
                 new ExcessiveMethodParametersRule(),
                 new HighMethodComplexityRule(),
                 // Concurrency: atomic operations
-                new CheckThenActOnMapRule()
+                new CheckThenActOnMapRule(),
+                // Exception handling: interrupt contract
+                new InterruptedExceptionSwallowedRule(),
+                // Concurrency: CompletableFuture exception handling
+                new CompletableFutureExceptionNotHandledRule(),
+                // Concurrency: executor lifecycle
+                new ExecutorNotShutdownRule(),
+                // AOP / Proxy: async visibility
+                new AsyncOnPrivateMethodRule(),
+                // Resilience: scheduler error boundary
+                new ScheduledExceptionNotHandledRule(),
+                // Database / Performance: bulk writes in loops
+                new BulkOperationInLoopRule(),
+                // Observability: unclosed spans
+                new SpanNotClosedRule(),
+                // Kafka: dead-letter topic not configured
+                new KafkaDeadLetterNotConfiguredRule()
         );
         var fullEngine = new RuleEngine(flowRules, List.of(new GodClassRule()));
         return new DiagnosticCoverageService(
@@ -187,7 +211,23 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.CheckThenActOnMapRule.ID,
                 dev.diagscope.core.application.rule.MissingTransactionAnnotationRule.ID,
                 dev.diagscope.core.application.rule.HttpTimeoutNotSetRule.ID,
-                dev.diagscope.core.application.rule.GodClassRule.ID
+                dev.diagscope.core.application.rule.GodClassRule.ID,
+                // Exception handling: interrupt contract
+                dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule.ID,
+                // Concurrency: CompletableFuture exception handling
+                dev.diagscope.core.application.rule.CompletableFutureExceptionNotHandledRule.ID,
+                // Concurrency: executor lifecycle
+                dev.diagscope.core.application.rule.ExecutorNotShutdownRule.ID,
+                // AOP / Proxy: async visibility
+                dev.diagscope.core.application.rule.AsyncOnPrivateMethodRule.ID,
+                // Resilience: scheduler error boundary
+                dev.diagscope.core.application.rule.ScheduledExceptionNotHandledRule.ID,
+                // Database / Performance: bulk writes in loops
+                dev.diagscope.core.application.rule.BulkOperationInLoopRule.ID,
+                // Observability: unclosed spans
+                dev.diagscope.core.application.rule.SpanNotClosedRule.ID,
+                // Kafka: dead-letter topic not configured
+                dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule.ID
         );
     }
 
