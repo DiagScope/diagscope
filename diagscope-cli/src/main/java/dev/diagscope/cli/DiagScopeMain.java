@@ -8,6 +8,9 @@ import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
+import dev.diagscope.core.application.rule.CheckThenActOnMapRule;
+import dev.diagscope.core.application.rule.ExcessiveMethodParametersRule;
+import dev.diagscope.core.application.rule.HighMethodComplexityRule;
 import dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
 import dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule;
@@ -106,7 +109,12 @@ public final class DiagScopeMain {
                 // Performance
                 new NPlusOneQueryRiskRule(),
                 // Null safety
-                new OptionalGetWithoutCheckRule()
+                new OptionalGetWithoutCheckRule(),
+                // Maintainability
+                new ExcessiveMethodParametersRule(),
+                new HighMethodComplexityRule(),
+                // Concurrency: atomic operations
+                new CheckThenActOnMapRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -164,7 +172,10 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule.ID,
                 dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule.ID,
                 dev.diagscope.core.application.rule.NPlusOneQueryRiskRule.ID,
-                dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule.ID
+                dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule.ID,
+                dev.diagscope.core.application.rule.ExcessiveMethodParametersRule.ID,
+                dev.diagscope.core.application.rule.HighMethodComplexityRule.ID,
+                dev.diagscope.core.application.rule.CheckThenActOnMapRule.ID
         );
     }
 

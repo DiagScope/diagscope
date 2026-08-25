@@ -4,10 +4,13 @@ package example.java.parity;
 class JavaParityController {
     private final JavaParityService service;
     private final JavaConcurrencyAndSafetyService concurrency;
+    private final JavaMaintainabilityService maintainability;
 
-    JavaParityController(JavaParityService service, JavaConcurrencyAndSafetyService concurrency) {
+    JavaParityController(JavaParityService service, JavaConcurrencyAndSafetyService concurrency,
+                         JavaMaintainabilityService maintainability) {
         this.service = service;
         this.concurrency = concurrency;
+        this.maintainability = maintainability;
     }
 
     @GetMapping("/java-parity")
@@ -58,6 +61,12 @@ class JavaParityController {
         concurrency.enrichOrdersSafe(java.util.List.of(id));
         concurrency.loadUnchecked(id);
         concurrency.loadSafe(id);
+        // Maintainability and atomic-operations rules
+        maintainability.registerIfAbsent(id, id);
+        maintainability.registerIfAbsentSafe(id, id);
+        maintainability.addIfNotPresent(id);
+        maintainability.createOrder(id, id, id, id, id, id);
+        maintainability.createOrderSafe(new JavaMaintainabilityService.OrderRequest(id, id, id, id, id, id));
         return id;
     }
 }

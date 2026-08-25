@@ -555,6 +555,41 @@ public final class RuleCatalog {
                 "The rule uses method name patterns and receiver type heuristics; it may flag"
                         + " calls that are intentionally batched or cached at a lower layer.");
 
+        // ── Maintainability ──────────────────────────────────────────────────
+        put(catalog, ExcessiveMethodParametersRule.ID,
+                "Method has too many parameters",
+                "maintainability", Severity.INFO, ALL_LANGUAGES,
+                "Any Java or Kotlin application",
+                "A method declares more than " + ExcessiveMethodParametersRule.MAX_PARAMETERS
+                        + " parameters.",
+                "Long parameter lists are hard to call correctly — callers must track the order"
+                        + " and meaning of each argument. They signal that the method may be doing"
+                        + " too much and should be split, or that related parameters should be"
+                        + " grouped into a dedicated value object.",
+                "The declared parameter count on the MethodId exceeds the configured threshold."
+                        + " Constructors and vararg methods are excluded.",
+                "Spring controller methods may have many @RequestParam / @PathVariable parameters"
+                        + " by design; consider configuring an exclusion for REST handlers if these"
+                        + " produce too much noise.");
+
+        put(catalog, HighMethodComplexityRule.ID,
+                "Method structural complexity is too high",
+                "maintainability", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application",
+                "A method makes more than " + HighMethodComplexityRule.MAX_INVOCATIONS
+                        + " calls, or its combined complexity score (calls + catch-block weight)"
+                        + " exceeds " + HighMethodComplexityRule.COMPLEXITY_THRESHOLD + ".",
+                "High structural complexity correlates strongly with defect density and"
+                        + " maintenance cost. A method with many branches and many calls is hard"
+                        + " to unit-test in isolation and expensive to reason about during an"
+                        + " incident.",
+                "The number of method invocations in the body plus the number of catch blocks"
+                        + " (each weighted at 3x because a catch represents at least one additional"
+                        + " execution path) is computed as a proxy for cyclomatic complexity.",
+                "DiagScope cannot count if/else or switch branches without the full AST, so the"
+                        + " score is an approximation. Well-designed orchestration methods may"
+                        + " legitimately call many collaborators; tune the threshold if needed.");
+
         // ── Null safety ───────────────────────────────────────────────────────
         put(catalog, OptionalGetWithoutCheckRule.ID,
                 "Optional.get() without presence check",
@@ -571,6 +606,26 @@ public final class RuleCatalog {
                 "The rule compares receiver scope names to determine if the guard applies to the"
                         + " same Optional; a guard on a different Optional in the same method will"
                         + " not suppress the finding. Kotlin nullable types are not in scope.");
+
+        // ── Concurrency: atomic operations ────────────────────────────────────
+        put(catalog, CheckThenActOnMapRule.ID,
+                "Non-atomic check-then-act on Map or Collection",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application with shared Map or Collection state",
+                "A method calls a membership-test method (containsKey, contains) on a receiver"
+                        + " and then calls a mutating method (put, add, remove) on the same"
+                        + " receiver without using an atomic alternative.",
+                "Between the check and the mutation another thread can modify the collection,"
+                        + " causing a lost update, duplicate entry, or inconsistent state. The"
+                        + " bug is absent under single-threaded load and appears only under"
+                        + " concurrent access, making it difficult to reproduce.",
+                "Both a membership-check call and a mutating call target the same named receiver"
+                        + " in the same method body, and no atomic alternative (putIfAbsent,"
+                        + " computeIfAbsent, merge) is observed on that receiver.",
+                "The rule compares receiver scope names; if the map is accessed through different"
+                        + " aliases in the same method the pattern may not be detected. Single-"
+                        + " threaded or read-only code paths will produce false positives if the"
+                        + " collection is known not to be shared.");
 
         return Collections.unmodifiableMap(catalog);
     }

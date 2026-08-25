@@ -3,7 +3,8 @@ package example.kotlin.parity
 @RestController
 class KotlinParityController(
     private val service: KotlinParityService,
-    private val concurrency: KotlinConcurrencyAndSafetyService
+    private val concurrency: KotlinConcurrencyAndSafetyService,
+    private val maintainability: KotlinMaintainabilityService
 ) {
     @GetMapping("/kotlin-parity")
     fun inspect(id: String, token: String): String {
@@ -52,6 +53,12 @@ class KotlinParityController(
         concurrency.enrichOrdersSafe(listOf(id))
         concurrency.loadUnchecked(id)
         concurrency.loadSafe(id)
+        // Maintainability and atomic-operations rules
+        maintainability.registerIfAbsent(id, id)
+        maintainability.registerIfAbsentSafe(id, id)
+        maintainability.addIfNotPresent(id)
+        maintainability.createOrder(id, id, id, id, id, id)
+        maintainability.createOrderSafe(KotlinMaintainabilityService.OrderRequest(id, id, id, id, id, id))
         return id
     }
 }
