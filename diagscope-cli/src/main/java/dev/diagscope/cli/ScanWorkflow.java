@@ -71,7 +71,7 @@ public final class ScanWorkflow {
             classpath = classpath == null ? List.of() : List.copyOf(classpath);
             sourceRoots = sourceRoots == null ? List.of() : List.copyOf(sourceRoots);
             entrypointTypes = entrypointTypes == null || entrypointTypes.isEmpty()
-                    ? EnumSet.allOf(EntrypointType.class)
+                    ? EnumSet.copyOf(AnalysisOptions.DEFAULT_ENTRYPOINT_TYPES)
                     : EnumSet.copyOf(entrypointTypes);
         }
     }

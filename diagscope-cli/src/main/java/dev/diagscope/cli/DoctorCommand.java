@@ -265,7 +265,7 @@ public final class DoctorCommand implements Callable<Integer> {
                 var options = new AnalysisOptions(
                         AnalysisOptions.defaults().maxFlowDepth(),
                         AnalysisOptions.defaults().parallelism(),
-                        EnumSet.allOf(EntrypointType.class),
+                        EnumSet.copyOf(AnalysisOptions.DEFAULT_ENTRYPOINT_TYPES),
                         policy,
                         resolveClasspath(projectRoot, classpath),
                         resolveSourceRoots(projectRoot, sourceRoots)
