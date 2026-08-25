@@ -1,0 +1,87 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to release (e.g. v0.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Resolve the version: from the pushed tag or the manual input
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          # Strip the leading 'v'
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}"     >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      # Set the Maven version to match the tag (removes -SNAPSHOT)
+      - name: Set Maven version
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            versions:set -DnewVersion=${{ steps.version.outputs.version }} \
+            -DgenerateBackupPoms=false
+
+      # Full build + tests
+      - name: Build and test
+        run: |
+          mvn --batch-mode --no-transfer-progress clean verify
+
+      # Rename the artifact to include the version for clarity
+      - name: Prepare artifact
+        run: |
+          cp diagscope-cli/target/diagscope.jar \
+             diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
+
+      # Create the GitHub Release and upload the fat JAR
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: DiagScope ${{ steps.version.outputs.version }}
+          body: |
+            ## DiagScope ${{ steps.version.outputs.version }}
+
+            ### Download
+
+            Download `diagscope-${{ steps.version.outputs.version }}.jar` below — requires **Java 25+**.
+
+            ```bash
+            # Run directly
+            java -jar diagscope-${{ steps.version.outputs.version }}.jar scan --help
+
+            # Or alias it for convenience
+            alias diagscope='java -jar /path/to/diagscope-${{ steps.version.outputs.version }}.jar'
+            diagscope scan /path/to/your/project
+            ```
+
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full usage.
+          files: |
+            diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
