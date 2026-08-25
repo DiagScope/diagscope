@@ -341,6 +341,341 @@ APIs). Those call sites should carry an explicit suppression with the reason.
 Recommended response: run the statement through the template, or release the handle with
 `DataSourceUtils.releaseConnection` in a `finally` block.
 
+## `LOG_WITHOUT_THROWABLE`
+
+Detects a `catch` block that calls a log method with an exception as an argument but does not pass the
+throwable as the last argument in a way that preserves the stack trace.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` when the method call is unambiguously a logger call with a matching pattern.
+- Final confidence: capped by reachability.
+
+Known limitation: custom logging wrappers that accept a `Throwable` internally but expose a different
+signature may produce false positives.
+
+Recommended response: pass the caught exception as the trailing argument to the log call so the full
+stack trace appears in the log output.
+
+## `GENERIC_EXCEPTION_MESSAGE`
+
+Detects a `catch` block that produces a log or rethrow whose message does not include stable diagnostic
+context — a failure code, an entity ID, or an operation name that survives aggregation.
+
+- Default severity: `INFO`.
+- Evidence confidence: `MEDIUM`; the rule inspects literal strings and constant references in the message
+  expression.
+- Final confidence: capped by reachability.
+
+Known limitation: a message built by a helper method the analyzer cannot follow is not inspected, which
+can suppress a real gap.
+
+Recommended response: include a stable, low-cardinality failure code or operation identifier so the log
+entry is queryable and correlatable across distributed traces.
+
+## `ASYNC_RESULT_UNOBSERVED`
+
+Detects work submitted to an executor or a `CompletableFuture` whose returned handle is discarded. No
+one waits for the result, attaches a completion callback, or chains further processing.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH` when the result is used as a plain expression statement with no assignment,
+  return, or chaining.
+- Final confidence: capped by reachability.
+
+Known limitation: a result stored in a field by a helper and observed elsewhere is still reported.
+
+Recommended response: return, store, or chain the future; attach an exception handler (`exceptionally`,
+`whenComplete`); or document and test the fire-and-forget policy explicitly.
+
+## `HTTP_CLIENT_ERROR_DISCARDED`
+
+Detects an error-handling reactive operator (`onErrorReturn`, `onErrorResume`, `exceptionally`,
+`onStatus`) whose arguments do not reference the throwable being handled, so the original failure
+evidence is dropped.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `MEDIUM`; the rule checks whether a captured or parameter-named throwable is
+  mentioned in the recovery expression.
+- Final confidence: capped by reachability.
+
+Known limitation: a throwable forwarded inside a helper method reference is not followed.
+
+Recommended response: log the original exception before substituting a fallback value, or surface it
+through a structured result type that downstream code can inspect.
+
+## `SCHEDULED_TASK_SWALLOWS_FAILURE`
+
+Detects a `@Scheduled` (Spring or Quarkus) method that catches an exception and neither logs it nor
+rethrows it. The job keeps its successful schedule while doing nothing useful.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH` when the catch body has no log call and no throw.
+- Final confidence: capped by reachability.
+
+Recommended response: log the failure at `ERROR`, rethrow it, or emit a metric that lets alerting catch
+the silent degradation.
+
+## `RETRY_WITHOUT_DIAGNOSTICS`
+
+Detects a `@Retryable` (Spring Retry) or `@Retry` (MicroProfile Fault Tolerance) method that contains
+no logger call and no metric recording. Retry attempts are invisible to operators until the budget is
+exhausted.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`.
+- Final confidence: capped by reachability.
+
+Recommended response: log or record a metric on each attempt so retry storms are visible before they
+cascade.
+
+## `FALLBACK_HIDES_FAILURE`
+
+Detects a `@Recover` or fallback-named method that returns a default value without logging what it is
+compensating for. Degraded responses become indistinguishable from healthy ones.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`.
+- Final confidence: capped by reachability.
+
+Recommended response: log the original failure and emit a metric so fallback activations appear in
+dashboards.
+
+## `METRIC_CREATED_IN_LOOP`
+
+Detects a Micrometer or Spring Boot Actuator meter registration (`Counter.builder`, `Timer.builder`,
+`Gauge.builder`, `registry.counter`, etc.) whose enclosing statement is inside a `for`, `while`, or
+`do-while` body.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` when the call site is unambiguously a meter-registration call with
+  `insideLoop = true`.
+- Final confidence: capped by reachability.
+
+Known limitation: loop-driven registration that uses a cache guard (`computeIfAbsent`) is still flagged
+because the analyzer does not follow the guard semantics.
+
+Recommended response: register meters once at startup, in `@PostConstruct`, or with `MeterRegistry.gauge`
+which manages the reference internally.
+
+## `SENSITIVE_PAYLOAD_LOGGED`
+
+Detects a log call inside a method that is annotated, named, or parameterised in a way that suggests it
+handles credentials, tokens, secrets, or PII. Logging such data sends it to every downstream log sink
+and violates most data-protection requirements.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `MEDIUM`; the rule uses annotation names, method names, parameter names, and
+  literal strings to judge sensitivity.
+- Final confidence: capped by reachability.
+
+Known limitation: the rule cannot prove that the logged expression actually contains the sensitive value;
+a log call in the same method is the signal.
+
+Recommended response: mask or omit sensitive fields before logging; use structured logging with
+appropriate field-level redaction.
+
+## `MDC_CONTEXT_LOST`
+
+Detects a method that puts a value into the MDC (Mapped Diagnostic Context) and either does not remove
+it, or removes it only on the success path. In thread-pool environments, MDC state leaks into the next
+task that reuses the thread.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` when a `put`/`putCloseable` is observed without a matching `remove`/`clear`
+  inside a `finally` block.
+- Final confidence: capped by reachability.
+
+Recommended response: remove MDC keys in a `finally` block, or use `MDC.putCloseable` with
+try-with-resources.
+
+## `DUPLICATE_DIAGNOSTIC_SIGNAL`
+
+Detects a catch block that both logs the exception and rethrows it (or wraps it). Each handler in a
+call chain doing this doubles the log volume for the same failure event without adding information.
+
+- Default severity: `INFO`.
+- Evidence confidence: `HIGH` when both a log call and a rethrow are visible in the same catch body.
+- Final confidence: capped by reachability.
+
+Known limitation: a deliberate design that logs at `DEBUG` in one layer and `ERROR` in another is still
+flagged; suppress those sites explicitly with a comment.
+
+Recommended response: log once at the boundary where the failure becomes observable to an end user;
+intermediate layers should rethrow without logging.
+
+## `TX_PROPAGATION_MISMATCH`
+
+Detects a `@Transactional` method called from within an existing transaction where the declared
+propagation would cause unexpected behaviour: `REQUIRES_NEW` suspends the outer transaction (potential
+for deadlock or partial commit), `NOT_SUPPORTED` runs outside the transaction (silent isolation break),
+and `NEVER` throws if a transaction is active.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the propagation is read from source annotations; runtime AOP binding is
+  not proven.
+- Final confidence: capped by reachability.
+
+Known limitation: the rule does not consider conditional transaction managers or reactive transaction
+contexts.
+
+Recommended response: review whether the declared propagation is intentional; use `REQUIRED` unless
+there is a specific need for transaction suspension or isolation.
+
+## `LOCK_NOT_RELEASED`
+
+Detects a call to `lock()` (or `lockInterruptibly()`, `tryLock()`) on a `Lock`, `ReentrantLock`,
+`ReadLock`, or `WriteLock` receiver where no matching `unlock()` call is observed inside a `finally`
+block on the same receiver.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH` when `lock()` is observed without a `finally`-guarded `unlock()`; `MEDIUM`
+  when the receiver identity is ambiguous.
+- Final confidence: capped by reachability.
+
+Known limitation: `unlock()` reached through a delegate, helper method, or aliased variable is not
+matched; suppress those sites explicitly.
+
+Recommended response: acquire the lock in a `try` block and call `unlock()` unconditionally in the
+corresponding `finally` block.
+
+## `THREAD_LOCAL_LEAK`
+
+Detects a `ThreadLocal.set()` call in a method that does not call `remove()` on the same receiver. In
+thread-pool environments (all modern servers) threads are reused, so the value persists into the next
+task processed by that thread, which typically belongs to a different request or user.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` when `set()` is observed on a ThreadLocal receiver with no `remove()` in
+  the same method; `MEDIUM` when the receiver identity is inferred from the scope name alone.
+- Final confidence: capped by reachability.
+
+Known limitation: a `remove()` inside a `finally` block in a calling frame that is not analyzed is not
+detected.
+
+Recommended response: call `ThreadLocal.remove()` in a `finally` block, or prefer request-scoped beans,
+`@RequestScope`, or reactive context propagation.
+
+## `FUTURE_GET_WITHOUT_TIMEOUT`
+
+Detects a blocking `.get()`, `.join()`, or `.getNow()` call on a `Future`, `CompletableFuture`, or
+`ListenableFuture` that does not pass a timeout. A thread blocked indefinitely on a `get()` cannot be
+interrupted by the server or circuit-breaker, and a slow dependency can exhaust the thread pool.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` when the call has no timeout arguments; `MEDIUM` when the receiver type is
+  inferred from the scope name.
+- Final confidence: capped by reachability.
+
+Known limitation: a timeout set on the underlying `ExecutorService` or via a wrapping abstraction is not
+detected.
+
+Recommended response: always provide a timeout (`future.get(5, TimeUnit.SECONDS)`) and handle
+`TimeoutException` explicitly.
+
+## `BLOCKING_CALL_IN_REACTIVE_CONTEXT`
+
+Detects a blocking call (`Thread.sleep`, `Object.wait`, `LockSupport.park`, `CountDownLatch.await`,
+`Semaphore.acquire`, bare `Future.get`) inside a method annotated with `@NonBlocking`, `@Incoming`,
+`@Outgoing`, or `@MessageMapping`. Reactive runtimes expect event-loop threads never to block; a single
+blocking call stalls the entire thread and can cascade into a full service hang under load.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH` for unambiguously blocking receivers; `MEDIUM` for receiver-inferred cases.
+- Final confidence: capped by reachability.
+
+Known limitation: `Future.get(timeout, unit)` (two extra arguments) is not flagged because the bounded
+wait is intentional.
+
+Recommended response: use the reactive equivalent — `Mono.delay()`, `Mono.fromCallable()` on a
+`boundedElastic` scheduler, or `subscribeOn(Schedulers.boundedElastic())` — and never block the
+event-loop thread.
+
+## `N_PLUS_ONE_QUERY_RISK`
+
+Detects a Spring Data finder, JPA `EntityManager` operation, or `JdbcTemplate` query call whose
+`insideLoop` flag is `true`. One outer query returns N records; the loop fires one additional query per
+record, so the total query count grows linearly with the data set.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the rule uses method-name patterns and receiver-type heuristics.
+- Final confidence: capped by reachability.
+
+Known limitation: calls that are intentionally batched or served from a second-level cache at a lower
+layer are still flagged.
+
+Recommended response: fetch the related data in a single batch query before the loop, use eager loading
+with `JOIN FETCH`, or use Spring Data projections with a `findAllById` call outside the loop.
+
+## `OPTIONAL_GET_WITHOUT_CHECK`
+
+Detects `Optional.get()` called on a receiver in a method that does not also call `isPresent()`,
+`isEmpty()`, `ifPresent()`, `orElse()`, `map()`, or any other safe accessor on the same value.
+Calling `get()` on an empty `Optional` throws `NoSuchElementException`.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the guard may exist in a caller not visible to this method.
+- Final confidence: capped by reachability.
+
+Known limitation: a guard on a different `Optional` in the same method does not suppress the finding;
+only a guard on the same named receiver does.
+
+Recommended response: replace `get()` with `orElseThrow()` (which carries a meaningful message),
+`orElse(default)`, or `ifPresentOrElse(...)`.
+
+## `EXCESSIVE_METHOD_PARAMETERS`
+
+Detects a non-constructor method that declares more than five parameters. Long parameter lists are hard
+to call correctly, easy to mis-order, and often indicate the method does too much or that related
+parameters should be grouped.
+
+- Default severity: `INFO`.
+- Evidence confidence: `HIGH`; the count is read directly from the `MethodId`.
+- Final confidence: capped by reachability.
+
+Known limitation: Spring controller methods annotated with `@RequestParam` / `@PathVariable` may have
+many parameters by design; consider a project policy exclusion for REST-handler methods if the signal
+becomes too noisy.
+
+Recommended response: introduce a dedicated parameter object (a Java `record` or Kotlin data class) that
+groups the related parameters. This improves readability and makes future extensions backward-compatible.
+
+## `HIGH_METHOD_COMPLEXITY`
+
+Detects a method whose structural complexity score exceeds the threshold. The score is
+`invocations + catch_blocks × 3`. The catch-block multiplier reflects the fact that each `catch`
+branch adds at least one additional execution path. When the score exceeds 18, or when the raw
+invocation count exceeds 15, the method is flagged as a decomposition candidate.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the score is a structural proxy, not true cyclomatic complexity.
+- Final confidence: capped by reachability.
+
+Known limitation: orchestration methods that legitimately delegate to many collaborators may be flagged;
+adjust the threshold in project policy if needed. The score does not count `if`/`else`/`switch` branches
+that contain no method calls.
+
+Recommended response: apply the Single Responsibility Principle — extract sub-tasks into private helpers
+or dedicated collaborators. A method that requires "and" in its description is doing too much.
+
+## `CHECK_THEN_ACT_ON_MAP`
+
+Detects a non-atomic check-then-act pattern on a `Map` or `Collection` receiver: a membership-check
+call (`containsKey`, `contains`) followed by a mutating call (`put`, `add`, `remove`) on the same
+named receiver in the same method body, without an atomic alternative present.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the rule matches receiver scope names to correlate the check and the
+  mutation.
+- Final confidence: capped by reachability.
+
+Known limitation: access through different aliases in the same method is not correlated, which can
+produce false negatives. Single-threaded or read-only code paths that happen to contain both method
+names will produce false positives.
+
+Recommended response: replace the pattern with `Map.putIfAbsent()`, `Map.computeIfAbsent()`,
+`Map.merge()`, or `ConcurrentHashMap.compute()` — these operations are atomic on `ConcurrentHashMap`
+and eliminate the race window.
+
 ## Rule admission criteria
 
 Before adding another rule:

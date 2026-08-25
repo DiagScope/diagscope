@@ -2,9 +2,16 @@
 
 **Will this code explain itself when it fails in production?**
 
-DiagScope is a static analyzer for Java, Kotlin/JVM, Spring Boot, and Quarkus REST projects that finds code which destroys or weakens the evidence you need during an incident: swallowed exceptions, failures converted into normal return values, ignored Kafka send results, stack traces printed instead of logged, metric tags that explode cardinality.
+DiagScope is a static analyzer for Java and Kotlin/JVM (Spring Boot, Quarkus, Micronaut) that finds
+code which destroys or weakens the evidence you need during a production incident: swallowed exceptions,
+failures silently converted to normal values, unobserved async results, ignored Kafka send results,
+stack traces printed instead of logged, metric tags that explode cardinality, locks never released,
+thread-locals that leak between requests, blocking calls in reactive event loops, N+1 query patterns,
+and more.
 
-It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a Kafka or Reactive Messaging consumer, a scheduled job — so you see *which production path* goes blind when something breaks.
+It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a
+Kafka or Reactive Messaging consumer, a scheduled job — so you see *which production path* goes blind
+when something breaks. 41 rules across 9 categories ship out of the box.
 
 ## Requirements
 
@@ -265,24 +272,109 @@ A finding is never more confident than the path that reaches it. If a flow becom
 
 ## Rules
 
+41 rules across 9 categories. Run `java -jar diagscope.jar rules` for the live list and
+`explain <RULE_ID>` for the full description, detection notes, and remediation guidance.
+
+**Exception handling**
+
 | Rule | What it catches |
 |---|---|
 | `SILENT_CATCH` | A catch block that handles nothing and logs nothing |
-| `SILENT_FAILURE_CONVERSION` | An exception turned into `false`, `null`, or `Optional.empty()` with the cause discarded |
+| `SILENT_FAILURE_CONVERSION` | An exception converted to `false`, `null`, or `Optional.empty()` with the cause discarded |
+| `LOG_WITHOUT_THROWABLE` | A logger call in a catch block that doesn't pass the exception as the last argument |
+| `GENERIC_EXCEPTION_MESSAGE` | A log or rethrow whose message carries no stable failure code or operation identifier |
+| `DUPLICATE_DIAGNOSTIC_SIGNAL` | A catch block that both logs and rethrows, doubling the log volume for the same event |
+
+**Kafka**
+
+| Rule | What it catches |
+|---|---|
 | `KAFKA_SEND_RESULT_IGNORED` | `KafkaTemplate.send()` whose completion stage is never observed |
-| `KAFKA_ACK_NOT_INVOKED` | A listener that receives an `Acknowledgment` but never acknowledges the record |
-| `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | A listener that handles its own failure, so retry, error handler and DLT never run |
+| `KAFKA_ACK_NOT_INVOKED` | A listener that receives an `Acknowledgment` but never calls `acknowledge()` |
+| `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | A listener that swallows its failure so retry, error handler and DLT never run |
+
+**Transactions**
+
+| Rule | What it catches |
+|---|---|
 | `TX_ROLLBACK_SUPPRESSED` | A failure caught inside a `@Transactional` method, so the transaction commits anyway |
-| `JDBC_RESOURCE_NOT_CLOSED` | A connection, statement or result set opened outside try-with-resources and never closed |
-| `DB_RESOURCE_CLOSE_NOT_GUARDED` | A database handle closed on the success path only, so a thrown exception leaks it |
-| `JPA_ENTITY_MANAGER_NOT_CLOSED` | An `EntityManager` created from the factory and never closed |
-| `JDBC_TEMPLATE_CONNECTION_ESCAPE` | A raw connection pulled out of `JdbcTemplate` / `DataSourceUtils`, outside the active transaction |
-| `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an ID, UUID, email, or token |
-| `PRINT_STACK_TRACE` | `printStackTrace()` instead of structured logging |
-| `SYSTEM_OUTPUT` | `System.out` / `System.err` instead of the application logger |
-| `AOP_SELF_INVOCATION` | An internal `this` call that bypasses the Spring proxy, so `@Transactional`, `@Async`, or aspect advice never runs |
-| `AOP_ADVICE_NOT_APPLIED` | Advice attached to a private, static, or final method a proxy cannot intercept |
-| `AOP_UNMANAGED_ADVICE_TARGET` | Proxy-dependent annotations on a class with no visible Spring stereotype |
+| `TX_PROPAGATION_MISMATCH` | `REQUIRES_NEW`, `NOT_SUPPORTED`, or `NEVER` called from within an active transaction |
+
+**Database resources**
+
+| Rule | What it catches |
+|---|---|
+| `JDBC_RESOURCE_NOT_CLOSED` | A connection, statement, or result set opened outside try-with-resources and never closed |
+| `DB_RESOURCE_CLOSE_NOT_GUARDED` | A database handle closed on the success path only — a throw leaks it |
+| `JPA_ENTITY_MANAGER_NOT_CLOSED` | An application-managed `EntityManager` never closed in the same method |
+| `JDBC_TEMPLATE_CONNECTION_ESCAPE` | A raw connection pulled from `JdbcTemplate` / `DataSourceUtils`, outside the active transaction |
+
+**Resilience**
+
+| Rule | What it catches |
+|---|---|
+| `ASYNC_RESULT_UNOBSERVED` | `CompletableFuture` or executor result whose handle is discarded — failures disappear silently |
+| `HTTP_CLIENT_ERROR_DISCARDED` | An error-recovery operator that substitutes a fallback without referencing the throwable |
+| `SCHEDULED_TASK_SWALLOWS_FAILURE` | A `@Scheduled` method that catches and silently ignores its exception |
+| `RETRY_WITHOUT_DIAGNOSTICS` | A `@Retryable` / `@Retry` method with no logger call or metric — retry storms are invisible |
+| `FALLBACK_HIDES_FAILURE` | A `@Recover` / fallback method that returns a default without logging what it compensates for |
+
+**Observability**
+
+| Rule | What it catches |
+|---|---|
+| `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an unbounded value such as an ID, UUID, or user input |
+| `DYNAMIC_METRIC_NAME` | A meter name computed at runtime — dashboards and alerts depend on constant names |
+| `METRIC_CREATED_IN_LOOP` | A meter registration inside a loop — each iteration multiplies time series |
+| `SENSITIVE_PAYLOAD_LOGGED` | A log call in a method that handles credentials, tokens, or PII |
+| `MDC_CONTEXT_LOST` | MDC `put()` without a `finally`-guarded `remove()` — context bleeds into the next thread-pool task |
+| `PRINT_STACK_TRACE` | `e.printStackTrace()` instead of structured logging |
+| `SYSTEM_OUTPUT` | `System.out` / `System.err` used instead of the application logger |
+
+**Concurrency**
+
+| Rule | What it catches |
+|---|---|
+| `LOCK_NOT_RELEASED` | `lock()` with no `unlock()` inside a `finally` block — a throw leaks the lock |
+| `THREAD_LOCAL_LEAK` | `ThreadLocal.set()` without `remove()` — value persists into the next request on the same thread |
+| `FUTURE_GET_WITHOUT_TIMEOUT` | Bare `Future.get()` / `join()` with no timeout — a slow dependency blocks the thread indefinitely |
+| `BLOCKING_CALL_IN_REACTIVE_CONTEXT` | `Thread.sleep`, `Object.wait`, or bare `Future.get()` inside a `@NonBlocking` / `@Incoming` method |
+| `CHECK_THEN_ACT_ON_MAP` | `containsKey` + `put` on the same receiver without `putIfAbsent` / `computeIfAbsent` — a race condition |
+
+**Performance**
+
+| Rule | What it catches |
+|---|---|
+| `N_PLUS_ONE_QUERY_RISK` | A Spring Data / JPA / JDBC query call inside a loop — N+1 queries at scale |
+
+**Null safety**
+
+| Rule | What it catches |
+|---|---|
+| `OPTIONAL_GET_WITHOUT_CHECK` | `Optional.get()` in a method with no `isPresent()`, `orElse()`, or safe accessor on the same value |
+
+**AOP / Proxy**
+
+| Rule | What it catches |
+|---|---|
+| `AOP_SELF_INVOCATION` | An internal `this` call that bypasses the Spring proxy — `@Transactional`, `@Async`, and aspect advice don't run |
+| `AOP_ADVICE_NOT_APPLIED` | Advice on a private, static, or final method a proxy can never intercept |
+| `AOP_UNMANAGED_ADVICE_TARGET` | Proxy-dependent annotations on a class with no Spring stereotype visible in source |
+
+**Reactive (Mutiny / SmallRye)**
+
+| Rule | What it catches |
+|---|---|
+| `MUTINY_FAILURE_RECOVERED_SILENTLY` | A Mutiny `onFailure().recoverWith*()` or `onFailure().continueWith*()` that replaces the failure without logging |
+| `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` | A SmallRye / MicroProfile Reactive Messaging `@Incoming` handler that swallows its failure |
+| `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED` | A `Uni` or `Multi` subscribed without a failure callback |
+
+**Maintainability**
+
+| Rule | What it catches |
+|---|---|
+| `EXCESSIVE_METHOD_PARAMETERS` | A method with more than 5 parameters — consider a parameter object |
+| `HIGH_METHOD_COMPLEXITY` | A method with many calls and catch blocks — consider decomposing into focused helpers |
 
 To intentionally keep a pattern, suppress it explicitly with a reason:
 
