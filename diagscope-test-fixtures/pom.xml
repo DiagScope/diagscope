@@ -6,7 +6,7 @@
     <parent>
         <groupId>dev.diagscope</groupId>
         <artifactId>diagscope-parent</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.0-alpha.1</version>
     </parent>
     <artifactId>diagscope-test-fixtures</artifactId>
     <name>DiagScope Test Fixtures</name>
