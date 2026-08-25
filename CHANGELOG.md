@@ -50,8 +50,6 @@ All notable project changes are recorded in this file.
 - Structured per-file parse failures in Markdown and JSON reports.
 - Entrypoint filtering, report-format filtering, and stable packaged CLI metadata.
 - A `silent-catch` validation fixture with positive, negative, comment-boundary, and explicit-suppression scenarios.
-- Durable consolidation decisions in `docs/ALPHA_CONSOLIDATION.md`.
-- `PROJECT_MEMORY.md` as a compact handoff for future Codex threads.
 - Quantitative real-repository validation gates and a phase-containment rule.
 - Additive `result.json` contract `1.2-alpha.1` with diagnostic coverage components, flow/file
   groupings, and deterministic Java/Kotlin remediation snippets where safe.
@@ -94,4 +92,3 @@ All notable project changes are recorded in this file.
 - Explicit source suppression is deliberately limited to `SILENT_CATCH` and requires a local rule-specific directive with a reason.
 - Alpha 1 is not yet approved as a blocking CI gate.
 
-The full keep/adapt/drop record and migration rationale are in [docs/ALPHA_CONSOLIDATION.md](docs/ALPHA_CONSOLIDATION.md).

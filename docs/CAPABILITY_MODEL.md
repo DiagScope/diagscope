@@ -87,5 +87,5 @@ lowered instead of the path being guessed.
 
 A construct that DiagScope cannot decide appears as a terminal boundary with an explicit resolution
 reason in `result.json`, in the Markdown call paths, and in the HTML flow drill-down. Missing
-coverage discovered during real scans is filed against the relevant rule family and reviewed with
-[VALIDATION_MATRIX.md](VALIDATION_MATRIX.md) before new inference is added.
+coverage discovered during real scans is filed against the relevant rule family and reviewed before
+new inference is added.

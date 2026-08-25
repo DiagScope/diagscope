@@ -178,8 +178,8 @@ A faster implementation that preserves only the finding count but changes these 
 7. verify exact semantic equivalence;
 8. keep or revert based on evidence.
 
-For the Kotlin PSI-specific decision thresholds and the required IDE/linter comparison record, use
-[VALIDATION_MATRIX.md](VALIDATION_MATRIX.md).
+Kotlin PSI-specific decision thresholds should be validated against equivalent IDE/linter checks
+before being merged.
 
 ## What not to do
 
