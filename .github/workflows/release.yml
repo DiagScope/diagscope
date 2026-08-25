@@ -4,11 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag to release (e.g. v0.2.0)'
-        required: true
 
 permissions:
   contents: write
@@ -26,31 +21,29 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # Resolve the version: from the pushed tag or the manual input
+      # Derive the human-readable version from the tag (v0.2.0 → 0.2.0)
       - name: Resolve version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-          fi
-          # Strip the leading 'v'
-          VERSION="${TAG#v}"
-          echo "tag=${TAG}"     >> "$GITHUB_OUTPUT"
+          VERSION="${GITHUB_REF_NAME#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      # Set the Maven version to match the tag (removes -SNAPSHOT)
-      - name: Set Maven version
+      # Validate that the POM version matches the tag — catches the common mistake
+      # of pushing a tag without bumping the POM first.
+      - name: Verify POM version matches tag
         run: |
-          mvn --batch-mode --no-transfer-progress \
-            versions:set -DnewVersion=${{ steps.version.outputs.version }} \
-            -DgenerateBackupPoms=false
+          POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$POM_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::POM version ($POM_VERSION) does not match tag ($TAG_VERSION)."
+            echo "::error::Run: mvn versions:set -DnewVersion=${TAG_VERSION} -DgenerateBackupPoms=false"
+            echo "::error::Then commit, tag, and push."
+            exit 1
+          fi
 
       # Full build + tests
       - name: Build and test
-        run: |
-          mvn --batch-mode --no-transfer-progress clean verify
+        run: mvn --batch-mode --no-transfer-progress clean verify
 
       # Rename the artifact to include the version for clarity
       - name: Prepare artifact
@@ -58,11 +51,9 @@ jobs:
           cp diagscope-cli/target/diagscope.jar \
              diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
 
-      # Create the GitHub Release and upload the fat JAR
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
           name: DiagScope ${{ steps.version.outputs.version }}
           body: |
             ## DiagScope ${{ steps.version.outputs.version }}
@@ -75,13 +66,12 @@ jobs:
             # Run directly
             java -jar diagscope-${{ steps.version.outputs.version }}.jar scan --help
 
-            # Or alias it for convenience
+            # Alias for convenience
             alias diagscope='java -jar /path/to/diagscope-${{ steps.version.outputs.version }}.jar'
             diagscope scan /path/to/your/project
             ```
 
             See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full usage.
-          files: |
-            diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
+          files: diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
