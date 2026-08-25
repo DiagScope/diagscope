@@ -916,10 +916,32 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                         EntrypointType.SCHEDULED, method.id(), scheduleDisplay(item), method.location())));
             }
             addCustomEntrypoints(result, method, methodAnnotations, enabledTypes, policy);
+            if (enabledTypes.contains(EntrypointType.PUBLIC_METHOD)) {
+                detectPublicMethodEntrypoint(method).ifPresent(result::add);
+            }
         }
         result.sort(Comparator.comparing((Entrypoint item) -> item.type().name())
                 .thenComparing(Entrypoint::displayName).thenComparing(item -> item.method().displayName()));
         return List.copyOf(result);
+    }
+
+    private static final Set<String> SKIP_PUBLIC_METHOD_NAMES = Set.of(
+            "equals", "hashCode", "toString", "compareTo", "clone", "finalize",
+            "component1", "component2", "component3", "component4", "component5",
+            "copy", "getClass", "notify", "notifyAll", "wait", "main");
+
+    private static Optional<Entrypoint> detectPublicMethodEntrypoint(RawMethod method) {
+        if (method.visibility() != MethodVisibility.PUBLIC) return Optional.empty();
+        if (method.staticMethod()) return Optional.empty();
+        if (!method.executableBody()) return Optional.empty();
+        String name = method.id().name();
+        if (SKIP_PUBLIC_METHOD_NAMES.contains(name)) return Optional.empty();
+        if (method.invocations().size() <= 1 &&
+                (name.startsWith("get") || name.startsWith("set") || name.startsWith("is"))) {
+            return Optional.empty();
+        }
+        String display = method.id().declaringType() + "." + name + "()";
+        return Optional.of(new Entrypoint(EntrypointType.PUBLIC_METHOD, method.id(), display, method.location()));
     }
 
     private static void addCustomEntrypoints(

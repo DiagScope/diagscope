@@ -676,6 +676,66 @@ Recommended response: replace the pattern with `Map.putIfAbsent()`, `Map.compute
 `Map.merge()`, or `ConcurrentHashMap.compute()` — these operations are atomic on `ConcurrentHashMap`
 and eliminate the race window.
 
+## `MISSING_TRANSACTION_ANNOTATION`
+
+Reports JPA / Spring Data write operations (`save`, `saveAll`, `delete`, `deleteById`, `persist`,
+`merge`, `remove`, `flush`, etc.) in methods that are not covered by a `@Transactional` annotation
+(Spring, Jakarta EE `@TransactionAttribute`, or Quarkus `@ReactiveTransactional`). Without a
+transaction boundary each JPA operation runs in its own auto-commit context; if a subsequent
+operation in the same business action fails, previously persisted changes cannot be rolled back.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the rule matches receiver scope/type names against known repository
+  patterns (`repository`, `dao`, `entitymanager`, JPA repository interfaces).
+- Final confidence: capped by reachability.
+
+Known limitation: the rule cannot see annotations applied at the class level in a calling service; it
+inspects only the annotations present on the method model it traverses. Methods annotated at the
+class level but not individually will be missed.
+
+Recommended response: annotate the service method (or its class) with `@Transactional`. Ensure that
+the propagation level matches the business requirement (`REQUIRED` is the safe default).
+
+## `HTTP_TIMEOUT_NOT_SET`
+
+Reports reactive HTTP client calls that block the calling thread (`block()`, `blockFirst()`,
+`blockLast()`, `toFuture()`) or synchronous `RestTemplate` calls (`exchange`, `getForObject`,
+`postForObject`, etc.) in methods where no timeout method is observed (`timeout()`,
+`responseTimeout()`, `setReadTimeout()`, `orTimeout()`, etc.). A call that waits indefinitely on a
+slow or unreachable server can exhaust the thread pool under load and bring the entire service down.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the rule uses receiver scope names and type hints (`webclient`,
+  `mono`, `flux`, `response`, `resttemplate`) to identify HTTP receivers.
+- Final confidence: capped by reachability.
+
+Known limitation: if a timeout is configured on the `WebClient` builder or the `RestTemplate`'s
+`ClientHttpRequestFactory` outside the scanned method, the rule will still flag the call. A
+method-local suppression is appropriate in that case.
+
+Recommended response: add `.timeout(Duration.ofSeconds(n))` to the reactive chain, set
+`responseTimeout` on the `WebClient` builder, or configure `setReadTimeout` on the `RestTemplate`'s
+`ClientHttpRequestFactory`.
+
+## `GOD_CLASS_DETECTED`
+
+Reports classes that declare more than 15 public, non-static methods. A class with an excessive
+number of public methods is a strong structural smell for too many responsibilities. God classes
+accumulate behavior over time; they are hard to test, understand, and evolve independently of the
+components they depend on.
+
+- Default severity: `INFO`.
+- Evidence confidence: `HIGH`; the count is computed directly from the parsed method models.
+- This is a **project-level rule** — it evaluates the complete analyzed project rather than individual
+  flows. Findings have no associated flow path.
+
+Known limitation: the threshold is a global constant. Libraries with intentionally large public APIs
+(e.g., a façade) may generate false positives and should be suppressed with `diagscope-suppress`.
+
+Recommended response: split the class into smaller, cohesive units — each with a single, clear
+responsibility. Consider domain services, command/query objects, or collaborator classes so each
+piece is independently testable.
+
 ## Rule admission criteria
 
 Before adding another rule:

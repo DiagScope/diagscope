@@ -4,7 +4,8 @@ package example.kotlin.parity
 class KotlinParityController(
     private val service: KotlinParityService,
     private val concurrency: KotlinConcurrencyAndSafetyService,
-    private val maintainability: KotlinMaintainabilityService
+    private val maintainability: KotlinMaintainabilityService,
+    private val transactionHttp: KotlinTransactionAndHttpService
 ) {
     @GetMapping("/kotlin-parity")
     fun inspect(id: String, token: String): String {
@@ -59,6 +60,11 @@ class KotlinParityController(
         maintainability.addIfNotPresent(id)
         maintainability.createOrder(id, id, id, id, id, id)
         maintainability.createOrderSafe(KotlinMaintainabilityService.OrderRequest(id, id, id, id, id, id))
+        // Transaction and HTTP timeout rules
+        transactionHttp.saveWithoutTransaction(id)
+        transactionHttp.saveWithTransaction(id)
+        transactionHttp.callWithoutTimeout(id)
+        transactionHttp.callWithTimeout(id)
         return id
     }
 }

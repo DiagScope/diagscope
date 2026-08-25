@@ -1,6 +1,7 @@
 package dev.diagscope.core.application.rule;
 
 import dev.diagscope.core.application.AnalysisPolicy;
+import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
@@ -23,17 +24,44 @@ public final class RuleEngine {
             .thenComparing(Finding::fingerprint);
 
     private final List<DiagnosticRule> rules;
+    private final List<ProjectRule> projectRules;
 
     public RuleEngine(List<DiagnosticRule> rules) {
+        this(rules, List.of());
+    }
+
+    public RuleEngine(List<DiagnosticRule> rules, List<ProjectRule> projectRules) {
         Objects.requireNonNull(rules, "rules");
+        Objects.requireNonNull(projectRules, "projectRules");
         var sortedRules = new ArrayList<>(rules);
         sortedRules.forEach(rule -> Objects.requireNonNull(rule, "rules must not contain null"));
         sortedRules.sort(Comparator.comparing(DiagnosticRule::id));
         this.rules = List.copyOf(sortedRules);
+        var sortedProjectRules = new ArrayList<>(projectRules);
+        sortedProjectRules.forEach(rule -> Objects.requireNonNull(rule, "projectRules must not contain null"));
+        sortedProjectRules.sort(Comparator.comparing(ProjectRule::id));
+        this.projectRules = List.copyOf(sortedProjectRules);
     }
 
     public List<Finding> run(List<Flow> flows) {
         return run(flows, AnalysisPolicy.defaults());
+    }
+
+    /** Runs flow-level rules over the flows and project-level rules over the whole project. */
+    public List<Finding> run(List<Flow> flows, AnalyzedProject project, AnalysisPolicy policy) {
+        var combined = new LinkedHashMap<String, Finding>();
+        for (var finding : run(flows, policy)) {
+            combined.put(finding.fingerprint(), finding);
+        }
+        for (var rule : projectRules) {
+            if (policy.disabledRules().contains(rule.id())) continue;
+            for (var finding : rule.evaluate(project)) {
+                Objects.requireNonNull(finding, () -> "ProjectRule " + rule.id() + " returned a null finding");
+                Finding configured = applySeverityOverride(finding, policy);
+                combined.merge(configured.fingerprint(), configured, RuleEngine::mergeFindings);
+            }
+        }
+        return combined.values().stream().sorted(FINDING_ORDER).toList();
     }
 
     public List<Finding> run(List<Flow> flows, AnalysisPolicy policy) {

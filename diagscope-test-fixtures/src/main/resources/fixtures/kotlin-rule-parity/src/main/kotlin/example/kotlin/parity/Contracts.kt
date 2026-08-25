@@ -117,3 +117,21 @@ interface Subscription<T> {
     fun with(item: (T) -> Unit)
     fun with(item: (T) -> Unit, failure: (Throwable) -> Unit)
 }
+
+// --- HTTP / reactive stubs (for HTTP_TIMEOUT_NOT_SET) ---
+interface Mono<T> {
+    fun block(): T
+    fun timeout(duration: Any): Mono<T>
+    fun map(mapper: (T) -> T): Mono<T>
+}
+
+interface WebClient {
+    fun get(uri: String): Mono<String>
+}
+
+// --- JPA stubs (for MISSING_TRANSACTION_ANNOTATION) ---
+interface UserRepository {
+    fun save(entity: Any): Any
+    fun delete(entity: Any)
+    fun deleteById(id: String)
+}

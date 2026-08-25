@@ -101,3 +101,21 @@ interface Subscription<T> {
     void with(java.util.function.Consumer<T> item);
     void with(java.util.function.Consumer<T> item, java.util.function.Consumer<Throwable> failure);
 }
+
+// --- HTTP / reactive stubs (for HTTP_TIMEOUT_NOT_SET) ---
+interface Mono<T> {
+    T block();
+    Mono<T> timeout(Object duration);
+    Mono<T> map(Function<T, T> mapper);
+}
+
+interface WebClient {
+    Mono<String> get(String uri);
+}
+
+// --- JPA stubs (for MISSING_TRANSACTION_ANNOTATION) ---
+interface UserRepository {
+    Object save(Object entity);
+    void delete(Object entity);
+    void deleteById(String id);
+}

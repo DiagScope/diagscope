@@ -964,6 +964,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 });
             }
             addCustomEntrypoints(result, method, methodAnnotations, enabledTypes, policy);
+            if (enabledTypes.contains(EntrypointType.PUBLIC_METHOD)) {
+                detectPublicMethodEntrypoint(method).ifPresent(result::add);
+            }
         }
         result.sort(Comparator.comparing((Entrypoint entrypoint) -> entrypoint.type().name())
                 .thenComparing(Entrypoint::displayName)
@@ -1568,6 +1571,30 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         private RawCall {
             argumentTypes = List.copyOf(argumentTypes);
         }
+    }
+
+    /** Object methods that are not meaningful entrypoints. */
+    private static final Set<String> SKIP_PUBLIC_METHOD_NAMES = Set.of(
+            "equals", "hashCode", "toString", "compareTo", "clone", "finalize",
+            "getClass", "notify", "notifyAll", "wait", "main");
+
+    /**
+     * Treats every non-static, non-trivial public method as an entrypoint so that DiagScope
+     * can analyze framework-free Java projects (libraries, utilities, plain applications).
+     */
+    private static Optional<Entrypoint> detectPublicMethodEntrypoint(RawMethod method) {
+        if (method.visibility() != MethodVisibility.PUBLIC) return Optional.empty();
+        if (method.staticMethod()) return Optional.empty();
+        if (!method.executableBody()) return Optional.empty();
+        String name = method.id().name();
+        if (SKIP_PUBLIC_METHOD_NAMES.contains(name)) return Optional.empty();
+        // Skip trivial getters / setters (0–1 params, name starts with get/set/is, ≤ 1 call)
+        if (method.invocations().size() <= 1 &&
+                (name.startsWith("get") || name.startsWith("set") || name.startsWith("is"))) {
+            return Optional.empty();
+        }
+        String display = method.id().declaringType() + "." + name + "()";
+        return Optional.of(new Entrypoint(EntrypointType.PUBLIC_METHOD, method.id(), display, method.location()));
     }
 
     private record RawMethod(

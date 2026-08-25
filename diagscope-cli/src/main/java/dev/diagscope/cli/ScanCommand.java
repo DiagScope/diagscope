@@ -70,7 +70,9 @@ public final class ScanCommand implements Callable<Integer> {
             description = "Additional production source root inside the project; repeat or comma-separate entries")
     private List<Path> sourceRoots = List.of();
 
-    @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED", description = "Entrypoint types to analyze")
+    @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED",
+            description = "Entrypoint types: REST, KAFKA_LISTENER, REACTIVE_MESSAGE, SCHEDULED, PUBLIC_METHOD."
+                    + " Use PUBLIC_METHOD for library or framework-free projects.")
     private EnumSet<EntrypointType> entrypointTypes;
 
     public ScanCommand(ScanProjectUseCase useCase, Map<ReportFormat, AnalysisReporter> reporters) {

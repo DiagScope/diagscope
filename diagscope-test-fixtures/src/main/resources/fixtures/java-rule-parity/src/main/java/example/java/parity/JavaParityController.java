@@ -5,12 +5,15 @@ class JavaParityController {
     private final JavaParityService service;
     private final JavaConcurrencyAndSafetyService concurrency;
     private final JavaMaintainabilityService maintainability;
+    private final JavaTransactionAndHttpService transactionHttp;
 
     JavaParityController(JavaParityService service, JavaConcurrencyAndSafetyService concurrency,
-                         JavaMaintainabilityService maintainability) {
+                         JavaMaintainabilityService maintainability,
+                         JavaTransactionAndHttpService transactionHttp) {
         this.service = service;
         this.concurrency = concurrency;
         this.maintainability = maintainability;
+        this.transactionHttp = transactionHttp;
     }
 
     @GetMapping("/java-parity")
@@ -67,6 +70,11 @@ class JavaParityController {
         maintainability.addIfNotPresent(id);
         maintainability.createOrder(id, id, id, id, id, id);
         maintainability.createOrderSafe(new JavaMaintainabilityService.OrderRequest(id, id, id, id, id, id));
+        // Transaction and HTTP timeout rules
+        transactionHttp.saveWithoutTransaction(id);
+        transactionHttp.saveWithTransaction(id);
+        transactionHttp.callWithoutTimeout(id);
+        transactionHttp.callWithTimeout(id);
         return id;
     }
 }

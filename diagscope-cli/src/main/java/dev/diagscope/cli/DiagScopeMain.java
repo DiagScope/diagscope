@@ -10,7 +10,11 @@ import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.core.application.rule.AsyncResultUnobservedRule;
 import dev.diagscope.core.application.rule.CheckThenActOnMapRule;
 import dev.diagscope.core.application.rule.ExcessiveMethodParametersRule;
+import dev.diagscope.core.application.rule.GodClassRule;
 import dev.diagscope.core.application.rule.HighMethodComplexityRule;
+import dev.diagscope.core.application.rule.HttpTimeoutNotSetRule;
+import dev.diagscope.core.application.rule.MissingTransactionAnnotationRule;
+import dev.diagscope.core.application.rule.ProjectRule;
 import dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
 import dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule;
@@ -68,7 +72,7 @@ public final class DiagScopeMain {
 
     /** Fully wired scan engine; reused by the CLI, build-tool plugins and CI wrappers. */
     public static dev.diagscope.core.application.port.in.ScanProjectUseCase createScanUseCase() {
-        var ruleEngine = new RuleEngine(List.of(
+        var flowRules = List.of(
                 new SilentCatchRule(),
                 new SilentFailureConversionRule(),
                 new IgnoredKafkaSendResultRule(),
@@ -110,19 +114,24 @@ public final class DiagScopeMain {
                 new NPlusOneQueryRiskRule(),
                 // Null safety
                 new OptionalGetWithoutCheckRule(),
+                // Transactions
+                new MissingTransactionAnnotationRule(),
+                // Resilience: HTTP timeout
+                new HttpTimeoutNotSetRule(),
                 // Maintainability
                 new ExcessiveMethodParametersRule(),
                 new HighMethodComplexityRule(),
                 // Concurrency: atomic operations
                 new CheckThenActOnMapRule()
-        ));
+        );
+        var fullEngine = new RuleEngine(flowRules, List.of(new GodClassRule()));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
                         new JavaParserProjectAnalyzer(),
                         new KotlinParserProjectAnalyzer()
                 )),
                 new LocalFlowBuilder(),
-                ruleEngine
+                fullEngine
         );
     }
 
@@ -175,7 +184,10 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule.ID,
                 dev.diagscope.core.application.rule.ExcessiveMethodParametersRule.ID,
                 dev.diagscope.core.application.rule.HighMethodComplexityRule.ID,
-                dev.diagscope.core.application.rule.CheckThenActOnMapRule.ID
+                dev.diagscope.core.application.rule.CheckThenActOnMapRule.ID,
+                dev.diagscope.core.application.rule.MissingTransactionAnnotationRule.ID,
+                dev.diagscope.core.application.rule.HttpTimeoutNotSetRule.ID,
+                dev.diagscope.core.application.rule.GodClassRule.ID
         );
     }
 

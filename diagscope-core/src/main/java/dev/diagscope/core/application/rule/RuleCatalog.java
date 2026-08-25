@@ -607,6 +607,58 @@ public final class RuleCatalog {
                         + " same Optional; a guard on a different Optional in the same method will"
                         + " not suppress the finding. Kotlin nullable types are not in scope.");
 
+        // ── Transactions ────────────────────────────────────────────────────────
+        put(catalog, MissingTransactionAnnotationRule.ID,
+                "Write operation outside a transaction boundary",
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Data / JPA / Hibernate applications",
+                "A JPA or Spring Data write operation (save, delete, persist, merge, flush, remove)"
+                        + " is called in a method that carries no @Transactional annotation and whose"
+                        + " class is not declared @Transactional.",
+                "Without a transaction boundary each write runs in its own auto-commit context."
+                        + " If a subsequent operation in the same business action fails, the previously"
+                        + " persisted changes cannot be rolled back, leaving data in an inconsistent state.",
+                "A write-operation method call (matched by name against a curated set) on a receiver"
+                        + " whose type or scope name suggests a Spring Data repository, DAO,"
+                        + " or JPA EntityManager, in a method with no detectable @Transactional"
+                        + " annotation on the method or its declaring class.",
+                "The rule uses method-name and receiver-type heuristics, so a custom repository"
+                        + " with an unconventional name may be missed, and a method that calls a"
+                        + " helper that is itself @Transactional will still be flagged.");
+
+        // ── Resilience: HTTP timeout ──────────────────────────────────────────────
+        put(catalog, HttpTimeoutNotSetRule.ID,
+                "HTTP client call without a timeout",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Spring WebClient, RestTemplate, or any reactive HTTP client",
+                "An HTTP client call or a reactive .block() is made in a method where no timeout"
+                        + " (.timeout(), responseTimeout, setReadTimeout) is observed.",
+                "An HTTP call with no timeout will block the calling thread indefinitely if the"
+                        + " remote server is slow or unreachable. Under load this exhausts the thread"
+                        + " pool and can bring the entire service down.",
+                "A blocking terminal operator (block, blockFirst, blockLast) on a receiver whose scope"
+                        + " or type name suggests an HTTP or reactive type, or a RestTemplate call,"
+                        + " in a method where no timeout-setting call is observed.",
+                "Timeouts set on the WebClient builder at bean-construction time are not visible"
+                        + " at the call site; this can produce false positives when the builder is"
+                        + " properly configured. Review each finding in the context of the client setup.");
+
+        // ── Maintainability: class complexity ─────────────────────────────────────
+        put(catalog, GodClassRule.ID,
+                "Class has too many public methods (god class)",
+                "maintainability", Severity.INFO, ALL_LANGUAGES,
+                "Any Java or Kotlin application",
+                "A class declares more than " + GodClassRule.MAX_PUBLIC_METHODS
+                        + " public non-static methods.",
+                "Classes that accumulate too many responsibilities become hard to understand,"
+                        + " test in isolation, and evolve independently. A god class is typically a"
+                        + " symptom of missing domain abstractions or service boundaries.",
+                "The number of non-static public methods grouped by declaring type across the full"
+                        + " analyzed project. Exceeding the threshold triggers one finding per class.",
+                "Interfaces and abstract classes with many declared methods may be flagged; those"
+                        + " define a contract rather than an implementation and may warrant a project"
+                        + " policy exclusion. Threshold is configurable.");
+
         // ── Concurrency: atomic operations ────────────────────────────────────
         put(catalog, CheckThenActOnMapRule.ID,
                 "Non-atomic check-then-act on Map or Collection",

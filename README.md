@@ -2,21 +2,19 @@
 
 **Will this code explain itself when it fails in production?**
 
-DiagScope is a static analyzer for Java and Kotlin/JVM (Spring Boot, Quarkus, Micronaut) that finds
-code which destroys or weakens the evidence you need during a production incident: swallowed exceptions,
-failures silently converted to normal values, unobserved async results, ignored Kafka send results,
-stack traces printed instead of logged, metric tags that explode cardinality, locks never released,
-thread-locals that leak between requests, blocking calls in reactive event loops, N+1 query patterns,
-and more.
+DiagScope is a static analyzer for Java and Kotlin/JVM projects. It follows real call flows — REST
+endpoints, Kafka consumers, scheduled jobs, reactive handlers, and plain public methods — and reports
+code that silently destroys diagnostic evidence: swallowed exceptions, ignored async results, leaking
+locks, blocking calls in reactive loops, N+1 queries, and more.
 
-It is not a style checker. Every finding is attached to a real entrypoint flow — a REST endpoint, a
-Kafka or Reactive Messaging consumer, a scheduled job — so you see *which production path* goes blind
-when something breaks. 41 rules across 9 categories ship out of the box.
+It does not style-check your code. Every finding is anchored to a specific entrypoint → method chain
+so you see *which production path* goes blind when something breaks.
+
+44 rules. Java and Kotlin. Spring, Quarkus, Micronaut, and framework-free projects.
 
 ## Requirements
 
-- JDK 25
-- Maven 3.9+
+JDK 25 · Maven 3.9+
 
 ## Build
 
@@ -24,379 +22,94 @@ when something breaks. 41 rules across 9 categories ship out of the box.
 mvn clean verify
 ```
 
-This produces the runnable CLI at `diagscope-cli/target/diagscope.jar`.
+Produces `diagscope-cli/target/diagscope.jar`.
 
 ## Usage
 
-Scan a project:
-
 ```bash
-java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/your-project
-```
+# Spring / Quarkus project
+java -jar diagscope.jar scan --project /path/to/project
 
-Maven and Gradle projects are both supported, including multi-module and mixed Java/Kotlin builds.
-Conventional roots are discovered automatically; literal production roots declared by Gradle
-`sourceSets.main`, Maven `build-helper`, or Kotlin Maven `sourceDirs` are included as well. A dynamic
-root can be supplied explicitly with `--source-root` without executing the build.
+# Plain Java or Kotlin (no framework annotations)
+java -jar diagscope.jar scan --project /path/to/project --entrypoint PUBLIC_METHOD
 
-Kotlin support is syntax-first but covers the complete rule catalog. The adapter maps trailing-lambda
-evidence, injected receiver chains, typed overloads, defaults/varargs, transitive interfaces,
-inherited/default methods, composed or inherited entrypoints and advice targets, Micrometer,
-Spring proxy/AOP evidence, and Quarkus REST JAX-RS entrypoints into the same parser-neutral model. Java now has matching hierarchy,
-composed-annotation, and typed-overload resolution. Cross-language linking understands declared
-varargs, generic candidates, and Kotlin defaults exposed to Java with `@JvmOverloads`. Java dependency
-symbol solving is available only when an explicit `--classpath` is supplied; Kotlin compiler-grade
-dependency resolution and runtime-only Spring/AspectJ state remain outside the current boundary.
+# Fail CI on errors, only for files changed since the base branch
+java -jar diagscope.jar scan --project . --changed-since origin/main --fail-on ERROR
 
-By default all three reports are written to `<your-project>/build/diagscope/` for Gradle projects and `<your-project>/target/diagscope/` for Maven:
-
-```text
-build/diagscope/          # Gradle (target/diagscope/ for Maven)
-├── report.md      # human review, code review, pull requests
-├── result.json    # automation and tooling
-└── report.html    # self-contained interactive report
-```
-
-### Common commands
-
-```bash
-# Only the HTML report, in a custom directory
-java -jar diagscope.jar scan --project . --output build/diagscope --format HTML
-
-# Only REST endpoints, following calls up to 5 levels deep
-java -jar diagscope.jar scan --project . --entrypoint REST --max-depth 5
-
-# Limit parser workers (useful in CI containers)
-java -jar diagscope.jar scan --project . --parallelism 2
-
-# Create the initial baseline, then fail only on findings that are not in it
-java -jar diagscope.jar scan --project . --update-baseline
-java -jar diagscope.jar scan --project . --baseline --fail-on WARNING
-
-# Pull-request scan: only findings in files changed since the target branch
-java -jar diagscope.jar scan --project . --changed-since origin/main --fail-on WARNING --format SARIF,HTML
-
-# Use a team policy instead of automatic ./diagscope.yml discovery
-java -jar diagscope.jar scan --project . --config config/diagscope-team.yml
-
-# Supply generated sources and the already-built dependency classpath explicitly
-java -jar diagscope.jar scan --project . --source-root build/generated/sources \
-  --classpath build/classes/java/main,libs/domain-api.jar
-
-# Inspect the rule catalog and a single rule
+# Explore the rule catalog
 java -jar diagscope.jar rules
 java -jar diagscope.jar explain SILENT_CATCH
-
-# Compare two compatible scans by stable fingerprint
-java -jar diagscope.jar trend --base previous/result.json --current current/result.json \
-  --output trend.md
 ```
 
-### Options
+Default output goes to `build/diagscope/` (Gradle) or `target/diagscope/` (Maven):
 
-| Option | Meaning | Default |
-|---|---|---|
-| `-p`, `--project` | Project directory to analyze (required) | — |
-| `-o`, `--output` | Output directory; a relative path resolves inside the project | `build/diagscope` (Gradle) or `target/diagscope` (Maven) |
-| `--format` | `MARKDOWN`, `JSON`, `HTML`, `SARIF`, or a comma-separated combination | `MARKDOWN,JSON,HTML` |
-| `--entrypoint` | Subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, `SCHEDULED` | all |
-| `--max-depth` | How many local call levels to follow from an entrypoint (`0`–`32`) | `3` |
-| `--parallelism` | Java parser worker count; `0` picks automatically (Kotlin PSI is sequential for now) | `0` |
-| `--fail-on` | Exit `1` when a finding at this severity or above exists (`ERROR`, `WARNING`, `INFO`) | off |
-| `--baseline [path]` | Suppress fingerprints recorded in a baseline; without a path uses `diagscope-baseline.json` | off |
-| `--update-baseline` | Atomically rewrite the selected/default baseline with all current findings | off |
-| `--baseline-migration <OLD=NEW>` | Record an intentional fingerprint migration during baseline update | off |
-| `--prune-removed-baseline` | Drop reviewed removed-finding tombstones during baseline update | off |
-| `--changed-since <ref>` | Keep findings only in files changed since a Git revision | off |
-| `--config <path>` | Load a strict project policy; otherwise auto-discovers `diagscope.yml` | auto |
-| `--source-root <path>` | Additional production root inside the project; repeat or comma-separate | off |
-| `--classpath <path>` | Dependency JAR/classes directory for opt-in Java symbol solving; repeat or comma-separate | off |
-
-Subcommands: `scan`, `trend`, `rules`, `explain`.
-
-By default, findings do not fail the command. Exit code `1` is reserved for a completed scan that
-breached `--fail-on`; invalid configuration returns `2`, and unsupported project input returns `3`.
-Baseline and changed-file filters run before the severity gate. `--format SARIF` writes
-`result.sarif`, ready to upload to GitHub code scanning. The versioning contract for automation is
-documented in [result.json schema policy](docs/RESULT_JSON_SCHEMA.md).
-
-Project policy supports rule enable/disable and severity overrides, ignored source globs, custom
-sensitive names, logger receiver types, and method-level entrypoint annotations for Java and Kotlin.
-See [project configuration](docs/CONFIGURATION.md).
-
-### Reviewed waivers
-
-A baseline accepts existing findings in bulk. A waiver is the opposite: an explicit, reviewed
-decision about one finding, declared in `diagscope.yml`.
-
-```yaml
-suppressions:
-  - fingerprint: "sha256:1f0c..."
-    reason: "Handled by the API gateway; the caller already receives the original cause."
-    expires: "2026-12-31"
+```
+build/diagscope/
+├── report.md    ← human review and pull requests
+├── report.html  ← interactive, self-contained, no network
+└── result.json  ← machine-readable for automation
 ```
 
-Every waiver requires a fingerprint and a non-empty reason; `expires` is optional. An expired waiver
-stops hiding its finding, and a waiver that matches nothing is reported as unused, so stale
-configuration surfaces in the terminal summary and in `configuration.scanScope` of `result.json`
-instead of quietly rotting.
+Full CLI reference: [docs/CLI.md](docs/CLI.md).
 
-### Rule documentation
+## How it works
 
-`rules` prints every rule with its severity, default state, and evidence-contract version;
-`--format JSON` makes the catalog diffable in CI. `explain <RULE_ID>` prints what a rule means, why
-it matters, and how it is detected. Rule contract versions change only when the evidence a rule
-emits changes, independently of catalog wording.
+DiagScope analyzes source code — it never compiles or runs your project.
 
+1. **Parse** — reads all `.java` and `.kt` files and extracts the structural facts that rules need
+   (method calls, catch blocks, annotations, etc.) into a parser-neutral model.
+2. **Build flows** — for every entrypoint (REST handler, Kafka listener, `@Scheduled` method, or any
+   public method when `--entrypoint PUBLIC_METHOD` is used) it follows the call graph up to
+   `--max-depth` levels and collects all reachable methods into a *flow*.
+3. **Run rules** — each rule inspects every method in every flow, and the whole project for
+   project-level rules (like class complexity). A finding always names the entrypoint that reaches it
+   so you know the operational context.
 
-Full reference: [docs/CLI.md](docs/CLI.md).
+Findings are never more confident than the path that reaches them. Ambiguous resolution, unresolved
+calls, and depth truncation are reported as *flow boundaries* — explicit markers of what was not
+analyzed.
 
-## Example report
+## Rules (44)
 
-```markdown
-# DiagScope Report
-
-`payments-api` — 5 finding(s) across 3 flow(s).
-
-| Metric | Value |
-| --- | --- |
-| Build system | Maven |
-| Findings | 5 |
-| Errors | 3 |
-| Warnings | 2 |
-| Flows | 3 |
-| Flow boundaries | 6 |
-| Parse failures | 0 |
-
-## Executive summary
-
-5 finding(s): 3 error(s), 2 warning(s), 0 info. 4 are high confidence and worth triaging first.
-
-### Findings by rule
-
-| Rule | What it flags | Findings | Highest severity | High | Medium | Low |
-| --- | --- | --- | --- | --- | --- | --- |
-| `SILENT_CATCH` | Exception caught and ignored | 2 | `ERROR` | 2 | 0 | 0 |
-| `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
-| `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
-| `HIGH_CARDINALITY_METRIC_TAG` | High-cardinality metric tag | 1 | `ERROR` | 0 | 1 | 0 |
-
-### Findings by confidence
-
-| Confidence | Findings | What it means |
-| --- | --- | --- |
-| `HIGH` | 4 | HIGH — the evidence is explicit in the source and the call path was resolved without ambiguity. |
-| `MEDIUM` | 1 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution static analysis cannot prove. |
-| `LOW` | 0 | LOW — plausible, but depends on runtime behaviour DiagScope cannot observe. |
-
-## Findings
-
-### ❌ SILENT_FAILURE_CONVERSION — `src/main/java/example/PaymentService.java:15`
-
-Exception is converted to a normal return value without preserving diagnostic evidence.
-
-**What this means:** An exception is caught and turned into a benign result such as null, an empty collection, false, or a default value.
-
-**Why it matters:** Downstream code cannot distinguish 'no data' from 'the call failed', so the incident surfaces later as wrong data instead of as an error.
-
-**How it was detected:** The catch block returns a constant or empty value and never logs, rethrows, or records the cause.
-
-**Suggested action:** Preserve the cause, emit a diagnostic signal, or return a result containing a stable failure code.
-
-- Severity: `ERROR` · Confidence: `HIGH`
-- Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
-- Affected flows: POST /payments/{id}/capture (`HIGH`, depth 1)
-- Fingerprint: `sha256:9ed6a377b9b7224a3c9e7f2575...`
-
-<details><summary>Call paths (1)</summary>
-
-- `REST` POST /payments/{id}/capture
-  - `example.PaymentController.capture(String)`
-    - `example.PaymentService.capture(String)` ← evidence
-
-</details>
-
-<details><summary>Evidence</summary>
-
-- `method`: `example.PaymentService.capture(String)`
-- `returnedExpression`: `false`
-
-</details>
-
-## Flow overview
-
-| Entrypoint | Type | Confidence | Methods | Boundaries |
-| --- | --- | --- | --- | --- |
-| POST /payments/{id}/capture | `REST` | `HIGH` | 4 | 5 |
-| Kafka topic=payments | `KAFKA_LISTENER` | `HIGH` | 2 | 0 |
-| Scheduled cron=0 */5 * * * * | `SCHEDULED` | `HIGH` | 1 | 1 |
-```
-
-Every report opens with an executive summary — findings per rule (with the highest severity and the split across confidence levels) and totals per confidence and severity — so the state of the project is readable in seconds. In HTML, clicking a rule filters the findings list; `result.json` exposes the same counts under `summary`.
-
-The HTML report shows the same content with severity and confidence filters, free-text search over rules, messages, methods and evidence, and a drill-down panel on every finding with four tabs: **Evidence** (why it was reported, plus the copyable fingerprint and affected methods), **Call paths** (entrypoint to evidence, step by step), **Flow impact** (the entrypoint reached, where that flow stops being analyzed, and the other findings on the same flow) and **Source** (the highlighted excerpt). It is a single self-contained file with no network requests — open it in a browser or attach it to a ticket.
-
-## Reading the report
-
-**Severity** — how bad it is if this code runs during an incident.
-
-| Severity | Meaning |
+| Category | Rules |
 |---|---|
-| ❌ `ERROR` | Evidence of a failure is destroyed. An incident here starts with nothing to investigate. |
-| ⚠️ `WARNING` | Evidence is weakened or a failure path is unobserved. Worth reviewing. |
-| ℹ️ `INFO` | Informational; low operational impact. |
+| Exception handling | `SILENT_CATCH` `SILENT_FAILURE_CONVERSION` `LOG_WITHOUT_THROWABLE` `GENERIC_EXCEPTION_MESSAGE` `DUPLICATE_DIAGNOSTIC_SIGNAL` |
+| Kafka | `KAFKA_SEND_RESULT_IGNORED` `KAFKA_ACK_NOT_INVOKED` `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` |
+| Transactions | `TX_ROLLBACK_SUPPRESSED` `TX_PROPAGATION_MISMATCH` `MISSING_TRANSACTION_ANNOTATION` |
+| Database | `JDBC_RESOURCE_NOT_CLOSED` `DB_RESOURCE_CLOSE_NOT_GUARDED` `JPA_ENTITY_MANAGER_NOT_CLOSED` `JDBC_TEMPLATE_CONNECTION_ESCAPE` |
+| Resilience | `ASYNC_RESULT_UNOBSERVED` `HTTP_CLIENT_ERROR_DISCARDED` `SCHEDULED_TASK_SWALLOWS_FAILURE` `RETRY_WITHOUT_DIAGNOSTICS` `FALLBACK_HIDES_FAILURE` `HTTP_TIMEOUT_NOT_SET` |
+| Observability | `HIGH_CARDINALITY_METRIC_TAG` `DYNAMIC_METRIC_NAME` `METRIC_CREATED_IN_LOOP` `SENSITIVE_PAYLOAD_LOGGED` `MDC_CONTEXT_LOST` `PRINT_STACK_TRACE` `SYSTEM_OUTPUT` |
+| Concurrency | `LOCK_NOT_RELEASED` `THREAD_LOCAL_LEAK` `FUTURE_GET_WITHOUT_TIMEOUT` `BLOCKING_CALL_IN_REACTIVE_CONTEXT` `CHECK_THEN_ACT_ON_MAP` |
+| Performance | `N_PLUS_ONE_QUERY_RISK` |
+| Null safety | `OPTIONAL_GET_WITHOUT_CHECK` |
+| AOP / Proxy | `AOP_SELF_INVOCATION` `AOP_ADVICE_NOT_APPLIED` `AOP_UNMANAGED_ADVICE_TARGET` |
+| Reactive | `MUTINY_FAILURE_RECOVERED_SILENTLY` `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED` |
+| Maintainability | `EXCESSIVE_METHOD_PARAMETERS` `HIGH_METHOD_COMPLEXITY` `GOD_CLASS_DETECTED` |
 
-**Confidence** — how sure the analyzer is, based only on what the source code proves.
+`diagscope explain <RULE_ID>` prints what each rule means, why it matters, and how it detects the
+pattern. `diagscope rules` lists all rules with severity and contract version.
 
-| Confidence | Meaning |
-|---|---|
-| `HIGH` | The pattern is syntactically unambiguous and the flow reaching it is direct. |
-| `MEDIUM` | The pattern is likely, or the path to it goes through a single-implementation interface or an inferred type. Review it. |
-| `LOW` | Weak evidence or a long, uncertain path. Treat as a hint. |
+Full reference: [docs/RULES.md](docs/RULES.md).
 
-Every finding also carries a plain-language explanation — *what this means*, *why it matters*, *how it was detected* — and a one-line note stating what its confidence level implies for triage. Markdown and HTML render them inline; `result.json` exposes them as `explanation` and `confidenceRationale`. This text is presentation only and never affects the fingerprint.
+## Suppress a finding
 
-A finding is never more confident than the path that reaches it. If a flow becomes uncertain halfway, every finding after that point inherits the lower confidence — the tool never overstates what it knows.
-
-**Affected flows** — the entrypoints that can actually reach this code. This is the operational question: a swallowed exception in a payment capture endpoint matters more than the same code in a dev-only utility.
-
-**Call paths** — the exact chain of methods from the entrypoint down to the line holding the evidence, with the depth of that chain. Use it to decide who owns the fix: the caller that ignores the failure, or the method that hides it. The JSON report exposes the same information as `relatedFlows[].path` plus a flattened `affectedMethods` list, so you can route findings to teams by package.
-
-**Fingerprint** — a stable identity built from the rule, the file, and the evidence, deliberately excluding line numbers. Moving code around does not create a "new" finding, so you can diff scans between commits and see only real changes.
-
-**Flow boundaries** — points where the analyzer stopped: an external library, an ambiguous overload, an interface with several implementations, or the depth limit. **Boundaries are not defects.** They tell you where the report is silent, so you know what was *not* checked instead of assuming it was clean.
-
-**Indirect instrumentation** — advice declared by `@Aspect` classes, listed with its kind, pointcut, and location. This behaviour never appears at the call site, so the report names it explicitly: it is the code that runs around your methods without being written in them.
-
-**Parse failures** — files the parser could not read, reported with the path and reason. Everything else is still analyzed.
-
-## Rules
-
-41 rules across 9 categories. Run `java -jar diagscope.jar rules` for the live list and
-`explain <RULE_ID>` for the full description, detection notes, and remediation guidance.
-
-**Exception handling**
-
-| Rule | What it catches |
-|---|---|
-| `SILENT_CATCH` | A catch block that handles nothing and logs nothing |
-| `SILENT_FAILURE_CONVERSION` | An exception converted to `false`, `null`, or `Optional.empty()` with the cause discarded |
-| `LOG_WITHOUT_THROWABLE` | A logger call in a catch block that doesn't pass the exception as the last argument |
-| `GENERIC_EXCEPTION_MESSAGE` | A log or rethrow whose message carries no stable failure code or operation identifier |
-| `DUPLICATE_DIAGNOSTIC_SIGNAL` | A catch block that both logs and rethrows, doubling the log volume for the same event |
-
-**Kafka**
-
-| Rule | What it catches |
-|---|---|
-| `KAFKA_SEND_RESULT_IGNORED` | `KafkaTemplate.send()` whose completion stage is never observed |
-| `KAFKA_ACK_NOT_INVOKED` | A listener that receives an `Acknowledgment` but never calls `acknowledge()` |
-| `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | A listener that swallows its failure so retry, error handler and DLT never run |
-
-**Transactions**
-
-| Rule | What it catches |
-|---|---|
-| `TX_ROLLBACK_SUPPRESSED` | A failure caught inside a `@Transactional` method, so the transaction commits anyway |
-| `TX_PROPAGATION_MISMATCH` | `REQUIRES_NEW`, `NOT_SUPPORTED`, or `NEVER` called from within an active transaction |
-
-**Database resources**
-
-| Rule | What it catches |
-|---|---|
-| `JDBC_RESOURCE_NOT_CLOSED` | A connection, statement, or result set opened outside try-with-resources and never closed |
-| `DB_RESOURCE_CLOSE_NOT_GUARDED` | A database handle closed on the success path only — a throw leaks it |
-| `JPA_ENTITY_MANAGER_NOT_CLOSED` | An application-managed `EntityManager` never closed in the same method |
-| `JDBC_TEMPLATE_CONNECTION_ESCAPE` | A raw connection pulled from `JdbcTemplate` / `DataSourceUtils`, outside the active transaction |
-
-**Resilience**
-
-| Rule | What it catches |
-|---|---|
-| `ASYNC_RESULT_UNOBSERVED` | `CompletableFuture` or executor result whose handle is discarded — failures disappear silently |
-| `HTTP_CLIENT_ERROR_DISCARDED` | An error-recovery operator that substitutes a fallback without referencing the throwable |
-| `SCHEDULED_TASK_SWALLOWS_FAILURE` | A `@Scheduled` method that catches and silently ignores its exception |
-| `RETRY_WITHOUT_DIAGNOSTICS` | A `@Retryable` / `@Retry` method with no logger call or metric — retry storms are invisible |
-| `FALLBACK_HIDES_FAILURE` | A `@Recover` / fallback method that returns a default without logging what it compensates for |
-
-**Observability**
-
-| Rule | What it catches |
-|---|---|
-| `HIGH_CARDINALITY_METRIC_TAG` | A Micrometer tag carrying an unbounded value such as an ID, UUID, or user input |
-| `DYNAMIC_METRIC_NAME` | A meter name computed at runtime — dashboards and alerts depend on constant names |
-| `METRIC_CREATED_IN_LOOP` | A meter registration inside a loop — each iteration multiplies time series |
-| `SENSITIVE_PAYLOAD_LOGGED` | A log call in a method that handles credentials, tokens, or PII |
-| `MDC_CONTEXT_LOST` | MDC `put()` without a `finally`-guarded `remove()` — context bleeds into the next thread-pool task |
-| `PRINT_STACK_TRACE` | `e.printStackTrace()` instead of structured logging |
-| `SYSTEM_OUTPUT` | `System.out` / `System.err` used instead of the application logger |
-
-**Concurrency**
-
-| Rule | What it catches |
-|---|---|
-| `LOCK_NOT_RELEASED` | `lock()` with no `unlock()` inside a `finally` block — a throw leaks the lock |
-| `THREAD_LOCAL_LEAK` | `ThreadLocal.set()` without `remove()` — value persists into the next request on the same thread |
-| `FUTURE_GET_WITHOUT_TIMEOUT` | Bare `Future.get()` / `join()` with no timeout — a slow dependency blocks the thread indefinitely |
-| `BLOCKING_CALL_IN_REACTIVE_CONTEXT` | `Thread.sleep`, `Object.wait`, or bare `Future.get()` inside a `@NonBlocking` / `@Incoming` method |
-| `CHECK_THEN_ACT_ON_MAP` | `containsKey` + `put` on the same receiver without `putIfAbsent` / `computeIfAbsent` — a race condition |
-
-**Performance**
-
-| Rule | What it catches |
-|---|---|
-| `N_PLUS_ONE_QUERY_RISK` | A Spring Data / JPA / JDBC query call inside a loop — N+1 queries at scale |
-
-**Null safety**
-
-| Rule | What it catches |
-|---|---|
-| `OPTIONAL_GET_WITHOUT_CHECK` | `Optional.get()` in a method with no `isPresent()`, `orElse()`, or safe accessor on the same value |
-
-**AOP / Proxy**
-
-| Rule | What it catches |
-|---|---|
-| `AOP_SELF_INVOCATION` | An internal `this` call that bypasses the Spring proxy — `@Transactional`, `@Async`, and aspect advice don't run |
-| `AOP_ADVICE_NOT_APPLIED` | Advice on a private, static, or final method a proxy can never intercept |
-| `AOP_UNMANAGED_ADVICE_TARGET` | Proxy-dependent annotations on a class with no Spring stereotype visible in source |
-
-**Reactive (Mutiny / SmallRye)**
-
-| Rule | What it catches |
-|---|---|
-| `MUTINY_FAILURE_RECOVERED_SILENTLY` | A Mutiny `onFailure().recoverWith*()` or `onFailure().continueWith*()` that replaces the failure without logging |
-| `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` | A SmallRye / MicroProfile Reactive Messaging `@Incoming` handler that swallows its failure |
-| `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED` | A `Uni` or `Multi` subscribed without a failure callback |
-
-**Maintainability**
-
-| Rule | What it catches |
-|---|---|
-| `EXCESSIVE_METHOD_PARAMETERS` | A method with more than 5 parameters — consider a parameter object |
-| `HIGH_METHOD_COMPLEXITY` | A method with many calls and catch blocks — consider decomposing into focused helpers |
-
-To intentionally keep a pattern, suppress it explicitly with a reason:
+Add an explicit comment with a reason — vague comments and plain `TODO` lines are ignored:
 
 ```java
 catch (CleanupException ignored) {
-    // diagscope:ignore SILENT_CATCH -- Best-effort cleanup after the response was committed.
+    // diagscope:ignore SILENT_CATCH -- best-effort cleanup after the response was committed
 }
 ```
 
-Rule details and limitations: [docs/RULES.md](docs/RULES.md).
+For bulk suppression of pre-existing findings, use a baseline:
 
-## What DiagScope does not do
-
-It does not run your application or build, and it does not follow behavior into external libraries,
-reflection, or runtime-created proxies. Java dependency types can be resolved from an explicitly
-declared classpath; Kotlin dependency semantics remain source-first. It does not replace SonarQube,
-SpotBugs, or your observability platform. It answers one question those tools do not ask: *if this
-flow fails, will anyone be able to tell what happened?*
+```bash
+java -jar diagscope.jar scan --project . --update-baseline   # record current state
+java -jar diagscope.jar scan --project . --baseline --fail-on ERROR  # gate only new findings
+```
 
 ## Documentation
 
-- [Project overview](docs/PROJECT_OVERVIEW.md) · [CLI reference](docs/CLI.md) · [Rules](docs/RULES.md)
-- [Architecture](docs/ARCHITECTURE.md) · [Performance](docs/PERFORMANCE.md) · [Testing strategy](docs/TESTING_STRATEGY.md)
-- [Development guide](docs/DEVELOPMENT_GUIDE.md) · [Roadmap](docs/ROADMAP.md)
-- [Capability model](docs/CAPABILITY_MODEL.md) · [Fingerprint stability policy](docs/FINGERPRINT_POLICY.md) · [Rule lifecycle](docs/RULE_LIFECYCLE.md)
+[CLI reference](docs/CLI.md) · [All rules](docs/RULES.md) · [Configuration](docs/CONFIGURATION.md) ·
+[Architecture](docs/ARCHITECTURE.md) · [Development guide](docs/DEVELOPMENT_GUIDE.md) ·
+[Roadmap](docs/ROADMAP.md)
