@@ -108,6 +108,27 @@ java -jar diagscope.jar scan --project . --update-baseline   # record current st
 java -jar diagscope.jar scan --project . --baseline --fail-on ERROR  # gate only new findings
 ```
 
+## Releasing
+
+Releases are published automatically to GitHub Releases as a self-contained fat JAR when a version
+tag is pushed. The POM is the source of truth for the version.
+
+```bash
+# 1. Bump the version in all modules
+mvn versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false
+
+# 2. Commit the bump
+git add -A && git commit -m "chore: release 0.2.0"
+
+# 3. Tag and push — the release workflow picks it up automatically
+git tag v0.2.0
+git push && git push --tags
+```
+
+The workflow validates that the POM version matches the tag before building, so it fails fast with a
+clear error if you forget step 1. Pre-release markers (`alpha`, `beta`, `rc`) are detected
+automatically and the GitHub Release is flagged accordingly.
+
 ## Documentation
 
 [CLI reference](docs/CLI.md) · [All rules](docs/RULES.md) · [Configuration](docs/CONFIGURATION.md) ·
