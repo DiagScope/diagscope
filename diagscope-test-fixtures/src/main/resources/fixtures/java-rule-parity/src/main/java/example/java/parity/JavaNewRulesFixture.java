@@ -180,6 +180,56 @@ class JavaNewRulesKafkaListener {
     }
 }
 
+// ── OUTBOX_PATTERN_MISSING ────────────────────────────────────────────────────
+
+/** DB write + Kafka send in the same method — no transactional outbox. */
+@Service
+class JavaOrderService {
+
+    private final JavaRepository repository;
+    private final KafkaTemplate kafkaTemplate;
+
+    JavaOrderService(JavaRepository repository, KafkaTemplate kafkaTemplate) {
+        this.repository = repository;
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    /** triggers OUTBOX_PATTERN_MISSING: save + send without publishEvent or outbox table. */
+    void placeOrder(String orderId) {
+        repository.save(orderId);
+        kafkaTemplate.send("orders", orderId); // may lose if crash between commit and send
+    }
+
+    /** Safe: decouple the send from the commit via ApplicationEventPublisher. */
+    void placeOrderSafe(String orderId, ApplicationEventPublisher publisher) {
+        repository.save(orderId);
+        publisher.publishEvent(orderId); // relayed after commit in @TransactionalEventListener
+    }
+}
+
+// ── SECRET_IN_STRING_LITERAL ──────────────────────────────────────────────────
+
+/** Hardcoded credentials in source — triggers SECRET_IN_STRING_LITERAL. */
+@Service
+class JavaSecretConfig {
+
+    private final DataSourceBuilder dataSourceBuilder;
+
+    JavaSecretConfig(DataSourceBuilder dataSourceBuilder) {
+        this.dataSourceBuilder = dataSourceBuilder;
+    }
+
+    /** triggers SECRET_IN_STRING_LITERAL: hardcoded password in a setter call. */
+    void configure() {
+        dataSourceBuilder.setPassword("SuperSecr3t!"); // literal password committed to source
+    }
+
+    /** Safe: uses a Spring property reference instead of a literal. */
+    void configureSafe() {
+        dataSourceBuilder.setPassword("${db.password}");
+    }
+}
+
 /**
  * Controller that triggers every new rule on each request, making all fixture methods
  * reachable from a flow entrypoint.

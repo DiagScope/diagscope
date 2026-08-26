@@ -135,3 +135,12 @@ interface UserRepository {
     void delete(Object entity);
     void deleteById(String id);
 }
+
+// --- Application event stubs (for OUTBOX_PATTERN_MISSING / suppression) ---
+interface ApplicationEventPublisher { void publishEvent(Object event); }
+
+// --- Security config stubs (for SECRET_IN_STRING_LITERAL) ---
+interface DataSourceBuilder {
+    DataSourceBuilder url(String url);
+    DataSourceBuilder setPassword(String password);
+}

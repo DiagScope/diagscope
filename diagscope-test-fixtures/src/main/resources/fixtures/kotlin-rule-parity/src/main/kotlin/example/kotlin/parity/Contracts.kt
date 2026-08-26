@@ -148,3 +148,12 @@ interface UserRepository {
     fun delete(entity: Any)
     fun deleteById(id: String)
 }
+
+// --- Application event stubs (for OUTBOX_PATTERN_MISSING / suppression) ---
+interface ApplicationEventPublisher { fun publishEvent(event: Any) }
+
+// --- Security config stubs (for SECRET_IN_STRING_LITERAL) ---
+interface DataSourceBuilder {
+    fun url(url: String): DataSourceBuilder
+    fun setPassword(password: String): DataSourceBuilder
+}

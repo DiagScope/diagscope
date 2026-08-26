@@ -1,19 +1,6 @@
 package dev.diagscope.core.application.rule;
 
-import dev.diagscope.core.domain.CatchEvidence;
-import dev.diagscope.core.domain.Confidence;
-import dev.diagscope.core.domain.Entrypoint;
-import dev.diagscope.core.domain.EntrypointType;
-import dev.diagscope.core.domain.Flow;
-import dev.diagscope.core.domain.FlowMethod;
-import dev.diagscope.core.domain.InvocationEvidence;
-import dev.diagscope.core.domain.InvocationResultUsage;
-import dev.diagscope.core.domain.MethodId;
-import dev.diagscope.core.domain.MethodModel;
-import dev.diagscope.core.domain.MethodVisibility;
-import dev.diagscope.core.domain.MetricTagEvidence;
-import dev.diagscope.core.domain.ProxyProfile;
-import dev.diagscope.core.domain.SourceLocation;
+import dev.diagscope.core.domain.*;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -92,7 +79,7 @@ class DiagnosticRulesTest {
                         new MetricTagEvidence(location(40), "provider", "provider", true, false, false)));
 
         assertThat(new HighCardinalityMetricTagRule().evaluate(flow(method, Confidence.HIGH)))
-                .extracting(finding -> finding.location().startLine(), finding -> finding.confidence())
+                .extracting(finding -> finding.location().startLine(), Finding::confidence)
                 .containsExactly(
                         tuple(10, Confidence.HIGH),
                         tuple(20, Confidence.MEDIUM));
@@ -543,6 +530,118 @@ class DiagnosticRulesTest {
                 List.of());
 
         assertThat(new KafkaDeadLetterNotConfiguredRule().evaluate(flow)).isEmpty();
+    }
+
+    // ── OutboxPatternMissingRule ──────────────────────────────────────────────
+
+    @Test
+    void outbox_pattern_fires_when_repo_write_and_kafka_send_in_same_method() {
+        var save = new InvocationEvidence(location(10), "orderRepo", "OrderRepository",
+                "save", List.of("order"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        var send = new InvocationEvidence(location(20), "kafkaTemplate", "KafkaTemplate",
+                "send", List.of("\"orders\"", "event"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(save, send), List.of());
+
+        assertThat(new OutboxPatternMissingRule().evaluate(project(m)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(OutboxPatternMissingRule.ID);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.HIGH);
+                });
+    }
+
+    @Test
+    void outbox_pattern_is_suppressed_when_publishEvent_used() {
+        var save = new InvocationEvidence(location(10), "orderRepo", "OrderRepository",
+                "save", List.of("order"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        var publish = new InvocationEvidence(location(20), "eventPublisher", "ApplicationEventPublisher",
+                "publishEvent", List.of("event"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(save, publish), List.of());
+
+        assertThat(new OutboxPatternMissingRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void outbox_pattern_is_suppressed_for_transactional_event_listener() {
+        var save = new InvocationEvidence(location(10), "orderRepo", "OrderRepository",
+                "save", List.of("order"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        var send = new InvocationEvidence(location(20), "kafkaTemplate", "KafkaTemplate",
+                "send", List.of("\"orders\"", "event"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = new MethodModel(
+                new MethodId("example.Listener", "onEvent", List.of()),
+                location(1), Set.of("@TransactionalEventListener"), List.of(),
+                List.of(save, send), List.of(), List.of(), List.of());
+
+        assertThat(new OutboxPatternMissingRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── SecretInStringLiteralRule ─────────────────────────────────────────────
+
+    @Test
+    void secret_fires_for_setPassword_with_hardcoded_literal() {
+        var setPassword = new InvocationEvidence(location(10), "dataSource", "DataSourceBuilder",
+                "setPassword", List.of("\"s3cr3tP@ssw0rd\""), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(setPassword), List.of());
+
+        assertThat(new SecretInStringLiteralRule().evaluate(project(m)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(SecretInStringLiteralRule.ID);
+                    assertThat(finding.location().startLine()).isEqualTo(10);
+                });
+    }
+
+    @Test
+    void secret_fires_for_map_put_with_password_key_and_hardcoded_value() {
+        var put = new InvocationEvidence(location(15), "props", "Properties",
+                "put", List.of("\"spring.datasource.password\"", "\"hardcoded123\""),
+                InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(put), List.of());
+
+        assertThat(new SecretInStringLiteralRule().evaluate(project(m)))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.ruleId())
+                        .isEqualTo(SecretInStringLiteralRule.ID));
+    }
+
+    @Test
+    void secret_is_suppressed_for_spring_property_reference() {
+        var setPassword = new InvocationEvidence(location(10), "dataSource", "DataSourceBuilder",
+                "setPassword", List.of("\"${db.password}\""), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(setPassword), List.of());
+
+        assertThat(new SecretInStringLiteralRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void secret_is_suppressed_for_placeholder_value() {
+        var setPassword = new InvocationEvidence(location(10), "dataSource", "DataSourceBuilder",
+                "setPassword", List.of("\"changeme\""), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false);
+        MethodModel m = method(List.of(), List.of(setPassword), List.of());
+
+        assertThat(new SecretInStringLiteralRule().evaluate(project(m))).isEmpty();
+    }
+
+    private static AnalyzedProject project(MethodModel... methods) {
+        var methodMap = new java.util.LinkedHashMap<MethodId, MethodModel>();
+        for (var m : methods) {
+            methodMap.put(m.id(), m);
+        }
+        var root = Path.of(".");
+        return new AnalyzedProject(
+                "test", root,
+                new ProjectLayout(BuildSystem.MAVEN, root, List.of(), List.of(root)),
+                methodMap, List.of(), 1L, List.of());
     }
 
     private static Flow flow(MethodModel method, Confidence confidence) {

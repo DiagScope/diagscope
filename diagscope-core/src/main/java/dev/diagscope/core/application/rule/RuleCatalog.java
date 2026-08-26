@@ -804,6 +804,54 @@ public final class RuleCatalog {
                         + " site and will not suppress this finding. If a central error handler"
                         + " is in place, suppress per-listener with a diagscope:ignore comment.");
 
+        // ── Kafka / Transactions: transactional outbox ───────────────────────────
+        put(catalog, OutboxPatternMissingRule.ID,
+                "Database write and messaging send without transactional outbox",
+                "kafka", Severity.WARNING, ALL_LANGUAGES,
+                "Applications that use Spring Data (or JPA/JDBC) together with a message broker"
+                        + " (Kafka, RabbitMQ, JMS, AWS SNS/SQS)",
+                "A method performs a database write (save, delete, update, …) and a messaging send"
+                        + " (kafkaTemplate.send, rabbitTemplate.convertAndSend, …) in the same"
+                        + " method body without a transactional outbox or event-publisher bridge.",
+                "If the application crashes between the database commit and the broker send, the"
+                        + " event is silently lost. The database reflects the new state, but"
+                        + " consumers never receive the notification. This split-brain is silent,"
+                        + " appears only under failure conditions, and is extremely difficult to"
+                        + " reconcile retroactively — especially in financial, audit, or"
+                        + " event-sourced systems.",
+                "An invocation matching a repository-write method name (save, delete, update, …)"
+                        + " on a receiver type containing 'repository', 'dao', or 'entitymanager'"
+                        + " appears in the same method as an invocation matching a broker-send"
+                        + " method name on a receiver type containing 'kafkatemplate', 'rabbit',"
+                        + " 'jmstemplate', etc., and no publishEvent() or"
+                        + " @TransactionalEventListener is observed.",
+                "A globally-configured outbox relay (Debezium, Transactional outbox table) is"
+                        + " not visible at the method call site and will not suppress this finding."
+                        + " If the outbox is managed externally, suppress with diagscope:ignore.");
+
+        // ── Security: hardcoded secrets ──────────────────────────────────────────
+        put(catalog, SecretInStringLiteralRule.ID,
+                "Hardcoded secret in source code",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Any application with authentication, API calls, or external service integration",
+                "A method call whose name implies a credential (setPassword, withApiKey, …) receives"
+                        + " a non-placeholder string literal as its first argument, or a map/config"
+                        + " put call uses a key that contains a credential hint word with a"
+                        + " non-placeholder string literal as the value.",
+                "Hardcoded secrets are committed to source control and remain in git history"
+                        + " permanently — even after deletion. They appear in CI logs, IDE"
+                        + " auto-completion, and code-review diffs. Rotation is impossible without"
+                        + " a code change and full re-deploy. This is one of the top causes of"
+                        + " credential leaks in enterprise codebases.",
+                "An invocation whose name (normalised to lowercase without separators) contains"
+                        + " a secret hint word (password, secret, apikey, token, credential,"
+                        + " privatekey, passphrase) has a first argument that is a non-empty,"
+                        + " non-placeholder Java string literal. Excluded: Spring property"
+                        + " references (${…}), SpEL (#{…}), and common stand-in strings.",
+                "Only call-site string literals are inspected; secrets assigned to fields or"
+                        + " local variables are not detected. Test-only code may produce false"
+                        + " positives if placeholder values do not match the exclusion list.");
+
         // ── Concurrency: atomic operations ────────────────────────────────────
         put(catalog, CheckThenActOnMapRule.ID,
                 "Non-atomic check-then-act on Map or Collection",

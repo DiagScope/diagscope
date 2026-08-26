@@ -15,13 +15,14 @@ import dev.diagscope.core.application.rule.CompletableFutureExceptionNotHandledR
 import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
+import dev.diagscope.core.application.rule.OutboxPatternMissingRule;
+import dev.diagscope.core.application.rule.SecretInStringLiteralRule;
 import dev.diagscope.core.application.rule.SpanNotClosedRule;
 import dev.diagscope.core.application.rule.ExcessiveMethodParametersRule;
 import dev.diagscope.core.application.rule.GodClassRule;
 import dev.diagscope.core.application.rule.HighMethodComplexityRule;
 import dev.diagscope.core.application.rule.HttpTimeoutNotSetRule;
 import dev.diagscope.core.application.rule.MissingTransactionAnnotationRule;
-import dev.diagscope.core.application.rule.ProjectRule;
 import dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule;
 import dev.diagscope.core.application.rule.FallbackHidesFailureRule;
 import dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule;
@@ -148,7 +149,11 @@ public final class DiagScopeMain {
                 // Kafka: dead-letter topic not configured
                 new KafkaDeadLetterNotConfiguredRule()
         );
-        var fullEngine = new RuleEngine(flowRules, List.of(new GodClassRule()));
+        var fullEngine = new RuleEngine(flowRules, List.of(
+                new GodClassRule(),
+                new OutboxPatternMissingRule(),
+                new SecretInStringLiteralRule()
+        ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
                         new JavaParserProjectAnalyzer(),
@@ -227,7 +232,11 @@ public final class DiagScopeMain {
                 // Observability: unclosed spans
                 dev.diagscope.core.application.rule.SpanNotClosedRule.ID,
                 // Kafka: dead-letter topic not configured
-                dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule.ID
+                dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule.ID,
+                // Kafka / Transactions: transactional outbox
+                dev.diagscope.core.application.rule.OutboxPatternMissingRule.ID,
+                // Security: hardcoded secrets
+                dev.diagscope.core.application.rule.SecretInStringLiteralRule.ID
         );
     }
 

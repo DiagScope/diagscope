@@ -167,6 +167,45 @@ class KotlinNewRulesKafkaListener(
     }
 }
 
+// ── OUTBOX_PATTERN_MISSING ────────────────────────────────────────────────────
+
+/** DB write + Kafka send in the same method — no transactional outbox. */
+@Service
+class KotlinOrderService(
+    private val repository: KotlinRepository,
+    private val kafkaTemplate: KafkaTemplate
+) {
+
+    /** triggers OUTBOX_PATTERN_MISSING: save + send without publishEvent or outbox table. */
+    fun placeOrder(orderId: String) {
+        repository.save(orderId)
+        kafkaTemplate.send("orders", orderId) // may lose if crash between commit and send
+    }
+
+    /** Safe: decouple the send from the commit via ApplicationEventPublisher. */
+    fun placeOrderSafe(orderId: String, publisher: ApplicationEventPublisher) {
+        repository.save(orderId)
+        publisher.publishEvent(orderId) // relayed after commit in @TransactionalEventListener
+    }
+}
+
+// ── SECRET_IN_STRING_LITERAL ──────────────────────────────────────────────────
+
+/** Hardcoded credentials in source — triggers SECRET_IN_STRING_LITERAL. */
+@Service
+class KotlinSecretConfig(private val dataSourceBuilder: DataSourceBuilder) {
+
+    /** triggers SECRET_IN_STRING_LITERAL: hardcoded password in a setter call. */
+    fun configure() {
+        dataSourceBuilder.setPassword("SuperSecr3t!") // literal password committed to source
+    }
+
+    /** Safe: uses a Spring property reference instead of a literal. */
+    fun configureSafe() {
+        dataSourceBuilder.setPassword("\${db.password}")
+    }
+}
+
 /**
  * Controller that triggers every new rule on each request, making all fixture methods
  * reachable from a flow entrypoint.
