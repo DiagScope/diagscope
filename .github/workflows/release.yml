@@ -59,34 +59,39 @@ jobs:
       # (and any unauthenticated user) can download it without needing access
       # to the private source repository.
       - name: Publish to public releases repo
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: DiagScope/releases
-          token: ${{ secrets.RELEASES_PAT }}
-          tag_name: ${{ github.ref_name }}
-          name: DiagScope ${{ steps.version.outputs.version }}
-          body: |
-            ## DiagScope ${{ steps.version.outputs.version }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          VERSION: ${{ steps.version.outputs.version }}
+          JAR: ${{ steps.artifact.outputs.jar }}
+        run: |
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qE 'alpha|beta|rc'; then
+            PRERELEASE="--prerelease"
+          fi
 
-            ### Install via Homebrew (recommended)
+          gh release create "$GITHUB_REF_NAME" \
+            --repo DiagScope/releases \
+            --title "DiagScope ${VERSION}" \
+            --notes "## DiagScope ${VERSION}
 
-            ```bash
-            brew tap DiagScope/tap
-            brew install diagscope
-            ```
+### Install via Homebrew (recommended)
 
-            ### Manual download
+\`\`\`bash
+brew tap DiagScope/tap
+brew install diagscope
+\`\`\`
 
-            Download `diagscope-${{ steps.version.outputs.version }}.jar` below — requires **Java 25+**.
+### Manual download
 
-            ```bash
-            java -jar diagscope-${{ steps.version.outputs.version }}.jar scan --help
-            ```
+Download \`diagscope-${VERSION}.jar\` below — requires **Java 25+**.
 
-            See the [README](https://github.com/DiagScope/diagscope/blob/main/README.md) for full usage.
-          files: ${{ steps.artifact.outputs.jar }}
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+\`\`\`bash
+java -jar diagscope-${VERSION}.jar scan --help
+\`\`\`
+
+See the [README](https://github.com/DiagScope/diagscope/blob/main/README.md) for full usage." \
+            $PRERELEASE \
+            "$JAR"
 
       # Notify the Homebrew tap to update its formula.
       # Requires a PAT with 'repo' scope stored as HOMEBREW_TAP_TOKEN.
