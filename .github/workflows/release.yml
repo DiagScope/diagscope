@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0-alpha.4)'
+        required: true
 
 permissions:
   contents: write
@@ -21,12 +26,15 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # Derive the human-readable version from the tag (v0.2.0 → 0.2.0)
+      # Derive the human-readable version from the tag (v0.2.0 → 0.2.0).
+      # On workflow_dispatch the tag comes from the manual input.
       - name: Resolve version
         id: version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          REF="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${REF#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
 
       # Validate that the POM version matches the tag — catches the common mistake
       # of pushing a tag without bumping the POM first.
@@ -69,7 +77,7 @@ jobs:
             PRERELEASE="--prerelease"
           fi
 
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "${{ steps.version.outputs.ref }}" \
             --repo DiagScope/releases \
             --title "DiagScope ${VERSION}" \
             --notes "## DiagScope ${VERSION}
