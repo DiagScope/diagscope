@@ -107,6 +107,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             "PreAuthorize", "PostAuthorize", "Secured", "RolesAllowed", "Validated",
             "Observed", "Timed", "Counted", "NewSpan", "ContinueSpan"
     );
+    /** DI annotations that, when placed on a field, indicate field injection rather than constructor injection. */
+    private static final Set<String> FIELD_INJECTION_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -273,6 +275,19 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             String qualifiedName = qualifiedTypeName(packageName, type);
             Map<String, String> declaredVariables = declaredTypeVariables(type);
             List<AnnotationDescriptor> typeAnnotations = annotations(type.getAnnotations());
+            // Detect field injection: any field in this class carries @Autowired, @Inject, or @Resource.
+            // We synthesise a "FieldInjectionPresent" class-level annotation so that the merge step
+            // propagates the signal into every method's effective annotation set without domain changes.
+            boolean hasFieldInjection = type.getMembers().stream()
+                    .filter(BodyDeclaration::isFieldDeclaration)
+                    .anyMatch(field -> field.asFieldDeclaration().getAnnotations().stream()
+                            .map(a -> a.getName().getIdentifier())
+                            .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+            if (hasFieldInjection) {
+                var augmented = new ArrayList<>(typeAnnotations);
+                augmented.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+                typeAnnotations = List.copyOf(augmented);
+            }
             types.add(typeInfo(qualifiedName, type, typeAnnotations));
 
             for (BodyDeclaration<?> member : type.getMembers()) {
@@ -328,6 +343,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         MethodId id = methodId(declaringType, method);
         SourceLocation methodLocation = location(root, file, method);
         List<AnnotationDescriptor> methodAnnotations = annotations(method.getAnnotations());
+        // Synthesise a "Synchronized" annotation for the Java 'synchronized' keyword so that
+        // SYNCHRONIZED_ON_SPRING_BEAN can detect it the same way it detects Kotlin's @Synchronized.
+        if (method.isSynchronized()) {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor("Synchronized", Map.of()));
+            methodAnnotations = List.copyOf(augmented);
+        }
 
         var variableTypes = new LinkedHashMap<>(declaredVariables);
         method.getParameters().forEach(parameter ->

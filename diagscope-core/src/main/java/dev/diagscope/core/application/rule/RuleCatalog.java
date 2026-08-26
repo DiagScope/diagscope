@@ -1170,6 +1170,71 @@ public final class RuleCatalog {
                         + " (rare but valid) will produce false positives. In those cases,"
                         + " suppress with a diagscope:ignore comment.");
 
+        // ── Wave 3: minor domain extensions ──────────────────────────────────
+        put(catalog, ScheduledNoInitialDelayRule.ID,
+                "@Scheduled task fires immediately at application startup",
+                "configuration", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Scheduled with fixedRate or fixedDelay",
+                "A @Scheduled method uses fixedRate or fixedDelay without an initialDelay."
+                        + " Spring fires the task immediately after the application starts — before"
+                        + " the application is fully ready to serve traffic.",
+                "In Kubernetes or any orchestrated environment, the scheduled task can execute"
+                        + " before the readiness probe passes, before connection pools are warmed"
+                        + " up, or before downstream services are reachable. A failed startup job"
+                        + " can prevent the pod from passing health checks, causing restart loops"
+                        + " that are difficult to distinguish from application code bugs.",
+                "The method is annotated with @Scheduled and has fixedRate or fixedDelay in"
+                        + " its annotation attributes, but no initialDelay or initialDelayString"
+                        + " attribute is set (or it is explicitly 0).",
+                "Cron-based schedules (@Scheduled(cron = \"...\")) are not flagged because the"
+                        + " first execution time is determined by the cron expression, not startup"
+                        + " time. Single-instance startup jobs that are intentionally designed to"
+                        + " run at boot should use ApplicationRunner or CommandLineRunner instead.");
+
+        put(catalog, SynchronizedOnSpringBeanRule.ID,
+                "synchronized method on a Spring-managed bean",
+                "aop", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using @Component, @Service, @Repository, or @Controller",
+                "A method uses the 'synchronized' keyword (Java) or @Synchronized (Kotlin)"
+                        + " on a class managed by Spring. Spring proxies the bean; the"
+                        + " 'synchronized' lock is acquired on the proxy, not the bean instance.",
+                "Two threads can execute the method simultaneously on the same logical bean"
+                        + " because each acquires the lock on a different proxy object. The"
+                        + " synchronisation silently does nothing, leaving shared mutable state"
+                        + " exposed to data races that appear only under concurrent load.",
+                "The method's effective annotation set (after class-level merging) contains the"
+                        + " Spring stereotype annotation AND the 'Synchronized' signal. For Java"
+                        + " the parser synthesises this signal from the 'synchronized' keyword"
+                        + " modifier; for Kotlin the @Synchronized annotation is already present"
+                        + " as a real annotation entry.",
+                "A final class with no AOP annotations and no Spring proxy involvement would not"
+                        + " be wrapped by CGLIB, making synchronization safe — but DiagScope"
+                        + " cannot confirm the absence of proxying at the static analysis level,"
+                        + " so those cases are still flagged.");
+
+        put(catalog, FieldInjectionUsedRule.ID,
+                "Field injection instead of constructor injection",
+                "spring", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Component, @Service, @Repository, or @Controller",
+                "A Spring-managed bean declares one or more fields annotated with @Autowired,"
+                        + " @Inject, or @Resource. Field injection bypasses the constructor,"
+                        + " injecting dependencies directly into private fields via reflection.",
+                "Field-injected beans hide their dependencies from the constructor signature,"
+                        + " making it impossible to instantiate them in unit tests without a"
+                        + " Spring context. Circular dependencies are not detected at startup."
+                        + " Fields cannot be final, preventing immutability guarantees. Spring"
+                        + " itself has recommended constructor injection since Spring 4.0 and"
+                        + " its own documentation explicitly discourages field injection.",
+                "The parser scans the class body for field declarations annotated with"
+                        + " @Autowired, @Inject, or @Resource, then synthesises a"
+                        + " 'FieldInjectionPresent' marker on the declaring type. This marker"
+                        + " is propagated to every method in that class by the annotation-merge"
+                        + " step so that the rule can detect it without a field-level domain object.",
+                "Only classes with a Spring stereotype annotation are reported. Non-Spring classes"
+                        + " that use @Inject or @Resource for other DI frameworks are not flagged."
+                        + " One finding is emitted per class, not one per injected field, to"
+                        + " reduce noise when multiple fields are involved.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

@@ -98,6 +98,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             "PreAuthorize", "PostAuthorize", "Secured", "RolesAllowed", "Validated",
             "Observed", "Timed", "Counted", "NewSpan", "ContinueSpan"
     );
+    /** DI annotations that, when placed on a class property, indicate field injection. */
+    private static final Set<String> FIELD_INJECTION_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "await", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -1255,7 +1257,17 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
 
     private static TypeInfo typeInfo(KtClassOrObject type, boolean kotlinSpringEnabled) {
         String qualified = qualifiedTypeName(type.getContainingKtFile().getPackageFqName().asString(), type);
-        List<AnnotationDescriptor> declaredAnnotations = annotations(type);
+        List<AnnotationDescriptor> declaredAnnotations = new ArrayList<>(annotations(type));
+        // Detect field injection: any non-local class property annotated with @Autowired, @Inject, or @Resource.
+        boolean hasFieldInjection = PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
+                .filter(prop -> !prop.isLocal() && containingType(prop) == type)
+                .anyMatch(prop -> annotations(prop).stream()
+                        .map(AnnotationDescriptor::name)
+                        .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+        if (hasFieldInjection) {
+            declaredAnnotations.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+        }
+        declaredAnnotations = List.copyOf(declaredAnnotations);
         boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)
                 .anyMatch(SPRING_STEREOTYPES::contains);
         boolean springOpened = kotlinSpringEnabled && springManaged;

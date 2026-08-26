@@ -1217,6 +1217,125 @@ class DiagnosticRulesTest {
         assertThat(new KafkaTopicHardcodedRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── SCHEDULED_NO_INITIAL_DELAY ─────────────────────────────────────────────
+
+    @Test
+    void scheduledNoInitialDelay_fixedRateNoDelay_reported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportScheduler", "generateReport", List.of()),
+                location(5), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Scheduled", Map.of("fixedRate", "60000")),
+                CallableShape.fixed(0), "void", false);
+        var findings = new ScheduledNoInitialDelayRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(ScheduledNoInitialDelayRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void scheduledNoInitialDelay_withInitialDelay_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportScheduler", "generateReport", List.of()),
+                location(5), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Scheduled", Map.of("fixedRate", "60000", "initialDelay", "30000")),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new ScheduledNoInitialDelayRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void scheduledNoInitialDelay_cronOnly_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportScheduler", "generateNightly", List.of()),
+                location(5), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Scheduled", Map.of("cron", "0 0 2 * * *")),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new ScheduledNoInitialDelayRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── SYNCHRONIZED_ON_SPRING_BEAN ────────────────────────────────────────────
+
+    @Test
+    void synchronizedOnSpringBean_synchronizedService_reported() {
+        var m = new MethodModel(
+                new MethodId("example.CounterService", "increment", List.of()),
+                location(10), Set.of("Synchronized", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new SynchronizedOnSpringBeanRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(SynchronizedOnSpringBeanRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.ERROR);
+        });
+    }
+
+    @Test
+    void synchronizedOnSpringBean_notSpringBean_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.PlainCounter", "increment", List.of()),
+                location(10), Set.of("Synchronized"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new SynchronizedOnSpringBeanRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void synchronizedOnSpringBean_springBeanNotSynchronized_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.CounterService", "increment", List.of()),
+                location(10), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new SynchronizedOnSpringBeanRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── FIELD_INJECTION_USED ──────────────────────────────────────────────────
+
+    @Test
+    void fieldInjectionUsed_autowiredField_reported() {
+        // FieldInjectionPresent is the synthetic marker injected by the parsers
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "process", List.of()),
+                location(15), Set.of("FieldInjectionPresent", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new FieldInjectionUsedRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(FieldInjectionUsedRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.evidence()).containsEntry("injectionType", "field");
+        });
+    }
+
+    @Test
+    void fieldInjectionUsed_constructorInjection_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "process", List.of()),
+                location(15), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new FieldInjectionUsedRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void fieldInjectionUsed_oneReportingPerClass() {
+        // Two methods in the same class — should produce only one finding
+        var m1 = new MethodModel(
+                new MethodId("example.OrderService", "process", List.of()),
+                location(15), Set.of("FieldInjectionPresent", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var m2 = new MethodModel(
+                new MethodId("example.OrderService", "cancel", List.of()),
+                location(20), Set.of("FieldInjectionPresent", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new FieldInjectionUsedRule().evaluate(project(m1, m2))).hasSize(1);
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */

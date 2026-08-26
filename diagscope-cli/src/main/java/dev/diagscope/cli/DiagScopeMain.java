@@ -24,6 +24,9 @@ import dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule;
 import dev.diagscope.core.application.rule.KafkaTopicHardcodedRule;
 import dev.diagscope.core.application.rule.MassAssignmentRiskRule;
 import dev.diagscope.core.application.rule.RetryOnAllExceptionsRule;
+import dev.diagscope.core.application.rule.ScheduledNoInitialDelayRule;
+import dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule;
+import dev.diagscope.core.application.rule.FieldInjectionUsedRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
@@ -189,7 +192,13 @@ public final class DiagScopeMain {
                 // Security: CORS wildcard origin
                 new CorsWildcardOriginRule(),
                 // Kafka / Configuration: hardcoded topic name
-                new KafkaTopicHardcodedRule()
+                new KafkaTopicHardcodedRule(),
+                // Configuration: @Scheduled without initialDelay
+                new ScheduledNoInitialDelayRule(),
+                // AOP: synchronized method on Spring bean
+                new SynchronizedOnSpringBeanRule(),
+                // Spring: field injection instead of constructor injection
+                new FieldInjectionUsedRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -303,7 +312,13 @@ public final class DiagScopeMain {
                 // Security: CORS wildcard origin
                 dev.diagscope.core.application.rule.CorsWildcardOriginRule.ID,
                 // Kafka / Configuration: hardcoded topic name
-                dev.diagscope.core.application.rule.KafkaTopicHardcodedRule.ID
+                dev.diagscope.core.application.rule.KafkaTopicHardcodedRule.ID,
+                // Configuration: @Scheduled without initialDelay
+                dev.diagscope.core.application.rule.ScheduledNoInitialDelayRule.ID,
+                // AOP: synchronized method on Spring bean
+                dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule.ID,
+                // Spring: field injection
+                dev.diagscope.core.application.rule.FieldInjectionUsedRule.ID
         );
     }
 
