@@ -6,7 +6,7 @@
 
     <groupId>dev.diagscope</groupId>
     <artifactId>diagscope-parent</artifactId>
-    <version>0.1.0-alpha.1</version>
+    <version>0.1.0-alpha.2</version>
     <packaging>pom</packaging>
 
     <name>DiagScope</name>
@@ -26,7 +26,7 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <project.build.outputTimestamp>2026-08-25T14:37:50Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-08-26T09:53:54Z</project.build.outputTimestamp>
 
         <javaparser.version>3.28.2</javaparser.version>
         <kotlin.version>2.4.10</kotlin.version>
