@@ -632,6 +632,94 @@ class DiagnosticRulesTest {
         assertThat(new SecretInStringLiteralRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── CoroutineExceptionNotHandledRule ──────────────────────────────────────
+
+    @Test
+    void coroutineException_globalScope_launch_noHandler_reported() {
+        var inv = new InvocationEvidence(location(10), "GlobalScope", "",
+                "launch", List.of("{ doSomething() }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new CoroutineExceptionNotHandledRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(CoroutineExceptionNotHandledRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                });
+    }
+
+    @Test
+    void coroutineException_lifecycleScope_async_noHandler_reported() {
+        var inv = new InvocationEvidence(location(10), "lifecycleScope", "",
+                "async", List.of("{ computeResult() }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new CoroutineExceptionNotHandledRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> assertThat(f.severity()).isEqualTo(Severity.WARNING));
+    }
+
+    @Test
+    void coroutineException_withHandler_suppressed() {
+        var inv = new InvocationEvidence(location(10), "GlobalScope", "",
+                "launch", List.of("CoroutineExceptionHandler { _, ex -> log(ex) }", "{ doWork() }"),
+                InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new CoroutineExceptionNotHandledRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void coroutineException_nonScopeReceiver_notReported() {
+        // Receiver is "service", not a CoroutineScope name
+        var inv = new InvocationEvidence(location(10), "service", "",
+                "launch", List.of("{ doWork() }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new CoroutineExceptionNotHandledRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── FlowExceptionNotCaughtRule ────────────────────────────────────────────
+
+    @Test
+    void flowException_collect_noCatch_reported() {
+        var inv = new InvocationEvidence(location(10), "myFlow", "",
+                "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(FlowExceptionNotCaughtRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                });
+    }
+
+    @Test
+    void flowException_inlineChainWithCatch_suppressed() {
+        // scope of collect contains ".catch" because of inline chain
+        var inv = new InvocationEvidence(location(10),
+                "myFlow.catch { ex -> logger.error(ex) }", "",
+                "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void flowException_separateCatchCall_suppressed() {
+        // A separate .catch invocation in the same method
+        var catchInv = new InvocationEvidence(location(9), "myFlow", "",
+                "catch", List.of("{ ex -> logger.error(ex) }"), InvocationResultUsage.ASSIGNED);
+        var collectInv = new InvocationEvidence(location(10), "safeFlow", "",
+                "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(catchInv, collectInv), List.of());
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void flowException_tryCatchBlock_suppressed() {
+        var inv = new InvocationEvidence(location(10), "myFlow", "",
+                "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
+        var catchBlock = catchEvidence(11, false, true, false, false, "", false);
+        var m = method(List.of(catchBlock), List.of(inv), List.of());
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
+    }
+
     private static AnalyzedProject project(MethodModel... methods) {
         var methodMap = new java.util.LinkedHashMap<MethodId, MethodModel>();
         for (var m : methods) {

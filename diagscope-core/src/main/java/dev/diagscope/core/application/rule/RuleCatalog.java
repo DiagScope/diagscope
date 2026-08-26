@@ -872,6 +872,51 @@ public final class RuleCatalog {
                         + " threaded or read-only code paths will produce false positives if the"
                         + " collection is known not to be shared.");
 
+        // ── Kotlin coroutines: unhandled exceptions ───────────────────────────
+        put(catalog, CoroutineExceptionNotHandledRule.ID,
+                "Coroutine launched without a CoroutineExceptionHandler",
+                "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
+                "Kotlin applications using kotlinx.coroutines",
+                "A 'launch' or 'async' coroutine builder call has no CoroutineExceptionHandler"
+                        + " in its context. Exceptions thrown inside the coroutine body do not"
+                        + " propagate to the caller — they travel to the nearest exception handler"
+                        + " in the scope hierarchy, or are silently dropped for GlobalScope.",
+                "Without a visible handler the application loses all diagnostic context for the"
+                        + " failure: no structured log entry, no MDC, no metric increment, and no"
+                        + " retry. For GlobalScope the failure is completely invisible — the"
+                        + " coroutine simply stops executing. In production this surfaces as missing"
+                        + " data or unanswered requests with no observable cause.",
+                "DiagScope detects calls to 'launch' or 'async' on a receiver whose name ends"
+                        + " with 'Scope', equals 'GlobalScope', or is blank (implicit this). The"
+                        + " finding is suppressed when any argument to the builder contains the"
+                        + " text 'CoroutineExceptionHandler'.",
+                "The rule cannot detect handlers installed in parent scopes or application-level"
+                        + " coroutine exception handlers registered via ServiceLoader. Coroutine"
+                        + " builders inside suspending functions reachable through an indirect call"
+                        + " are analysed but the parent coroutine context is not tracked.");
+
+        // ── Kotlin coroutines: uncaught Flow exceptions ───────────────────────
+        put(catalog, FlowExceptionNotCaughtRule.ID,
+                "Kotlin Flow collected without a .catch operator",
+                "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
+                "Kotlin applications using kotlinx.coroutines Flow",
+                "A Flow terminal operator ('collect' or 'launchIn') is called without a"
+                        + " preceding '.catch {}' operator in the same expression chain or"
+                        + " method body, and the call is not enclosed in a try/catch block.",
+                "An uncaught exception inside a Flow operator propagates to the collecting"
+                        + " coroutine and cancels it. Because Flow is cold, exceptions surface only"
+                        + " at the terminal and are invisible to callers. In production this"
+                        + " typically causes silent data loss — items stop arriving, the coroutine"
+                        + " cancels, and no error entry appears in the log.",
+                "DiagScope inspects the scope text of every 'collect' / 'launchIn' invocation."
+                        + " If the scope contains '.catch' the chain already includes the catch"
+                        + " operator and the finding is suppressed. The rule also suppresses when"
+                        + " any other invocation named 'catch' exists in the same method (covering"
+                        + " the variable-assignment pattern) or when the method has a try/catch block.",
+                "The rule cannot resolve type aliases or flows defined in another method."
+                        + " A '.catch' applied to a different flow in the same method suppresses the"
+                        + " finding even if the collected flow is distinct.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

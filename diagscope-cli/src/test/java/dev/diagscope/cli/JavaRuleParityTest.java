@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,7 +51,13 @@ class JavaRuleParityTest {
         JsonNode metrics = scanFixture("metric-patterns", "metrics");
         var covered = new TreeSet<>(ruleIds(result));
         covered.addAll(ruleIds(metrics));
-        assertThat(covered).containsAll(RuleCatalog.all().keySet());
+        // Only require rules that declare Java support; Kotlin-only rules are verified
+        // by KotlinRuleParityTest instead.
+        Set<String> javaEligibleRules = RuleCatalog.all().entrySet().stream()
+                .filter(e -> e.getValue().supportedLanguages().contains("java"))
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        assertThat(covered).containsAll(javaEligibleRules);
     }
 
     @Test

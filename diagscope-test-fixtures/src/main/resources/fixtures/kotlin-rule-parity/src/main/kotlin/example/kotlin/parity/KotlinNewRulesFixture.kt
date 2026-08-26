@@ -206,12 +206,66 @@ class KotlinSecretConfig(private val dataSourceBuilder: DataSourceBuilder) {
     }
 }
 
+// ── COROUTINE_EXCEPTION_NOT_HANDLED ──────────────────────────────────────────
+
+/** GlobalScope.launch without a CoroutineExceptionHandler — crash is silently dropped. */
+@Service
+class KotlinCoroutineService(
+    private val repository: KotlinRepository,
+    private val logger: Logger
+) {
+    /** triggers COROUTINE_EXCEPTION_NOT_HANDLED (ERROR — GlobalScope). */
+    fun processInBackground(id: String) {
+        GlobalScope.launch {
+            repository.save(id) // if this throws, the exception is silently lost
+        }
+    }
+
+    /** Safe: CoroutineExceptionHandler provided in context. */
+    fun processInBackgroundSafe(id: String) {
+        GlobalScope.launch(CoroutineExceptionHandler { _, ex ->
+            logger.error("Background processing failed for {}", id, ex)
+        }) {
+            repository.save(id)
+        }
+    }
+}
+
+// ── FLOW_EXCEPTION_NOT_CAUGHT ─────────────────────────────────────────────────
+
+/** Flow.collect without .catch — exceptions propagate uncaught to the coroutine. */
+@Service
+class KotlinFlowProcessor(
+    private val repository: KotlinRepository,
+    private val logger: Logger
+) {
+    /** triggers FLOW_EXCEPTION_NOT_CAUGHT: collect with no upstream .catch. */
+    fun processItems(items: Flow<String>) {
+        items.collect { item ->
+            repository.save(item) // exception propagates uncaught to the coroutine
+        }
+    }
+
+    /** Safe: .catch operator applied before .collect. */
+    fun processItemsSafe(items: Flow<String>) {
+        items.catch { ex ->
+            logger.error("Flow error during processing", ex)
+        }.collect { item ->
+            repository.save(item)
+        }
+    }
+}
+
 /**
  * Controller that triggers every new rule on each request, making all fixture methods
  * reachable from a flow entrypoint.
  */
 @RestController
-class KotlinNewRulesController(private val fixture: KotlinNewRulesFixture) {
+class KotlinNewRulesController(
+    private val fixture: KotlinNewRulesFixture,
+    private val coroutineService: KotlinCoroutineService,
+    private val flowProcessor: KotlinFlowProcessor
+) {
 
     @GetMapping("/kotlin-new-rules")
     fun trigger(id: String, items: List<String>): String {
@@ -221,6 +275,13 @@ class KotlinNewRulesController(private val fixture: KotlinNewRulesFixture) {
         fixture.notifyAsync(id)            // → ASYNC_ON_PRIVATE_METHOD (via wrapper)
         fixture.saveAll(items)             // → BULK_OPERATION_IN_LOOP
         fixture.tracedOperation(id)        // → SPAN_NOT_CLOSED
+        coroutineService.processInBackground(id)  // → COROUTINE_EXCEPTION_NOT_HANDLED
         return id
+    }
+
+    @GetMapping("/kotlin-flow")
+    fun triggerFlow(items: Flow<String>): String {
+        flowProcessor.processItems(items)  // → FLOW_EXCEPTION_NOT_CAUGHT
+        return "done"
     }
 }

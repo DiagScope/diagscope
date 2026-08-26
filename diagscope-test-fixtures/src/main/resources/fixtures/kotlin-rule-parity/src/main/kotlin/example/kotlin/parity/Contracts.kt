@@ -157,3 +157,22 @@ interface DataSourceBuilder {
     fun url(url: String): DataSourceBuilder
     fun setPassword(password: String): DataSourceBuilder
 }
+
+// --- Coroutine stubs (for COROUTINE_EXCEPTION_NOT_HANDLED, FLOW_EXCEPTION_NOT_CAUGHT) ---
+interface CoroutineExceptionHandler
+
+fun CoroutineExceptionHandler(handler: (Any, Throwable) -> Unit): CoroutineExceptionHandler =
+    throw UnsupportedOperationException()
+
+object GlobalScope {
+    fun launch(context: Any = Unit, block: () -> Unit) {}
+    fun async(context: Any = Unit, block: () -> Unit) {}
+}
+
+interface Flow<T> {
+    fun collect(collector: (T) -> Unit)
+    fun catch(block: (Throwable) -> Unit): Flow<T>
+    fun launchIn(scope: Any)
+}
+
+fun <T> flowOf(vararg items: T): Flow<T> = throw UnsupportedOperationException()

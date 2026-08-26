@@ -15,6 +15,8 @@ import dev.diagscope.core.application.rule.CompletableFutureExceptionNotHandledR
 import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
+import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
+import dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule;
 import dev.diagscope.core.application.rule.OutboxPatternMissingRule;
 import dev.diagscope.core.application.rule.SecretInStringLiteralRule;
 import dev.diagscope.core.application.rule.SpanNotClosedRule;
@@ -152,7 +154,9 @@ public final class DiagScopeMain {
         var fullEngine = new RuleEngine(flowRules, List.of(
                 new GodClassRule(),
                 new OutboxPatternMissingRule(),
-                new SecretInStringLiteralRule()
+                new SecretInStringLiteralRule(),
+                new CoroutineExceptionNotHandledRule(),
+                new FlowExceptionNotCaughtRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -236,7 +240,11 @@ public final class DiagScopeMain {
                 // Kafka / Transactions: transactional outbox
                 dev.diagscope.core.application.rule.OutboxPatternMissingRule.ID,
                 // Security: hardcoded secrets
-                dev.diagscope.core.application.rule.SecretInStringLiteralRule.ID
+                dev.diagscope.core.application.rule.SecretInStringLiteralRule.ID,
+                // Kotlin coroutines: unhandled exceptions
+                dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule.ID,
+                // Kotlin coroutines: uncaught Flow exceptions
+                dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule.ID
         );
     }
 

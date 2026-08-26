@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,7 +81,13 @@ class KotlinRuleParityTest {
         var covered = new TreeSet<>(ruleIds(result));
         covered.addAll(ruleIds(metricResult));
 
-        assertThat(covered).containsAll(RuleCatalog.all().keySet());
+        // Only require rules that declare Kotlin support; Java-only rules are verified
+        // by JavaRuleParityTest instead.
+        Set<String> kotlinEligibleRules = RuleCatalog.all().entrySet().stream()
+                .filter(e -> e.getValue().supportedLanguages().contains("kotlin"))
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        assertThat(covered).containsAll(kotlinEligibleRules);
     }
 
     @Test
