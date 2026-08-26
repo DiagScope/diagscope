@@ -3,7 +3,9 @@ package example.kotlin.parity
 /**
  * Fixture: exercises INTERRUPTED_EXCEPTION_SWALLOWED, COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED,
  * EXECUTOR_NOT_SHUTDOWN, ASYNC_ON_PRIVATE_METHOD, SCHEDULED_EXCEPTION_NOT_HANDLED,
- * BULK_OPERATION_IN_LOOP, SPAN_NOT_CLOSED, and KAFKA_DEAD_LETTER_NOT_CONFIGURED.
+ * BULK_OPERATION_IN_LOOP, SPAN_NOT_CLOSED, KAFKA_DEAD_LETTER_NOT_CONFIGURED,
+ * OUTBOX_PATTERN_MISSING, SECRET_IN_STRING_LITERAL, COROUTINE_EXCEPTION_NOT_HANDLED,
+ * FLOW_EXCEPTION_NOT_CAUGHT, and BLOCKING_CALL_IN_COROUTINE.
  */
 @Service
 class KotlinNewRulesFixture(
@@ -206,7 +208,7 @@ class KotlinSecretConfig(private val dataSourceBuilder: DataSourceBuilder) {
     }
 }
 
-// ── COROUTINE_EXCEPTION_NOT_HANDLED ──────────────────────────────────────────
+// ── COROUTINE_EXCEPTION_NOT_HANDLED + BLOCKING_CALL_IN_COROUTINE ─────────────
 
 /** GlobalScope.launch without a CoroutineExceptionHandler — crash is silently dropped. */
 @Service
@@ -221,12 +223,28 @@ class KotlinCoroutineService(
         }
     }
 
+    /** triggers BLOCKING_CALL_IN_COROUTINE: Thread.sleep inside launch without withContext(IO). */
+    fun waitInBackground(millis: Long) {
+        GlobalScope.launch {
+            Thread.sleep(millis) // blocks the dispatcher thread
+        }
+    }
+
     /** Safe: CoroutineExceptionHandler provided in context. */
     fun processInBackgroundSafe(id: String) {
         GlobalScope.launch(CoroutineExceptionHandler { _, ex ->
             logger.error("Background processing failed for {}", id, ex)
         }) {
             repository.save(id)
+        }
+    }
+
+    /** Safe: Thread.sleep wrapped in withContext(Dispatchers.IO). */
+    fun waitInBackgroundSafe(millis: Long) {
+        GlobalScope.launch(CoroutineExceptionHandler { _, ex ->
+            logger.error("Wait failed", ex)
+        }) {
+            withContext(Dispatchers.IO) { Thread.sleep(millis) }
         }
     }
 }
@@ -276,6 +294,7 @@ class KotlinNewRulesController(
         fixture.saveAll(items)             // → BULK_OPERATION_IN_LOOP
         fixture.tracedOperation(id)        // → SPAN_NOT_CLOSED
         coroutineService.processInBackground(id)  // → COROUTINE_EXCEPTION_NOT_HANDLED
+        coroutineService.waitInBackground(100L)   // → BLOCKING_CALL_IN_COROUTINE
         return id
     }
 

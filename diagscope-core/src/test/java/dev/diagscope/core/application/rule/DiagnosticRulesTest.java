@@ -720,6 +720,55 @@ class DiagnosticRulesTest {
         assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── BlockingCallInCoroutineRule ───────────────────────────────────────────
+
+    @Test
+    void blockingCoroutine_threadSleepInLaunch_reported() {
+        var inv = new InvocationEvidence(location(10), "GlobalScope", "",
+                "launch", List.of("{ Thread.sleep(500) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new BlockingCallInCoroutineRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(BlockingCallInCoroutineRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                });
+    }
+
+    @Test
+    void blockingCoroutine_threadSleepInRunBlocking_reported() {
+        var inv = new InvocationEvidence(location(10), "", "",
+                "runBlocking", List.of("{ Thread.sleep(1000) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new BlockingCallInCoroutineRule().evaluate(project(m))).hasSize(1);
+    }
+
+    @Test
+    void blockingCoroutine_withContextIO_suppressed() {
+        var inv = new InvocationEvidence(location(10), "GlobalScope", "",
+                "launch", List.of("{ withContext(Dispatchers.IO) { Thread.sleep(500) } }"),
+                InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new BlockingCallInCoroutineRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void blockingCoroutine_nonBlockingLambda_notReported() {
+        var inv = new InvocationEvidence(location(10), "GlobalScope", "",
+                "launch", List.of("{ repository.save(id) }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new BlockingCallInCoroutineRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void blockingCoroutine_futureGetInAsync_reported() {
+        // CompletableFuture.get() inside async{} is a blocking call
+        var inv = new InvocationEvidence(location(10), "lifecycleScope", "",
+                "async", List.of("{ future.get() }"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new BlockingCallInCoroutineRule().evaluate(project(m))).hasSize(1);
+    }
+
     private static AnalyzedProject project(MethodModel... methods) {
         var methodMap = new java.util.LinkedHashMap<MethodId, MethodModel>();
         for (var m : methods) {

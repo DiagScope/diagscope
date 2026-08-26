@@ -917,6 +917,29 @@ public final class RuleCatalog {
                         + " A '.catch' applied to a different flow in the same method suppresses the"
                         + " finding even if the collected flow is distinct.");
 
+        // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
+        put(catalog, BlockingCallInCoroutineRule.ID,
+                "Blocking JVM call inside a coroutine builder lambda",
+                "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
+                "Kotlin applications using kotlinx.coroutines",
+                "A blocking JVM call (Thread.sleep, Object.wait, synchronous IO, or"
+                        + " CompletableFuture.get/join) is detected inside the lambda body of a"
+                        + " 'launch', 'async', or 'runBlocking' coroutine builder, without wrapping"
+                        + " in 'withContext(Dispatchers.IO)'.",
+                "Blocking a coroutine dispatcher thread makes it unavailable for other coroutines."
+                        + " The default dispatcher pool size equals the number of CPU cores;"
+                        + " a single blocking call under load starves all other coroutines on that"
+                        + " dispatcher, causing latency spikes that are hard to diagnose because"
+                        + " thread dumps show legitimate-looking call stacks.",
+                "DiagScope inspects the text of each lambda argument on 'launch', 'async', and"
+                        + " 'runBlocking' invocations for known blocking patterns. The finding is"
+                        + " suppressed when the lambda text contains"
+                        + " 'withContext(Dispatchers.IO' or 'withContext(Dispatchers.Default'.",
+                "The rule cannot detect blocking calls hidden inside helper functions called"
+                        + " from the lambda — inter-procedural analysis would be required."
+                        + " Deeply nested withContext wrappers inside complex lambdas may not"
+                        + " suppress the finding correctly, causing false positives.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

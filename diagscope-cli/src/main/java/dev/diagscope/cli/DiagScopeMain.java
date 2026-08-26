@@ -15,6 +15,7 @@ import dev.diagscope.core.application.rule.CompletableFutureExceptionNotHandledR
 import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
+import dev.diagscope.core.application.rule.BlockingCallInCoroutineRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
 import dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule;
 import dev.diagscope.core.application.rule.OutboxPatternMissingRule;
@@ -156,7 +157,8 @@ public final class DiagScopeMain {
                 new OutboxPatternMissingRule(),
                 new SecretInStringLiteralRule(),
                 new CoroutineExceptionNotHandledRule(),
-                new FlowExceptionNotCaughtRule()
+                new FlowExceptionNotCaughtRule(),
+                new BlockingCallInCoroutineRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -244,7 +246,9 @@ public final class DiagScopeMain {
                 // Kotlin coroutines: unhandled exceptions
                 dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule.ID,
                 // Kotlin coroutines: uncaught Flow exceptions
-                dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule.ID
+                dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule.ID,
+                // Kotlin coroutines: blocking calls in coroutine builders
+                dev.diagscope.core.application.rule.BlockingCallInCoroutineRule.ID
         );
     }
 

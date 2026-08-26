@@ -176,3 +176,11 @@ interface Flow<T> {
 }
 
 fun <T> flowOf(vararg items: T): Flow<T> = throw UnsupportedOperationException()
+
+object Dispatchers {
+    val IO: Any = object {}
+    val Default: Any = object {}
+    val Main: Any = object {}
+}
+
+suspend fun <T> withContext(context: Any, block: () -> T): T = throw UnsupportedOperationException()
