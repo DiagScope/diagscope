@@ -611,12 +611,16 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     ? raw.invocations().stream().map(item -> item.withProducerListenerVisible(true)).toList()
                     : raw.invocations();
             invocations = enrichReceiverTypes(raw, invocations, project.types(), typesBySimpleName);
+            TypeInfo declaringTypeInfo = project.types().get(raw.id().declaringType());
+            boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
             result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(annotationNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
                     proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations),
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(), raw.varargIndex(),
-                            raw.typeParameters())));
+                            raw.typeParameters()),
+                    raw.returnType(),
+                    isInterface));
         }
         return Collections.unmodifiableMap(result);
     }

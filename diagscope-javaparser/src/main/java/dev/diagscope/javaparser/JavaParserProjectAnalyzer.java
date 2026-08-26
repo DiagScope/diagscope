@@ -23,6 +23,7 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
@@ -380,6 +381,14 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     call.getNameAsString(), call.getArguments().size(), invocation.argumentTypes()));
         }
 
+        // Capture constructor calls (new Foo(args)) as synthetic invocations so rules can detect
+        // patterns like new FixedBackOff(0, 3) for KAFKA_RETRY_WITHOUT_BACKOFF.
+        // Convention: methodName = simple class name, scope = "", receiverType = "".
+        method.findAll(ObjectCreationExpr.class).stream()
+                .filter(call -> belongsToMethod(call, method))
+                .sorted(Comparator.comparingInt(call -> call.getBegin().map(pos -> pos.line).orElse(1)))
+                .forEach(call -> invocations.add(constructorInvocationEvidence(root, file, call)));
+
         int varargIndex = method.getParameters().stream().filter(parameter -> parameter.isVarArgs())
                 .findFirst().map(method.getParameters()::indexOf).orElse(-1);
         int minimumArity = varargIndex >= 0 ? method.getParameters().size() - 1
@@ -545,13 +554,17 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                         .map(invocation -> invocation.withProducerListenerVisible(true)).toList()
                     : raw.invocations();
             invocations = enrichReceiverTypes(raw, invocations, project.types(), typesBySimpleName);
+            TypeInfo declaringTypeInfo = project.types().get(raw.id().declaringType());
+            boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
             resolved.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(effectiveNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
-                    proxyProfile(raw, project.types().get(raw.id().declaringType()), aspects, beanFactoryTypes,
+                    proxyProfile(raw, declaringTypeInfo, aspects, beanFactoryTypes,
                             typeAnnotations, methodAnnotations),
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(),
-                            raw.varargIndex(), raw.typeParameters())));
+                            raw.varargIndex(), raw.typeParameters()),
+                    raw.returnType(),
+                    isInterface));
         }
         return Collections.unmodifiableMap(resolved);
     }
@@ -1236,6 +1249,36 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 insideLoop(call),
                 isLoggerCall(call, variableTypes, policy),
                 argumentTypes(call, variableTypes, symbolResolutionEnabled)
+        );
+    }
+
+    /**
+     * Maps an {@code ObjectCreationExpr} (e.g., {@code new FixedBackOff(0, 3)}) to a synthetic
+     * {@link InvocationEvidence} so that rules can detect constructor-call patterns.
+     *
+     * <p>Convention: {@code methodName} is the simple class name, {@code scope} and
+     * {@code receiverType} are empty. The arguments list mirrors the constructor argument
+     * source text, identical to the regular invocation evidence format.</p>
+     */
+    /**
+     * Maps an {@code ObjectCreationExpr} (e.g., {@code new FixedBackOff(0, 3)}) to a synthetic
+     * {@link InvocationEvidence} so that rules can detect constructor-call patterns.
+     *
+     * <p>Convention: {@code methodName} is the simple class name, {@code scope} and
+     * {@code receiverType} are empty. The arguments list mirrors the constructor argument
+     * source text, identical to the regular invocation evidence format.</p>
+     */
+    private static InvocationEvidence constructorInvocationEvidence(
+            Path root, Path file, ObjectCreationExpr call) {
+        String simpleName = call.getType().getNameAsString(); // e.g. "FixedBackOff"
+        List<String> args = call.getArguments().stream().map(Node::toString).toList();
+        return new InvocationEvidence(
+                location(root, file, call),
+                "",             // scope — no receiver for constructors
+                "",             // receiverType
+                simpleName,
+                args,
+                InvocationResultUsage.IGNORED
         );
     }
 

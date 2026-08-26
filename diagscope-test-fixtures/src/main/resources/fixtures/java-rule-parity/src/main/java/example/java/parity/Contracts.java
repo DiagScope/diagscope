@@ -1,5 +1,6 @@
 package example.java.parity;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -143,4 +144,29 @@ interface ApplicationEventPublisher { void publishEvent(Object event); }
 interface DataSourceBuilder {
     DataSourceBuilder url(String url);
     DataSourceBuilder setPassword(String password);
+}
+
+// --- Stubs for TRANSACTIONAL_ON_INTERFACE, MISSING_PAGINATION, KAFKA_RETRY_WITHOUT_BACKOFF ---
+
+// Pageable stub (for MISSING_PAGINATION suppression)
+interface Pageable {}
+
+// OrderRepository for MISSING_PAGINATION fixture
+interface OrderRepository {
+    List<String> findAll();                        // triggers MISSING_PAGINATION
+    List<String> findAll(Pageable pageable);       // suppressed — has Pageable
+    List<String> findByStatus(String status);      // triggers MISSING_PAGINATION
+    String findById(String id);                    // suppressed — not a collection
+    long countByStatus(String status);             // suppressed — has "count"
+}
+
+// FixedBackOff stub (for KAFKA_RETRY_WITHOUT_BACKOFF)
+class FixedBackOff {
+    FixedBackOff() {}
+    FixedBackOff(long interval, long maxAttempts) {}
+}
+
+class ExponentialBackOff {
+    ExponentialBackOff(long initialInterval, double multiplier) {}
+    void setMaxInterval(long maxInterval) {}
 }

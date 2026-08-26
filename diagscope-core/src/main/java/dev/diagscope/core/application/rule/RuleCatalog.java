@@ -917,6 +917,65 @@ public final class RuleCatalog {
                         + " A '.catch' applied to a different flow in the same method suppresses the"
                         + " finding even if the collected flow is distinct.");
 
+        // ── AOP / Proxy: @Transactional on interface ─────────────────────────
+        put(catalog, TransactionalOnInterfaceRule.ID,
+                "@Transactional on interface method ignored by CGLIB proxy",
+                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using CGLIB proxying (the default since Spring Boot 2)",
+                "A method declared on an interface is annotated with @Transactional. Under"
+                        + " CGLIB subclass proxying, annotations on interfaces are not picked"
+                        + " up — no transaction boundary is opened and rollback has no effect.",
+                "CGLIB creates a subclass of the concrete bean class; it does not read"
+                        + " annotations from interfaces. An interface-level @Transactional is"
+                        + " silently ignored. The failure is discovered at runtime when a rollback"
+                        + " fails or writes appear outside expected transaction boundaries.",
+                "DiagScope detects @Transactional on methods whose declaring type is an"
+                        + " interface (resolved from the AST type declaration kind). Confidence is"
+                        + " HIGH because the AST explicitly records whether a type is an interface.",
+                "Methods in JDK dynamic proxy mode (proxyTargetClass=false) would correctly"
+                        + " pick up the interface annotation, but this mode is not the default"
+                        + " and should not be relied upon.");
+
+        // ── Database / Performance: missing pagination ────────────────────────
+        put(catalog, MissingPaginationRule.ID,
+                "Repository method returns unbounded collection without Pageable",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Data repositories (types ending with Repository or annotated @Repository)",
+                "A repository method returns a List, Collection, Iterable, or Set without a"
+                        + " Pageable parameter. There is no LIMIT clause — the query loads all"
+                        + " matching rows into memory.",
+                "On a small dataset the query is fast; with production data volumes it loads"
+                        + " thousands or millions of rows. Manifests as OOM errors or timeouts"
+                        + " that appear months after go-live when data grows beyond test sizes.",
+                "DiagScope inspects the return type of repository methods (types matching the"
+                        + " Repository/Dao naming pattern) for collection return types. Methods"
+                        + " with a Pageable parameter, or names containing count/delete/save, are"
+                        + " suppressed.",
+                "The rule matches by type name pattern (ends with Repository); a type with that"
+                        + " suffix that is not a Spring Data repository produces a false positive."
+                        + " Reactive repositories returning Flux<T> are flagged but Flux supports"
+                        + " .take(n) for limiting — the finding may be a false positive there.");
+
+        // ── Kafka: retry without exponential backoff ──────────────────────────
+        put(catalog, KafkaRetryWithoutBackoffRule.ID,
+                "Kafka retry configured with zero-delay fixed backoff",
+                "kafka", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Kafka applications using DefaultErrorHandler or RetryTopicConfiguration",
+                "A FixedBackOff is constructed with an interval below 100ms and more than one"
+                        + " retry attempt. This causes rapid retry storms against a failing"
+                        + " downstream, amplifying the failure rather than allowing recovery.",
+                "A rapid retry loop hammers the already-failing downstream — broker, database,"
+                        + " or external API — at hundreds of attempts per second. This extends"
+                        + " the outage, triggers rate limiting, and may exhaust connection pools"
+                        + " before the downstream has any chance to recover.",
+                "DiagScope detects constructor calls to FixedBackOff(interval, maxAttempts)"
+                        + " (captured via ObjectCreationExpr in the Java parser and as a regular"
+                        + " call expression in the Kotlin parser). The interval argument is parsed"
+                        + " as a numeric literal; variable references are not resolved.",
+                "Variable-based interval values (e.g., FixedBackOff(intervalMs, 3)) cannot be"
+                        + " resolved statically and are skipped, producing false negatives when"
+                        + " the variable happens to be zero.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

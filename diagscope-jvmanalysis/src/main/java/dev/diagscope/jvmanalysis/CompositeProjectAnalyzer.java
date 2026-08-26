@@ -259,7 +259,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
     private static MethodModel copyWithCalls(MethodModel method, List<MethodCall> calls) {
         return new MethodModel(method.id(), method.location(), method.annotations(), method.catches(),
                 method.invocations(), method.metricTags(), method.metricNames(), calls, method.proxy(),
-                method.annotationAttributes(), method.callableShape());
+                method.annotationAttributes(), method.callableShape(), method.returnType(),
+                method.declaringTypeIsInterface());
     }
 
     /** Re-evaluates advice after Java and Kotlin aspects and target methods have been merged. */
@@ -284,7 +285,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                     old.proxiedAnnotations(), List.copyOf(matchingAdvice));
             result.put(method.id(), new MethodModel(method.id(), method.location(), method.annotations(),
                     method.catches(), method.invocations(), method.metricTags(), method.metricNames(),
-                    method.calls(), proxy, method.annotationAttributes(), method.callableShape()));
+                    method.calls(), proxy, method.annotationAttributes(), method.callableShape(),
+                    method.returnType(), method.declaringTypeIsInterface()));
         }
         return Collections.unmodifiableMap(result);
     }

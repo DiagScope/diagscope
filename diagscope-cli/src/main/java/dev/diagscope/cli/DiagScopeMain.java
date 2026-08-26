@@ -16,6 +16,9 @@ import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
 import dev.diagscope.core.application.rule.BlockingCallInCoroutineRule;
+import dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule;
+import dev.diagscope.core.application.rule.MissingPaginationRule;
+import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
 import dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule;
 import dev.diagscope.core.application.rule.OutboxPatternMissingRule;
@@ -158,7 +161,10 @@ public final class DiagScopeMain {
                 new SecretInStringLiteralRule(),
                 new CoroutineExceptionNotHandledRule(),
                 new FlowExceptionNotCaughtRule(),
-                new BlockingCallInCoroutineRule()
+                new BlockingCallInCoroutineRule(),
+                new TransactionalOnInterfaceRule(),
+                new MissingPaginationRule(),
+                new KafkaRetryWithoutBackoffRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -248,7 +254,13 @@ public final class DiagScopeMain {
                 // Kotlin coroutines: uncaught Flow exceptions
                 dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule.ID,
                 // Kotlin coroutines: blocking calls in coroutine builders
-                dev.diagscope.core.application.rule.BlockingCallInCoroutineRule.ID
+                dev.diagscope.core.application.rule.BlockingCallInCoroutineRule.ID,
+                // AOP / Proxy: @Transactional on interface
+                dev.diagscope.core.application.rule.TransactionalOnInterfaceRule.ID,
+                // Database / Performance: missing pagination
+                dev.diagscope.core.application.rule.MissingPaginationRule.ID,
+                // Kafka: retry without exponential backoff
+                dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule.ID
         );
     }
 

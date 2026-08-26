@@ -769,6 +769,141 @@ class DiagnosticRulesTest {
         assertThat(new BlockingCallInCoroutineRule().evaluate(project(m))).hasSize(1);
     }
 
+    // ── TransactionalOnInterfaceRule ─────────────────────────────────────────
+
+    @Test
+    void transactionalOnInterface_reported() {
+        var m = methodOnInterface(Set.of("Transactional"), List.of(), List.of());
+        assertThat(new TransactionalOnInterfaceRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(TransactionalOnInterfaceRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+                });
+    }
+
+    @Test
+    void transactionalOnInterface_classMethod_notReported() {
+        // @Transactional on a concrete class method — correct
+        var m = method(Set.of("Transactional"), List.of(), List.of());
+        assertThat(new TransactionalOnInterfaceRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void transactionalOnInterface_noAnnotation_notReported() {
+        // Interface method without @Transactional — safe
+        var m = methodOnInterface(Set.of("GetMapping"), List.of(), List.of());
+        assertThat(new TransactionalOnInterfaceRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── MissingPaginationRule ─────────────────────────────────────────────────
+
+    @Test
+    void missingPagination_repositoryReturningList_reported() {
+        var m = repositoryMethod("findAll", "List<String>", List.of());
+        assertThat(new MissingPaginationRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(MissingPaginationRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.WARNING);
+                });
+    }
+
+    @Test
+    void missingPagination_withPageable_suppressed() {
+        var m = repositoryMethod("findAll", "List<String>", List.of("Pageable"));
+        assertThat(new MissingPaginationRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void missingPagination_nonCollectionReturn_notReported() {
+        var m = repositoryMethod("findById", "String", List.of("String"));
+        assertThat(new MissingPaginationRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void missingPagination_countMethod_notReported() {
+        var m = repositoryMethod("countByStatus", "Long", List.of("String"));
+        assertThat(new MissingPaginationRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── KafkaRetryWithoutBackoffRule ──────────────────────────────────────────
+
+    @Test
+    void kafkaRetry_zeroIntervalFixedBackOff_reported() {
+        var inv = new InvocationEvidence(location(10), "", "",
+                "FixedBackOff", List.of("0", "3"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new KafkaRetryWithoutBackoffRule().evaluate(project(m)))
+                .hasSize(1)
+                .allSatisfy(f -> {
+                    assertThat(f.ruleId()).isEqualTo(KafkaRetryWithoutBackoffRule.ID);
+                    assertThat(f.severity()).isEqualTo(Severity.WARNING);
+                    assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+                });
+    }
+
+    @Test
+    void kafkaRetry_safeInterval_notReported() {
+        var inv = new InvocationEvidence(location(10), "", "",
+                "FixedBackOff", List.of("1000", "3"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new KafkaRetryWithoutBackoffRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void kafkaRetry_singleAttempt_notReported() {
+        // maxAttempts=1 — single attempt, no retry loop
+        var inv = new InvocationEvidence(location(10), "", "",
+                "FixedBackOff", List.of("0", "1"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new KafkaRetryWithoutBackoffRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void kafkaRetry_variableInterval_notReported() {
+        // variable reference — cannot parse, skip to avoid false positive
+        var inv = new InvocationEvidence(location(10), "", "",
+                "FixedBackOff", List.of("intervalMs", "3"), InvocationResultUsage.IGNORED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new KafkaRetryWithoutBackoffRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── Helper overloads ──────────────────────────────────────────────────────
+
+    /** Creates a method on a concrete class (declaringTypeIsInterface = false). */
+    private static MethodModel method(Set<String> annotations,
+                                      List<CatchEvidence> catches,
+                                      List<InvocationEvidence> invocations) {
+        return new MethodModel(
+                new MethodId("example.Controller", "execute", List.of()),
+                location(1), annotations, catches, invocations, List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "", false);
+    }
+
+    /** Creates a method on an interface (declaringTypeIsInterface = true). */
+    private static MethodModel methodOnInterface(Set<String> annotations,
+                                                  List<CatchEvidence> catches,
+                                                  List<InvocationEvidence> invocations) {
+        return new MethodModel(
+                new MethodId("example.OrderService", "processOrder", List.of()),
+                location(1), annotations, catches, invocations, List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "", true);
+    }
+
+    /** Creates a method on a Repository-named type with the given return type and params. */
+    private static MethodModel repositoryMethod(String name, String returnType,
+                                                 List<String> paramTypes) {
+        return new MethodModel(
+                new MethodId("example.OrderRepository", name, paramTypes),
+                location(1), Set.of("Repository"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(paramTypes.size()), returnType, false);
+    }
+
     private static AnalyzedProject project(MethodModel... methods) {
         var methodMap = new java.util.LinkedHashMap<MethodId, MethodModel>();
         for (var m : methods) {

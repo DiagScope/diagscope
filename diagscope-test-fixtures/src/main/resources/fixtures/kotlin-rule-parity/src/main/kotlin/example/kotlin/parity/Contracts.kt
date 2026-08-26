@@ -184,3 +184,23 @@ object Dispatchers {
 }
 
 suspend fun <T> withContext(context: Any, block: () -> T): T = throw UnsupportedOperationException()
+
+// --- Stubs for TRANSACTIONAL_ON_INTERFACE, MISSING_PAGINATION, KAFKA_RETRY_WITHOUT_BACKOFF ---
+
+// Pageable stub (for MISSING_PAGINATION suppression)
+interface Pageable
+
+// KotlinOrderRepository for MISSING_PAGINATION fixture
+interface KotlinOrderRepository {
+    fun findAll(): List<String>                // triggers MISSING_PAGINATION
+    fun findAll(pageable: Pageable): List<String>  // suppressed — has Pageable
+    fun findByStatus(status: String): List<String>  // triggers MISSING_PAGINATION
+    fun findById(id: String): String           // suppressed — not a collection
+    fun countByStatus(status: String): Long    // suppressed — has "count"
+}
+
+// FixedBackOff and ExponentialBackOff stubs (for KAFKA_RETRY_WITHOUT_BACKOFF)
+class FixedBackOff(val interval: Long = 0L, val maxAttempts: Long = Long.MAX_VALUE)
+class ExponentialBackOff(val initialInterval: Long, val multiplier: Double) {
+    var maxInterval: Long = 30000L
+}

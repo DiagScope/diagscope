@@ -14,6 +14,11 @@ import java.util.Set;
  * @param annotationAttributes attributes of the annotations that apply to the method, keyed by the
  *        annotation simple name (for example {@code Transactional -> {propagation=REQUIRES_NEW}}).
  *        Rules that need more than the presence of an annotation read this map.
+ * @param returnType           the declared return type of the method as a simple string, e.g.
+ *        {@code "List<Order>"}, {@code "void"}, {@code "String"}. Empty when the type could not be
+ *        determined (constructors, lambdas, or adapter gaps).
+ * @param declaringTypeIsInterface {@code true} when the method is declared inside an interface
+ *        (not an abstract class). Used by rules that check annotations on interface-level methods.
  */
 public record MethodModel(
         MethodId id,
@@ -26,13 +31,16 @@ public record MethodModel(
         List<MethodCall> calls,
         ProxyProfile proxy,
         Map<String, Map<String, String>> annotationAttributes,
-        CallableShape callableShape
+        CallableShape callableShape,
+        String returnType,
+        boolean declaringTypeIsInterface
 ) {
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");
         Objects.requireNonNull(proxy, "proxy");
         Objects.requireNonNull(callableShape, "callableShape");
+        returnType = returnType == null ? "" : returnType;
         annotations = Set.copyOf(annotations);
         catches = List.copyOf(catches);
         invocations = List.copyOf(invocations);
@@ -42,6 +50,28 @@ public record MethodModel(
         var copy = new LinkedHashMap<String, Map<String, String>>();
         annotationAttributes.forEach((annotation, attributes) -> copy.put(annotation, Map.copyOf(attributes)));
         annotationAttributes = Map.copyOf(copy);
+    }
+
+    /**
+     * Full-featured constructor with return-type and interface flag; used by both parsers.
+     * The simpler overloads below default both to {@code ""} / {@code false} for test helpers.
+     */
+    public MethodModel(
+            MethodId id,
+            SourceLocation location,
+            Set<String> annotations,
+            List<CatchEvidence> catches,
+            List<InvocationEvidence> invocations,
+            List<MetricTagEvidence> metricTags,
+            List<MetricNameEvidence> metricNames,
+            List<MethodCall> calls,
+            ProxyProfile proxy,
+            Map<String, Map<String, String>> annotationAttributes,
+            CallableShape callableShape,
+            String returnType
+    ) {
+        this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
+                annotationAttributes, callableShape, returnType, false);
     }
 
     public MethodModel(
@@ -57,7 +87,7 @@ public record MethodModel(
             Map<String, Map<String, String>> annotationAttributes
     ) {
         this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
-                annotationAttributes, CallableShape.fixed(id.parameterTypes().size()));
+                annotationAttributes, CallableShape.fixed(id.parameterTypes().size()), "", false);
     }
 
     public MethodModel(
@@ -72,7 +102,7 @@ public record MethodModel(
             ProxyProfile proxy
     ) {
         this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy, Map.of(),
-                CallableShape.fixed(id.parameterTypes().size()));
+                CallableShape.fixed(id.parameterTypes().size()), "", false);
     }
 
     public MethodModel(
