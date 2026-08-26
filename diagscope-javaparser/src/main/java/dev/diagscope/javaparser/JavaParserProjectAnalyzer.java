@@ -31,6 +31,7 @@ import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.ThrowStmt;
+import com.github.javaparser.ast.stmt.TryStmt;
 import com.github.javaparser.symbolsolver.JavaSymbolSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ClassLoaderTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
@@ -389,6 +390,17 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .sorted(Comparator.comparingInt(call -> call.getBegin().map(pos -> pos.line).orElse(1)))
                 .forEach(call -> invocations.add(constructorInvocationEvidence(root, file, call)));
 
+        // Detect throw statements inside finally blocks: EXCEPTION_SUPPRESSED_IN_FINALLY.
+        // A throw in finally replaces any exception propagating from the protected block.
+        var throwsInFinally = method.findAll(TryStmt.class).stream()
+                .filter(tryStmt -> belongsToMethod(tryStmt, method))
+                .filter(tryStmt -> tryStmt.getFinallyBlock().isPresent())
+                .flatMap(tryStmt -> tryStmt.getFinallyBlock().get()
+                        .findAll(ThrowStmt.class).stream()
+                        .filter(throwStmt -> isDirectlyInFinally(throwStmt, tryStmt))
+                        .map(throwStmt -> location(root, file, throwStmt)))
+                .toList();
+
         int varargIndex = method.getParameters().stream().filter(parameter -> parameter.isVarArgs())
                 .findFirst().map(method.getParameters()::indexOf).orElse(-1);
         int minimumArity = varargIndex >= 0 ? method.getParameters().size() - 1
@@ -401,7 +413,24 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 visibility(method), method.isStatic(), method.isFinal(), method.getTypeAsString(),
                 minimumArity, maximumArity, varargIndex,
                 method.getTypeParameters().stream().map(parameter -> parameter.getNameAsString())
-                        .collect(java.util.stream.Collectors.toSet()), method.getBody().isPresent());
+                        .collect(java.util.stream.Collectors.toSet()), method.getBody().isPresent(),
+                throwsInFinally);
+    }
+
+    /**
+     * Returns {@code true} when {@code throwStmt} sits directly inside the finally block of
+     * {@code tryStmt} and not inside a nested try statement within that finally block.
+     * Nested throws are suppressed by the nested try themselves, so they are not reported.
+     */
+    private static boolean isDirectlyInFinally(ThrowStmt throwStmt, TryStmt tryStmt) {
+        Node current = throwStmt.getParentNode().orElse(null);
+        while (current != null) {
+            if (current instanceof TryStmt ancestor) {
+                return ancestor.equals(tryStmt);
+            }
+            current = current.getParentNode().orElse(null);
+        }
+        return false;
     }
 
     private static boolean belongsToMethod(Node node, MethodDeclaration method) {
@@ -563,8 +592,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(),
                             raw.varargIndex(), raw.typeParameters()),
-                    raw.returnType(),
-                    isInterface));
+                    raw.returnType(), isInterface, raw.throwsInFinally()));
         }
         return Collections.unmodifiableMap(resolved);
     }
@@ -1659,8 +1687,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             int maximumArity,
             int varargIndex,
             Set<String> typeParameters,
-            boolean executableBody
+            boolean executableBody,
+            List<SourceLocation> throwsInFinally
     ) {
+        private RawMethod {
+            throwsInFinally = List.copyOf(throwsInFinally == null ? List.of() : throwsInFinally);
+        }
+
         private boolean acceptsArity(int arity) {
             return arity >= minimumArity && arity <= maximumArity;
         }

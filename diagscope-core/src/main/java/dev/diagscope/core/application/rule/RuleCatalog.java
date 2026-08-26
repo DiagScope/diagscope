@@ -976,6 +976,53 @@ public final class RuleCatalog {
                         + " resolved statically and are skipped, producing false negatives when"
                         + " the variable happens to be zero.");
 
+        // ── Exception handling: throw in finally suppresses original exception ──
+        put(catalog, ExceptionSuppressedInFinallyRule.ID,
+                "throw in finally block silently discards the original exception",
+                "exception-handling", Severity.ERROR, ALL_LANGUAGES,
+                "Any Java or Kotlin method that uses try-finally",
+                "A 'throw' statement inside a 'finally' block discards any exception propagating"
+                        + " from the 'try' body. The root-cause exception is silently replaced by"
+                        + " the finally exception, hiding the real failure from logs and monitoring.",
+                "Engineers responding to an incident see a secondary cleanup exception instead of"
+                        + " the actual root cause. The misleading stack trace extends investigation"
+                        + " time significantly. In some cases the root-cause exception is never"
+                        + " logged, making the failure completely invisible.",
+                "DiagScope detects 'throw' statements that appear directly inside the 'finally'"
+                        + " block of a 'try' statement (captured by the Java and Kotlin parsers as"
+                        + " 'throwsInFinally' locations on the method model). Confidence is HIGH"
+                        + " when the method also has catch clauses or non-finally invocations"
+                        + " (indicating the protected block can throw).",
+                "A throw in 'finally' inside a nested 'try' within the finally block is not"
+                        + " reported — the nested try handles it. Intentional finally-throws"
+                        + " (e.g. resource cleanup that must propagate) are rare and should be"
+                        + " documented inline.");
+
+        // ── Security: mass assignment via JPA entity as @RequestBody ──────────
+        put(catalog, MassAssignmentRiskRule.ID,
+                "JPA entity used directly as @RequestBody — mass assignment risk",
+                "security", Severity.WARNING, ALL_LANGUAGES,
+                "Spring MVC REST controllers with @PostMapping or @PutMapping endpoints",
+                "A controller write-endpoint method (POST, PUT, or PATCH) accepts a JPA @Entity"
+                        + " class directly as a request body parameter. Jackson deserializes every"
+                        + " matching JSON key into the entity — including server-controlled fields"
+                        + " like 'id', 'role', 'createdAt', or 'ownerId' that the caller should"
+                        + " never be allowed to set.",
+                "An attacker can send arbitrary JSON keys to overwrite fields they should not"
+                        + " control. In the best case the API behaves unexpectedly; in the worst"
+                        + " case it becomes a privilege-escalation or data-tampering vulnerability."
+                        + " The problem is often invisible during normal testing because legitimate"
+                        + " clients simply do not send the extra fields.",
+                "DiagScope first builds a set of entity type names by collecting declaring types"
+                        + " whose methods carry 'Entity' or 'Table' in their effective annotations"
+                        + " (class-level annotations are merged onto every method, so this is"
+                        + " accurate). It then finds write-endpoint methods and checks whether any"
+                        + " parameter type's simple name appears in that set.",
+                "The heuristic uses simple-type-name matching, so a non-entity class that happens"
+                        + " to have the same simple name as an entity will produce a false positive."
+                        + " The rule also cannot detect @RequestBody annotation on parameters"
+                        + " directly — it applies to all parameters of write-endpoint methods.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

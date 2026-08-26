@@ -260,7 +260,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         return new MethodModel(method.id(), method.location(), method.annotations(), method.catches(),
                 method.invocations(), method.metricTags(), method.metricNames(), calls, method.proxy(),
                 method.annotationAttributes(), method.callableShape(), method.returnType(),
-                method.declaringTypeIsInterface());
+                method.declaringTypeIsInterface(), method.throwsInFinally());
     }
 
     /** Re-evaluates advice after Java and Kotlin aspects and target methods have been merged. */
@@ -286,7 +286,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             result.put(method.id(), new MethodModel(method.id(), method.location(), method.annotations(),
                     method.catches(), method.invocations(), method.metricTags(), method.metricNames(),
                     method.calls(), proxy, method.annotationAttributes(), method.callableShape(),
-                    method.returnType(), method.declaringTypeIsInterface()));
+                    method.returnType(), method.declaringTypeIsInterface(), method.throwsInFinally()));
         }
         return Collections.unmodifiableMap(result);
     }

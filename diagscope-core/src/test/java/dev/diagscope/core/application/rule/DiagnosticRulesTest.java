@@ -870,6 +870,88 @@ class DiagnosticRulesTest {
         assertThat(new KafkaRetryWithoutBackoffRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── ExceptionSuppressedInFinallyRule ──────────────────────────────────────
+
+    @Test
+    void exceptionSuppressedInFinally_throwInFinallyWithProtectedBody_reported() {
+        var m = methodWithThrowInFinally(List.of(location(20)), List.of(
+                new InvocationEvidence(location(5), "repo", "OrderRepository",
+                        "save", List.of(), InvocationResultUsage.IGNORED)));
+        var findings = new ExceptionSuppressedInFinallyRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(ExceptionSuppressedInFinallyRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.ERROR);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+            assertThat(f.location().startLine()).isEqualTo(20);
+        });
+    }
+
+    @Test
+    void exceptionSuppressedInFinally_noThrowInFinally_notReported() {
+        var m = methodWithThrowInFinally(List.of(), List.of(
+                new InvocationEvidence(location(5), "repo", "OrderRepository",
+                        "save", List.of(), InvocationResultUsage.IGNORED)));
+        assertThat(new ExceptionSuppressedInFinallyRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void exceptionSuppressedInFinally_noProtectedBody_mediumConfidence() {
+        // throw in finally but no other invocations or catch clauses
+        var m = methodWithThrowInFinally(List.of(location(15)), List.of());
+        var findings = new ExceptionSuppressedInFinallyRule().evaluate(project(m));
+        assertThat(findings).singleElement()
+                .extracting(Finding::confidence)
+                .isEqualTo(Confidence.MEDIUM);
+    }
+
+    // ── MassAssignmentRiskRule ────────────────────────────────────────────────
+
+    @Test
+    void massAssignment_entityAsRequestBodyParam_reported() {
+        // Entity method (so entity type is registered)
+        var entityMethod = new MethodModel(
+                new MethodId("example.Order", "getId", List.of()),
+                location(1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "Long", false);
+        // Controller POST method whose parameter type is the entity
+        var controllerMethod = new MethodModel(
+                new MethodId("example.OrderController", "createOrder", List.of("Order")),
+                location(10), Set.of("PostMapping", "RestController"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "void", false);
+        var findings = new MassAssignmentRiskRule().evaluate(project(entityMethod, controllerMethod));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(MassAssignmentRiskRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void massAssignment_dtoAsParam_notReported() {
+        // No entity registered, controller uses a DTO
+        var controllerMethod = new MethodModel(
+                new MethodId("example.OrderController", "createOrder", List.of("CreateOrderRequest")),
+                location(10), Set.of("PostMapping", "RestController"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new MassAssignmentRiskRule().evaluate(project(controllerMethod))).isEmpty();
+    }
+
+    @Test
+    void massAssignment_getEndpoint_notReported() {
+        // GET endpoint even with an entity param — only write mappings are checked
+        var entityMethod = new MethodModel(
+                new MethodId("example.Order", "getId", List.of()),
+                location(1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "Long", false);
+        var getMethod = new MethodModel(
+                new MethodId("example.OrderController", "getOrder", List.of("Order")),
+                location(5), Set.of("GetMapping", "RestController"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Order", false);
+        assertThat(new MassAssignmentRiskRule().evaluate(project(entityMethod, getMethod))).isEmpty();
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */
@@ -881,6 +963,16 @@ class DiagnosticRulesTest {
                 location(1), annotations, catches, invocations, List.of(), List.of(),
                 List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(0), "", false);
+    }
+
+    /** Creates a method with throw-in-finally locations and additional invocations. */
+    private static MethodModel methodWithThrowInFinally(List<SourceLocation> throwsInFinally,
+                                                        List<InvocationEvidence> invocations) {
+        return new MethodModel(
+                new MethodId("example.Service", "operate", List.of()),
+                location(1), Set.of(), List.of(), invocations, List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false, throwsInFinally);
     }
 
     /** Creates a method on an interface (declaringTypeIsInterface = true). */

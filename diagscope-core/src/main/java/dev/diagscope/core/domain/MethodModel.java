@@ -19,6 +19,9 @@ import java.util.Set;
  *        determined (constructors, lambdas, or adapter gaps).
  * @param declaringTypeIsInterface {@code true} when the method is declared inside an interface
  *        (not an abstract class). Used by rules that check annotations on interface-level methods.
+ * @param throwsInFinally      source locations of {@code throw} statements that appear directly
+ *        inside a {@code finally} block of this method. Non-empty when the method contains at least
+ *        one such throw, which can suppress the original exception from the protected block.
  */
 public record MethodModel(
         MethodId id,
@@ -33,7 +36,8 @@ public record MethodModel(
         Map<String, Map<String, String>> annotationAttributes,
         CallableShape callableShape,
         String returnType,
-        boolean declaringTypeIsInterface
+        boolean declaringTypeIsInterface,
+        List<SourceLocation> throwsInFinally
 ) {
     public MethodModel {
         Objects.requireNonNull(id, "id");
@@ -47,15 +51,37 @@ public record MethodModel(
         metricTags = List.copyOf(metricTags);
         metricNames = List.copyOf(metricNames);
         calls = List.copyOf(calls);
+        throwsInFinally = List.copyOf(throwsInFinally == null ? List.of() : throwsInFinally);
         var copy = new LinkedHashMap<String, Map<String, String>>();
         annotationAttributes.forEach((annotation, attributes) -> copy.put(annotation, Map.copyOf(attributes)));
         annotationAttributes = Map.copyOf(copy);
     }
 
     /**
-     * Full-featured constructor with return-type and interface flag; used by both parsers.
-     * The simpler overloads below default both to {@code ""} / {@code false} for test helpers.
+     * Full-featured constructor with all parser-populated fields; used by both parsers.
+     * The simpler overloads below default {@code throwsInFinally} to empty and
+     * {@code declaringTypeIsInterface} to {@code false}.
      */
+    public MethodModel(
+            MethodId id,
+            SourceLocation location,
+            Set<String> annotations,
+            List<CatchEvidence> catches,
+            List<InvocationEvidence> invocations,
+            List<MetricTagEvidence> metricTags,
+            List<MetricNameEvidence> metricNames,
+            List<MethodCall> calls,
+            ProxyProfile proxy,
+            Map<String, Map<String, String>> annotationAttributes,
+            CallableShape callableShape,
+            String returnType,
+            boolean declaringTypeIsInterface
+    ) {
+        this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
+                annotationAttributes, callableShape, returnType, declaringTypeIsInterface, List.of());
+    }
+
+    /** Convenience: returnType set, declaringTypeIsInterface and throwsInFinally default. */
     public MethodModel(
             MethodId id,
             SourceLocation location,
@@ -71,7 +97,7 @@ public record MethodModel(
             String returnType
     ) {
         this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
-                annotationAttributes, callableShape, returnType, false);
+                annotationAttributes, callableShape, returnType, false, List.of());
     }
 
     public MethodModel(
@@ -87,7 +113,7 @@ public record MethodModel(
             Map<String, Map<String, String>> annotationAttributes
     ) {
         this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy,
-                annotationAttributes, CallableShape.fixed(id.parameterTypes().size()), "", false);
+                annotationAttributes, CallableShape.fixed(id.parameterTypes().size()), "", false, List.of());
     }
 
     public MethodModel(
@@ -102,7 +128,7 @@ public record MethodModel(
             ProxyProfile proxy
     ) {
         this(id, location, annotations, catches, invocations, metricTags, metricNames, calls, proxy, Map.of(),
-                CallableShape.fixed(id.parameterTypes().size()), "", false);
+                CallableShape.fixed(id.parameterTypes().size()), "", false, List.of());
     }
 
     public MethodModel(

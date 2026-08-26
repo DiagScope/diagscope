@@ -170,3 +170,25 @@ class ExponentialBackOff {
     ExponentialBackOff(long initialInterval, double multiplier) {}
     void setMaxInterval(long maxInterval) {}
 }
+
+// --- Stubs for MASS_ASSIGNMENT_RISK ---
+
+/** JPA entity — Jackson will deserialize every field. */
+@Entity
+class JavaOrderEntity {
+    private Long id;
+    private String customerId;
+    private String status;
+
+    Long getId() { return id; }
+    String getCustomerId() { return customerId; }
+    String getStatus() { return status; }
+}
+
+/** Safe: dedicated DTO with only the fields the caller may supply. */
+class CreateJavaOrderRequest {
+    String customerId;
+    String status;
+}
+
+@interface Entity {}  // JPA @Entity stub

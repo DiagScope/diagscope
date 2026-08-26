@@ -16,7 +16,9 @@ import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
 import dev.diagscope.core.application.rule.BlockingCallInCoroutineRule;
+import dev.diagscope.core.application.rule.ExceptionSuppressedInFinallyRule;
 import dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule;
+import dev.diagscope.core.application.rule.MassAssignmentRiskRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
@@ -164,7 +166,9 @@ public final class DiagScopeMain {
                 new BlockingCallInCoroutineRule(),
                 new TransactionalOnInterfaceRule(),
                 new MissingPaginationRule(),
-                new KafkaRetryWithoutBackoffRule()
+                new KafkaRetryWithoutBackoffRule(),
+                new ExceptionSuppressedInFinallyRule(),
+                new MassAssignmentRiskRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -260,7 +264,11 @@ public final class DiagScopeMain {
                 // Database / Performance: missing pagination
                 dev.diagscope.core.application.rule.MissingPaginationRule.ID,
                 // Kafka: retry without exponential backoff
-                dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule.ID
+                dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule.ID,
+                // Exception handling: throw in finally discards original exception
+                dev.diagscope.core.application.rule.ExceptionSuppressedInFinallyRule.ID,
+                // Security: JPA entity used directly as @RequestBody
+                dev.diagscope.core.application.rule.MassAssignmentRiskRule.ID
         );
     }
 

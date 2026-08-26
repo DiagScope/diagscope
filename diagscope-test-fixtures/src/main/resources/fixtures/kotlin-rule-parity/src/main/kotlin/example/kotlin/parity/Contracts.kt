@@ -204,3 +204,24 @@ class FixedBackOff(val interval: Long = 0L, val maxAttempts: Long = Long.MAX_VAL
 class ExponentialBackOff(val initialInterval: Long, val multiplier: Double) {
     var maxInterval: Long = 30000L
 }
+
+// --- Stubs for MASS_ASSIGNMENT_RISK ---
+
+/** JPA entity — Jackson will deserialize every field. */
+@Entity
+class KotlinOrderEntity(
+    val id: Long = 0L,
+    val customerId: String = "",
+    val status: String = ""
+) {
+    fun getId(): Long = id
+    fun getCustomerId(): String = customerId
+}
+
+/** Safe: dedicated DTO with only the fields the caller may supply. */
+class CreateKotlinOrderRequest(
+    val customerId: String = "",
+    val status: String = ""
+)
+
+annotation class Entity  // JPA @Entity stub

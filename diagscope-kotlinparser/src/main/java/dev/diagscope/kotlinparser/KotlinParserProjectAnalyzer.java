@@ -56,6 +56,7 @@ import org.jetbrains.kotlin.psi.KtProperty;
 import org.jetbrains.kotlin.psi.KtQualifiedExpression;
 import org.jetbrains.kotlin.psi.KtReturnExpression;
 import org.jetbrains.kotlin.psi.KtThrowExpression;
+import org.jetbrains.kotlin.psi.KtTryExpression;
 import org.jetbrains.kotlin.psi.KtTypeReference;
 import org.jetbrains.kotlin.psi.ValueArgument;
 
@@ -315,6 +316,16 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         boolean springOpened = kotlinSpringEnabled && typeAnnotations.stream()
                 .map(AnnotationDescriptor::name).anyMatch(SPRING_STEREOTYPES::contains);
         String returnType = function.getTypeReference() == null ? "" : function.getTypeReference().getTypeText();
+
+        // Detect throw statements inside finally blocks: EXCEPTION_SUPPRESSED_IN_FINALLY.
+        var throwsInFinally = PsiTreeUtil.findChildrenOfType(function, KtTryExpression.class).stream()
+                .filter(tryExpr -> tryExpr.getFinallyBlock() != null)
+                .flatMap(tryExpr -> PsiTreeUtil.findChildrenOfType(
+                                tryExpr.getFinallyBlock(), KtThrowExpression.class).stream()
+                        .filter(throwExpr -> isDirectlyInFinally(throwExpr, tryExpr))
+                        .map(throwExpr -> location(root, file, lines, throwExpr)))
+                .toList();
+
         return new RawMethod(id, location, typeAnnotations, methodAnnotations,
                 catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
                 List.copyOf(calls), Map.copyOf(variableTypes),
@@ -322,7 +333,22 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 minimumArity, maximumArity, varargIndex,
                 function.getTypeParameters().stream().map(parameter -> parameter.getName())
                         .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()),
-                owner == null, function.getBodyExpression() != null);
+                owner == null, function.getBodyExpression() != null, throwsInFinally);
+    }
+
+    /**
+     * Returns {@code true} when {@code throwExpr} is directly inside the finally block of
+     * {@code tryExpr} and not nested inside another try inside that finally block.
+     */
+    private static boolean isDirectlyInFinally(KtThrowExpression throwExpr, KtTryExpression tryExpr) {
+        PsiElement current = throwExpr.getParent();
+        while (current != null) {
+            if (current instanceof KtTryExpression ancestor) {
+                return ancestor.equals(tryExpr);
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private static CatchEvidence catchEvidence(
@@ -619,8 +645,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(), raw.varargIndex(),
                             raw.typeParameters()),
-                    raw.returnType(),
-                    isInterface));
+                    raw.returnType(), isInterface, raw.throwsInFinally()));
         }
         return Collections.unmodifiableMap(result);
     }
@@ -1542,8 +1567,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             int varargIndex,
             Set<String> typeParameters,
             boolean topLevel,
-            boolean executableBody
+            boolean executableBody,
+            List<SourceLocation> throwsInFinally
     ) {
+        private RawMethod {
+            throwsInFinally = List.copyOf(throwsInFinally == null ? List.of() : throwsInFinally);
+        }
+
         private boolean acceptsArity(int arity) {
             return arity >= minimumArity && arity <= maximumArity;
         }
