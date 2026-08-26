@@ -1,14 +1,14 @@
 # DiagScope Report
 
-`mixed-flow` — 8 finding(s) across 3 flow(s).
+`mixed-flow` — 9 finding(s) across 3 flow(s).
 
 | Metric | Value |
 | --- | --- |
 | Build system | Maven |
-| Findings | 8 |
+| Findings | 9 |
 | Errors | 3 |
 | Warnings | 5 |
-| Info | 0 |
+| Info | 1 |
 | Flows | 3 |
 | Source files | 6 |
 | Methods | 7 |
@@ -33,7 +33,7 @@
 
 ## Executive summary
 
-8 finding(s): 3 error(s), 5 warning(s), 0 info. 5 are high confidence and worth triaging first.
+9 finding(s): 3 error(s), 5 warning(s), 1 info. 6 are high confidence and worth triaging first.
 
 ### Findings by rule
 
@@ -43,6 +43,7 @@
 | `KAFKA_DEAD_LETTER_NOT_CONFIGURED` | Kafka listener has no dead-letter topic configured | 1 | `WARNING` | 0 | 1 | 0 |
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
+| `KAFKA_TOPIC_HARDCODED` | Kafka listener topic name is a hardcoded string literal | 1 | `INFO` | 1 | 0 | 0 |
 | `SCHEDULED_EXCEPTION_NOT_HANDLED` | @Scheduled method has no exception boundary | 1 | `WARNING` | 0 | 1 | 0 |
 | `SILENT_CATCH` | Exception caught and ignored | 1 | `ERROR` | 1 | 0 | 0 |
 | `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
@@ -52,7 +53,7 @@
 
 | Confidence | Findings | What it means |
 | --- | --- | --- |
-| `HIGH` | 5 | HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding. |
+| `HIGH` | 6 | HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding. |
 | `MEDIUM` | 3 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
 | `LOW` | 0 | LOW — the situation is plausible but depends on runtime behaviour DiagScope cannot observe (dynamic targets, global handlers, or deep or ambiguous call edges). Use it as a hint, not as a defect. |
 
@@ -74,7 +75,7 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 
 ### Findings grouped by file
 
-- `src/main/java/example/PaymentListener.java`: `KAFKA_DEAD_LETTER_NOT_CONFIGURED` (line 4), `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (line 6), `SILENT_CATCH` (line 6)
+- `src/main/java/example/PaymentListener.java`: `KAFKA_DEAD_LETTER_NOT_CONFIGURED` (line 4), `KAFKA_TOPIC_HARDCODED` (line 4), `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (line 6), `SILENT_CATCH` (line 6)
 - `src/main/java/example/PaymentMetrics.java`: `HIGH_CARDINALITY_METRIC_TAG` (line 7)
 - `src/main/java/example/PaymentPublisher.java`: `KAFKA_SEND_RESULT_IGNORED` (line 6)
 - `src/main/java/example/PaymentService.java`: `SILENT_FAILURE_CONVERSION` (line 15)
@@ -110,6 +111,31 @@ Kafka listener has no dead-letter topic configured. Failed messages after retry 
 
 - `errorHandlerSet`: `false`
 - `method`: `example.PaymentListener.consume(String)`
+
+</details>
+
+### ℹ️ KAFKA_TOPIC_HARDCODED — `src/main/java/example/PaymentListener.java:4`
+
+@KafkaListener topics = "payments" on 'example.PaymentListener.consume(String)' is a hardcoded string literal. Topic names typically differ between environments; a hardcoded value will fail silently in an environment where the topic does not exist.
+
+**What this means:** A @KafkaListener topics attribute contains a plain string literal instead of a property placeholder (${kafka.topic.name}). Topic names typically differ between environments.
+
+**Why it matters:** In a deployment to an environment where the hardcoded topic does not exist, the listener silently receives no messages. The failure is discovered only when downstream business metrics are missing — a slow feedback loop that is hard to correlate with the deployment event.
+
+**How it was detected:** The @KafkaListener annotation has a topics attribute whose value does not contain a ${…} placeholder pattern. Listeners with no topics attribute (e.g. those using topicPattern or @KafkaHandler class-level setup) are not flagged.
+
+**Suggested action:** Replace the literal topic name with a property placeholder: @KafkaListener(topics = "${kafka.topics.payment-events}"). Define the property in each environment's configuration file (application-dev.yml, application-prod.yml) so the listener automatically subscribes to the correct topic per environment.
+
+- Severity: `INFO` · Confidence: `HIGH`
+- Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
+- Affected flows: none
+- Fingerprint: `sha256:9645adcf1a145325382e54a44363f8727ab42b5e36ade40bd589ff7c24ef7852`
+
+<details><summary>Evidence</summary>
+
+- `declaringType`: `example.PaymentListener`
+- `method`: `example.PaymentListener.consume(String)`
+- `topics`: `payments`
 
 </details>
 

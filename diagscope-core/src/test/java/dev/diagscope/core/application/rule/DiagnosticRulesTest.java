@@ -952,6 +952,271 @@ class DiagnosticRulesTest {
         assertThat(new MassAssignmentRiskRule().evaluate(project(entityMethod, getMethod))).isEmpty();
     }
 
+    // ── RetryOnAllExceptionsRule ──────────────────────────────────────────────
+
+    @Test
+    void retry_noFilterAttribute_reported() {
+        // @Retryable with no attributes → retries on everything
+        var m = new MethodModel(
+                new MethodId("example.PaymentService", "charge", List.of()),
+                location(10), Set.of("Retryable", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new RetryOnAllExceptionsRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(RetryOnAllExceptionsRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void retry_withIncludeAttribute_notReported() {
+        // @Retryable(include = IOException.class) → scoped to transient failure
+        var m = new MethodModel(
+                new MethodId("example.PaymentService", "charge", List.of()),
+                location(10), Set.of("Retryable", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Retryable", Map.of("include", "IOException.class")),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new RetryOnAllExceptionsRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void retry_withValueAttribute_notReported() {
+        // @Retryable(value = IOException.class) — alternative syntax for include
+        var m = new MethodModel(
+                new MethodId("example.PaymentService", "charge", List.of()),
+                location(10), Set.of("Retryable", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Retryable", Map.of("value", "IOException.class")),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new RetryOnAllExceptionsRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── ValueWithoutDefaultRule ───────────────────────────────────────────────
+
+    @Test
+    void valueWithoutDefault_noDefault_reported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentConfig", "setApiUrl", List.of("String")),
+                location(5), Set.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Value", Map.of("value", "${payment.api.url}")),
+                CallableShape.fixed(1), "void", false);
+        var findings = new ValueWithoutDefaultRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(ValueWithoutDefaultRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.evidence()).containsEntry("propertyKey", "payment.api.url");
+        });
+    }
+
+    @Test
+    void valueWithoutDefault_withDefault_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentConfig", "setApiUrl", List.of("String")),
+                location(5), Set.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Value", Map.of("value", "${payment.api.url:https://api.example.com}")),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new ValueWithoutDefaultRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── EntityExposedInRestResponseRule ───────────────────────────────────────
+
+    @Test
+    void entityInRestResponse_entityReturnType_reported() {
+        var entityMethod = new MethodModel(
+                new MethodId("example.Order", "getId", List.of()),
+                location(1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "Long", false);
+        var endpoint = new MethodModel(
+                new MethodId("example.OrderController", "getOrder", List.of("String")),
+                location(10), Set.of("GetMapping", "RestController"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Order", false);
+        var findings = new EntityExposedInRestResponseRule().evaluate(project(entityMethod, endpoint));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(EntityExposedInRestResponseRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.evidence()).containsEntry("entityType", "Order");
+        });
+    }
+
+    @Test
+    void entityInRestResponse_dtoReturnType_notReported() {
+        var entityMethod = new MethodModel(
+                new MethodId("example.Order", "getId", List.of()),
+                location(1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "Long", false);
+        var endpoint = new MethodModel(
+                new MethodId("example.OrderController", "getOrder", List.of("String")),
+                location(10), Set.of("GetMapping", "RestController"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "OrderResponse", false);
+        assertThat(new EntityExposedInRestResponseRule().evaluate(project(entityMethod, endpoint))).isEmpty();
+    }
+
+    @Test
+    void entityInRestResponse_responseEntityWrapper_reported() {
+        var entityMethod = new MethodModel(
+                new MethodId("example.Order", "getId", List.of()),
+                location(1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "Long", false);
+        var endpoint = new MethodModel(
+                new MethodId("example.OrderController", "createOrder", List.of()),
+                location(20), Set.of("PostMapping"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "ResponseEntity<Order>", false);
+        assertThat(new EntityExposedInRestResponseRule().evaluate(project(entityMethod, endpoint)))
+                .singleElement()
+                .extracting(f -> f.evidence().get("entityType"))
+                .isEqualTo("Order");
+    }
+
+    // ── TransactionWithHttpCallRule ───────────────────────────────────────────
+
+    @Test
+    void transactionWithHttp_restTemplateCall_reported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "placeOrder", List.of()),
+                location(10), Set.of("Transactional", "Service"), List.of(),
+                List.of(new InvocationEvidence(location(15), "restTemplate", "RestTemplate",
+                        "postForObject", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new TransactionWithHttpCallRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(TransactionWithHttpCallRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void transactionWithHttp_noHttpCall_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "placeOrder", List.of()),
+                location(10), Set.of("Transactional", "Service"), List.of(),
+                List.of(new InvocationEvidence(location(12), "repo", "OrderRepository",
+                        "save", List.of(), InvocationResultUsage.IGNORED)),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new TransactionWithHttpCallRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void transactionWithHttp_noTransactional_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "callApi", List.of()),
+                location(10), Set.of("Service"), List.of(),
+                List.of(new InvocationEvidence(location(12), "restTemplate", "RestTemplate",
+                        "getForObject", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "String", false);
+        assertThat(new TransactionWithHttpCallRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── HttpClientCreatedPerRequestRule ───────────────────────────────────────
+
+    @Test
+    void httpClientPerRequest_restTemplateConstructor_reported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "sendNotification", List.of()),
+                location(10), Set.of("Service"), List.of(),
+                List.of(new InvocationEvidence(location(15), "", "RestTemplate",
+                        "RestTemplate", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new HttpClientCreatedPerRequestRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(HttpClientCreatedPerRequestRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void httpClientPerRequest_beanMethod_notReported() {
+        // @Bean methods are intentional factory — suppress
+        var m = new MethodModel(
+                new MethodId("example.AppConfig", "restTemplate", List.of()),
+                location(5), Set.of("Bean", "Configuration"), List.of(),
+                List.of(new InvocationEvidence(location(6), "", "RestTemplate",
+                        "RestTemplate", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "RestTemplate", false);
+        assertThat(new HttpClientCreatedPerRequestRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── CorsWildcardOriginRule ────────────────────────────────────────────────
+
+    @Test
+    void corsWildcard_wildcardOrigin_reported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderController", "getOrders", List.of()),
+                location(10), Set.of("GetMapping", "RestController", "CrossOrigin"), List.of(),
+                List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("CrossOrigin", Map.of("value", "*")),
+                CallableShape.fixed(0), "List<OrderResponse>", false);
+        var findings = new CorsWildcardOriginRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(CorsWildcardOriginRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void corsWildcard_specificOrigin_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderController", "getOrders", List.of()),
+                location(10), Set.of("GetMapping", "RestController", "CrossOrigin"), List.of(),
+                List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("CrossOrigin", Map.of("origins", "https://app.example.com")),
+                CallableShape.fixed(0), "List<OrderResponse>", false);
+        assertThat(new CorsWildcardOriginRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void corsWildcard_noCrossOrigin_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderController", "getOrders", List.of()),
+                location(10), Set.of("GetMapping", "RestController"), List.of(),
+                List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "List<OrderResponse>", false);
+        assertThat(new CorsWildcardOriginRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── KafkaTopicHardcodedRule ───────────────────────────────────────────────
+
+    @Test
+    void kafkaTopicHardcoded_literalTopic_reported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentListener", "onPayment", List.of("String")),
+                location(10), Set.of("KafkaListener"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("KafkaListener", Map.of("topics", "payment-events")),
+                CallableShape.fixed(1), "void", false);
+        var findings = new KafkaTopicHardcodedRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(KafkaTopicHardcodedRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
+            assertThat(f.evidence()).containsEntry("topics", "payment-events");
+        });
+    }
+
+    @Test
+    void kafkaTopicHardcoded_placeholderTopic_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentListener", "onPayment", List.of("String")),
+                location(10), Set.of("KafkaListener"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("KafkaListener", Map.of("topics", "${kafka.topics.payment}")),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new KafkaTopicHardcodedRule().evaluate(project(m))).isEmpty();
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */

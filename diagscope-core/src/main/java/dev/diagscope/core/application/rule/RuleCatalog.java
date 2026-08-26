@@ -1023,6 +1023,153 @@ public final class RuleCatalog {
                         + " The rule also cannot detect @RequestBody annotation on parameters"
                         + " directly — it applies to all parameters of write-endpoint methods.");
 
+        // ── Resilience: retry scope ────────────────────────────────────────────
+        put(catalog, RetryOnAllExceptionsRule.ID,
+                "@Retryable with no exception filter retries on every failure",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Retry (@Retryable) or MicroProfile Fault Tolerance (@Retry)",
+                "A @Retryable method declares no 'include', 'value', or 'retryFor' attribute."
+                        + " Every thrown exception — including NullPointerException,"
+                        + " OutOfMemoryError, and programming defects — triggers the retry budget.",
+                "Retrying a programming error delays failure without any chance of recovery."
+                        + " The upstream caller is blocked for the full retry budget, the downstream"
+                        + " receives redundant requests, and the retry budget is exhausted on a"
+                        + " scenario it cannot resolve. Retries should target transient failures only.",
+                "The method carries @Retryable but its annotation attributes map contains no"
+                        + " 'include', 'value', or 'retryFor' key — the exception filter is absent.",
+                "Methods using @Recover fallbacks are not excluded; they should still filter"
+                        + " the retry target to transient exceptions.");
+
+        // ── Configuration: required properties without defaults ────────────────
+        put(catalog, ValueWithoutDefaultRule.ID,
+                "@Value property placeholder with no default value",
+                "configuration", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Value for external configuration",
+                "A @Value annotation uses a ${property} placeholder with no default-value suffix"
+                        + " (:fallback). If the property is absent from all config sources,"
+                        + " Spring throws IllegalArgumentException at startup — before the"
+                        + " application is ready to serve traffic.",
+                "Missing required properties fail deployment pipelines late and surface only when"
+                        + " the application starts in a new environment (staging, DR, a new"
+                        + " cloud region) that does not have the full config set. The failure is"
+                        + " a loud startup crash rather than a silent runtime error, but it blocks"
+                        + " deployments at exactly the wrong time.",
+                "The @Value attribute value matches ${…} without a colon separator. SpEL"
+                        + " expressions (#{…}) and values with a default (:) are excluded.",
+                "Only @Value on methods (setter injection) is detected. The more common"
+                        + " field-injection pattern requires field-level annotation support, which"
+                        + " is not currently in the domain model.");
+
+        // ── Security: entity exposed in REST response ──────────────────────────
+        put(catalog, EntityExposedInRestResponseRule.ID,
+                "JPA entity returned directly from REST endpoint",
+                "security", Severity.WARNING, ALL_LANGUAGES,
+                "Spring MVC REST controllers using Spring Data JPA",
+                "A REST endpoint method returns a JPA @Entity class directly as its response"
+                        + " body. Jackson serialises every mapped field — including password"
+                        + " hashes, audit metadata, foreign-key IDs, bidirectional associations"
+                        + " that cause recursive cycles, and internal fields the API contract"
+                        + " never intends to expose.",
+                "Returning the persistence model as the API model couples the database schema"
+                        + " to the API contract. Schema changes break the API, recursive"
+                        + " associations produce StackOverflowError, and sensitive fields"
+                        + " (e.g. hashed passwords, internal status codes) leak to clients."
+                        + " The outbound complement of MASS_ASSIGNMENT_RISK — the same class"
+                        + " that should not be deserialized from input should not be serialized"
+                        + " to output.",
+                "Two-pass analysis: entity type names are collected from methods whose declaring"
+                        + " type carries @Entity or @Table (same heuristic as MASS_ASSIGNMENT_RISK)."
+                        + " REST endpoint methods (carrying any HTTP-method mapping annotation) are"
+                        + " then checked for a returnType whose simple name, or generic argument"
+                        + " inside ResponseEntity<…>, matches an entity name.",
+                "Simple-name matching may produce false positives if a non-entity class shares a"
+                        + " name with a detected entity. Generic wrappers beyond one level of"
+                        + " nesting (e.g. ResponseEntity<Page<Entity>>) check the innermost"
+                        + " generic argument.");
+
+        // ── Performance: HTTP call inside transaction ──────────────────────────
+        put(catalog, TransactionWithHttpCallRule.ID,
+                "HTTP call inside a @Transactional method holds DB connection",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications combining @Transactional with REST or HTTP clients",
+                "A @Transactional method makes an outbound HTTP call. The database connection"
+                        + " is held open for the full duration of the HTTP roundtrip.",
+                "HTTP roundtrips typically take 100–500 ms under normal conditions and can take"
+                        + " seconds or minutes under degradation. The held connection cannot be"
+                        + " used by other requests. Under concurrent load this exhausts the"
+                        + " connection pool: all threads queue on a free connection, latency"
+                        + " spikes across all endpoints, and circuit breakers open. The pattern"
+                        + " is invisible in low-traffic environments and catastrophic under spikes.",
+                "The method carries @Transactional and its invocations list contains a call"
+                        + " on a receiver type that matches a known HTTP client type: RestTemplate,"
+                        + " WebClient, OkHttpClient, HttpClient, CloseableHttpClient, Feign.",
+                "HTTP clients configured at a lower layer as fields or injected beans are"
+                        + " matched by receiver type name. A custom HTTP client wrapper with an"
+                        + " unconventional type name will not be detected.");
+
+        // ── Performance: HTTP client created per request ───────────────────────
+        put(catalog, HttpClientCreatedPerRequestRule.ID,
+                "HTTP client constructed inside method body instead of as a shared bean",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using RestTemplate, WebClient, or OkHttp",
+                "An HTTP client instance is created inside a regular method body. HTTP client"
+                        + " construction allocates a thread pool, a connection pool, and SSL"
+                        + " context — one per call.",
+                "In a hot path (request handler, Kafka listener, scheduled job), this creates"
+                        + " a new client on every invocation. None of the clients share"
+                        + " connections, so the connection pool is never reused. File-descriptor"
+                        + " exhaustion, heap pressure, and SSL handshake overhead accumulate"
+                        + " quickly under load. The correct pattern is a single shared bean"
+                        + " injected at construction time.",
+                "A constructor call (e.g. new RestTemplate(), new OkHttpClient()) or a"
+                        + " builder-pattern call (.build() on a WebClient.Builder receiver) in"
+                        + " a method body not annotated with @Bean or @Configuration.",
+                "HTTP client construction in @Bean methods or test lifecycle methods (@Before,"
+                        + " @BeforeEach) is excluded. A builder call whose receiver scope does"
+                        + " not explicitly name a known HTTP client type may be missed.");
+
+        // ── Security: CORS wildcard origin ────────────────────────────────────
+        put(catalog, CorsWildcardOriginRule.ID,
+                "@CrossOrigin(\"*\") permits any browser origin — CSRF risk",
+                "security", Severity.WARNING, ALL_LANGUAGES,
+                "Spring MVC REST controllers using @CrossOrigin",
+                "A REST endpoint carries @CrossOrigin(\"*\") or @CrossOrigin(origins = \"*\"),"
+                        + " permitting any browser origin to make cross-origin requests to"
+                        + " this endpoint.",
+                "The browser same-origin policy protects users from cross-site request forgery."
+                        + " A wildcard CORS policy nullifies this protection. Combined with"
+                        + " session cookies or token-based auth, any page on the internet can"
+                        + " make authenticated requests to this endpoint on behalf of a"
+                        + " logged-in user. The impact ranges from data exfiltration to"
+                        + " account takeover depending on what the endpoint exposes.",
+                "The method carries a REST mapping annotation and its CrossOrigin annotation"
+                        + " attribute (value or origins) equals the literal string \"*\".",
+                "CORS configured globally via WebMvcConfigurer is not detected here; this"
+                        + " rule only inspects @CrossOrigin annotations. A class-level"
+                        + " @CrossOrigin(\"*\") is merged into every method and will produce"
+                        + " one finding per REST endpoint — intentionally, since each"
+                        + " endpoint is independently accessible by a cross-origin attacker.");
+
+        // ── Kafka / Configuration: hardcoded topic names ───────────────────────
+        put(catalog, KafkaTopicHardcodedRule.ID,
+                "Kafka listener topic name is a hardcoded string literal",
+                "kafka", Severity.INFO, ALL_LANGUAGES,
+                "Spring Kafka applications using @KafkaListener",
+                "A @KafkaListener topics attribute contains a plain string literal instead of a"
+                        + " property placeholder (${kafka.topic.name}). Topic names typically"
+                        + " differ between environments.",
+                "In a deployment to an environment where the hardcoded topic does not exist,"
+                        + " the listener silently receives no messages. The failure is discovered"
+                        + " only when downstream business metrics are missing — a slow feedback"
+                        + " loop that is hard to correlate with the deployment event.",
+                "The @KafkaListener annotation has a topics attribute whose value does not"
+                        + " contain a ${…} placeholder pattern. Listeners with no topics attribute"
+                        + " (e.g. those using topicPattern or @KafkaHandler class-level setup)"
+                        + " are not flagged.",
+                "Topic names that are intentionally the same across all environments"
+                        + " (rare but valid) will produce false positives. In those cases,"
+                        + " suppress with a diagscope:ignore comment.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

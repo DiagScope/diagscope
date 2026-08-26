@@ -16,9 +16,16 @@ import dev.diagscope.core.application.rule.ExecutorNotShutdownRule;
 import dev.diagscope.core.application.rule.InterruptedExceptionSwallowedRule;
 import dev.diagscope.core.application.rule.KafkaDeadLetterNotConfiguredRule;
 import dev.diagscope.core.application.rule.BlockingCallInCoroutineRule;
+import dev.diagscope.core.application.rule.CorsWildcardOriginRule;
+import dev.diagscope.core.application.rule.EntityExposedInRestResponseRule;
 import dev.diagscope.core.application.rule.ExceptionSuppressedInFinallyRule;
+import dev.diagscope.core.application.rule.HttpClientCreatedPerRequestRule;
 import dev.diagscope.core.application.rule.KafkaRetryWithoutBackoffRule;
+import dev.diagscope.core.application.rule.KafkaTopicHardcodedRule;
 import dev.diagscope.core.application.rule.MassAssignmentRiskRule;
+import dev.diagscope.core.application.rule.RetryOnAllExceptionsRule;
+import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
+import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
@@ -168,7 +175,21 @@ public final class DiagScopeMain {
                 new MissingPaginationRule(),
                 new KafkaRetryWithoutBackoffRule(),
                 new ExceptionSuppressedInFinallyRule(),
-                new MassAssignmentRiskRule()
+                new MassAssignmentRiskRule(),
+                // Resilience: retry exception scope
+                new RetryOnAllExceptionsRule(),
+                // Configuration: @Value without default
+                new ValueWithoutDefaultRule(),
+                // Security: entity returned in REST response
+                new EntityExposedInRestResponseRule(),
+                // Performance: HTTP call inside transaction
+                new TransactionWithHttpCallRule(),
+                // Performance: HTTP client created per request
+                new HttpClientCreatedPerRequestRule(),
+                // Security: CORS wildcard origin
+                new CorsWildcardOriginRule(),
+                // Kafka / Configuration: hardcoded topic name
+                new KafkaTopicHardcodedRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -268,7 +289,21 @@ public final class DiagScopeMain {
                 // Exception handling: throw in finally discards original exception
                 dev.diagscope.core.application.rule.ExceptionSuppressedInFinallyRule.ID,
                 // Security: JPA entity used directly as @RequestBody
-                dev.diagscope.core.application.rule.MassAssignmentRiskRule.ID
+                dev.diagscope.core.application.rule.MassAssignmentRiskRule.ID,
+                // Resilience: retry exception scope
+                dev.diagscope.core.application.rule.RetryOnAllExceptionsRule.ID,
+                // Configuration: @Value without default
+                dev.diagscope.core.application.rule.ValueWithoutDefaultRule.ID,
+                // Security: entity returned in REST response
+                dev.diagscope.core.application.rule.EntityExposedInRestResponseRule.ID,
+                // Performance: HTTP call inside transaction
+                dev.diagscope.core.application.rule.TransactionWithHttpCallRule.ID,
+                // Performance: HTTP client created per request
+                dev.diagscope.core.application.rule.HttpClientCreatedPerRequestRule.ID,
+                // Security: CORS wildcard origin
+                dev.diagscope.core.application.rule.CorsWildcardOriginRule.ID,
+                // Kafka / Configuration: hardcoded topic name
+                dev.diagscope.core.application.rule.KafkaTopicHardcodedRule.ID
         );
     }
 

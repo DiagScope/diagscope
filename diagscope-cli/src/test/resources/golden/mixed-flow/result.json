@@ -50,9 +50,11 @@
     "CHECK_THEN_ACT_ON_MAP" : "1.0.0",
     "COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "COROUTINE_EXCEPTION_NOT_HANDLED" : "1.0.0",
+    "CORS_WILDCARD_ORIGIN" : "1.0.0",
     "DB_RESOURCE_CLOSE_NOT_GUARDED" : "1.0.0",
     "DUPLICATE_DIAGNOSTIC_SIGNAL" : "1.0.0",
     "DYNAMIC_METRIC_NAME" : "1.0.0",
+    "ENTITY_EXPOSED_IN_REST_RESPONSE" : "1.0.0",
     "EXCEPTION_SUPPRESSED_IN_FINALLY" : "1.0.0",
     "EXCESSIVE_METHOD_PARAMETERS" : "1.0.0",
     "EXECUTOR_NOT_SHUTDOWN" : "1.0.0",
@@ -63,6 +65,7 @@
     "GOD_CLASS_DETECTED" : "1.0.0",
     "HIGH_CARDINALITY_METRIC_TAG" : "1.1.0",
     "HIGH_METHOD_COMPLEXITY" : "1.0.0",
+    "HTTP_CLIENT_CREATED_PER_REQUEST" : "1.0.0",
     "HTTP_CLIENT_ERROR_DISCARDED" : "1.0.0",
     "HTTP_TIMEOUT_NOT_SET" : "1.0.0",
     "INTERRUPTED_EXCEPTION_SWALLOWED" : "1.0.0",
@@ -74,6 +77,7 @@
     "KAFKA_LISTENER_ERROR_NOT_PROPAGATED" : "1.0.0",
     "KAFKA_RETRY_WITHOUT_BACKOFF" : "1.0.0",
     "KAFKA_SEND_RESULT_IGNORED" : "1.2.0",
+    "KAFKA_TOPIC_HARDCODED" : "1.0.0",
     "LOCK_NOT_RELEASED" : "1.0.0",
     "LOG_WITHOUT_THROWABLE" : "1.0.0",
     "MASS_ASSIGNMENT_RISK" : "1.0.0",
@@ -88,6 +92,7 @@
     "OUTBOX_PATTERN_MISSING" : "1.0.0",
     "PRINT_STACK_TRACE" : "1.0.0",
     "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED" : "1.0.0",
+    "RETRY_ON_ALL_EXCEPTIONS" : "1.0.0",
     "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
     "SCHEDULED_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "SCHEDULED_TASK_SWALLOWS_FAILURE" : "1.0.0",
@@ -99,8 +104,10 @@
     "SYSTEM_OUTPUT" : "1.0.0",
     "THREAD_LOCAL_LEAK" : "1.0.0",
     "TRANSACTIONAL_ON_INTERFACE" : "1.0.0",
+    "TRANSACTION_WITH_HTTP_CALL" : "1.0.0",
     "TX_PROPAGATION_MISMATCH" : "1.0.0",
-    "TX_ROLLBACK_SUPPRESSED" : "1.1.0"
+    "TX_ROLLBACK_SUPPRESSED" : "1.1.0",
+    "VALUE_WITHOUT_DEFAULT" : "1.0.0"
   },
   "analysisCapabilities" : {
     "languages" : {
@@ -126,7 +133,7 @@
     "parsedMethods" : 7,
     "entrypoints" : 3,
     "flows" : 3,
-    "findings" : 8,
+    "findings" : 9,
     "parseFailures" : 0,
     "projectAnalysisNanos" : 0,
     "flowConstructionNanos" : 0,
@@ -134,14 +141,14 @@
     "totalNanos" : 0
   },
   "summary" : {
-    "totalFindings" : 8,
+    "totalFindings" : 9,
     "bySeverity" : {
       "ERROR" : 3,
       "WARNING" : 5,
-      "INFO" : 0
+      "INFO" : 1
     },
     "byConfidence" : {
-      "HIGH" : 5,
+      "HIGH" : 6,
       "MEDIUM" : 3,
       "LOW" : 0
     },
@@ -180,6 +187,16 @@
       "title" : "Kafka send result ignored",
       "count" : 1,
       "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 1,
+        "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "KAFKA_TOPIC_HARDCODED",
+      "title" : "Kafka listener topic name is a hardcoded string literal",
+      "count" : 1,
+      "highestSeverity" : "INFO",
       "byConfidence" : {
         "HIGH" : 1,
         "MEDIUM" : 0,
@@ -273,8 +290,8 @@
     } ],
     "byFile" : [ {
       "file" : "src/main/java/example/PaymentListener.java",
-      "findingCount" : 3,
-      "findings" : [ "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f", "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
+      "findingCount" : 4,
+      "findings" : [ "sha256:9645adcf1a145325382e54a44363f8727ab42b5e36ade40bd589ff7c24ef7852", "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f", "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
     }, {
       "file" : "src/main/java/example/PaymentMetrics.java",
       "findingCount" : 1,
@@ -660,6 +677,33 @@
     "evidence" : {
       "errorHandlerSet" : "false",
       "method" : "example.PaymentListener.consume(String)"
+    }
+  }, {
+    "fingerprint" : "sha256:9645adcf1a145325382e54a44363f8727ab42b5e36ade40bd589ff7c24ef7852",
+    "fingerprintVersion" : 1,
+    "ruleId" : "KAFKA_TOPIC_HARDCODED",
+    "severity" : "INFO",
+    "confidence" : "HIGH",
+    "location" : {
+      "file" : "src/main/java/example/PaymentListener.java",
+      "startLine" : 4,
+      "endLine" : 7
+    },
+    "message" : "@KafkaListener topics = /"payments/" on 'example.PaymentListener.consume(String)' is a hardcoded string literal. Topic names typically differ between environments; a hardcoded value will fail silently in an environment where the topic does not exist.",
+    "recommendation" : "Replace the literal topic name with a property placeholder: @KafkaListener(topics = /"${kafka.topics.payment-events}/"). Define the property in each environment's configuration file (application-dev.yml, application-prod.yml) so the listener automatically subscribes to the correct topic per environment.",
+    "explanation" : {
+      "title" : "Kafka listener topic name is a hardcoded string literal",
+      "whatItMeans" : "A @KafkaListener topics attribute contains a plain string literal instead of a property placeholder (${kafka.topic.name}). Topic names typically differ between environments.",
+      "whyItMatters" : "In a deployment to an environment where the hardcoded topic does not exist, the listener silently receives no messages. The failure is discovered only when downstream business metrics are missing — a slow feedback loop that is hard to correlate with the deployment event.",
+      "howDetected" : "The @KafkaListener annotation has a topics attribute whose value does not contain a ${…} placeholder pattern. Listeners with no topics attribute (e.g. those using topicPattern or @KafkaHandler class-level setup) are not flagged."
+    },
+    "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
+    "relatedFlows" : [ ],
+    "affectedMethods" : [ ],
+    "evidence" : {
+      "declaringType" : "example.PaymentListener",
+      "method" : "example.PaymentListener.consume(String)",
+      "topics" : "payments"
     }
   }, {
     "fingerprint" : "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd",

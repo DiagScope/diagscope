@@ -3,8 +3,12 @@ package example.kotlin.parity
 annotation class RestController
 annotation class GetMapping(val value: String)
 annotation class Scheduled(val cron: String = "", val fixedDelay: Long = -1L)
-annotation class Retryable
+annotation class Retryable(val include: Array<out kotlin.reflect.KClass<out Throwable>> = [])
 annotation class Recover
+annotation class CrossOrigin(val value: String = "", val origins: Array<String> = [])
+annotation class Value(val value: String)
+annotation class PostMapping(val value: String = "")
+annotation class PutMapping(val value: String = "")
 annotation class Timed(val value: String = "")
 annotation class Service
 annotation class Repository
@@ -140,6 +144,11 @@ interface Mono<T> {
 
 interface WebClient {
     fun get(uri: String): Mono<String>
+}
+
+class RestTemplate {
+    fun getForObject(url: String): String? = null
+    fun postForObject(url: String, body: Any?): String? = null
 }
 
 // --- JPA stubs (for MISSING_TRANSACTION_ANNOTATION) ---

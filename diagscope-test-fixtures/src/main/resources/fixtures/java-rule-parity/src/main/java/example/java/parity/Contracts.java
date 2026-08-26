@@ -8,12 +8,16 @@ import java.util.function.Function;
 @interface RestController {}
 @interface GetMapping { String value(); }
 @interface Scheduled { String cron() default ""; long fixedDelay() default -1L; }
-@interface Retryable {}
+@interface Retryable { Class<?>[] include() default {}; Class<?>[] value() default {}; }
 @interface Recover {}
 @interface Timed { String value() default ""; }
 @interface Service {}
 @interface Repository {}
 @interface KafkaListener { String[] topics(); String errorHandler() default ""; }
+@interface CrossOrigin { String value() default ""; String[] origins() default {}; }
+@interface Value { String value(); }
+@interface PostMapping { String value() default ""; }
+@interface PutMapping { String value() default ""; }
 @interface KafkaHandler {}
 @interface Transactional { Propagation propagation() default Propagation.REQUIRED; }
 
@@ -128,6 +132,11 @@ interface Mono<T> {
 
 interface WebClient {
     Mono<String> get(String uri);
+}
+
+class RestTemplate {
+    String getForObject(String url) { return null; }
+    String postForObject(String url, Object body) { return null; }
 }
 
 // --- JPA stubs (for MISSING_TRANSACTION_ANNOTATION) ---
