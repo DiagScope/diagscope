@@ -70,6 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_PAT }}
           VERSION: ${{ steps.version.outputs.version }}
+          REF: ${{ steps.version.outputs.ref }}
           JAR: ${{ steps.artifact.outputs.jar }}
         run: |
           PRERELEASE=""
@@ -77,27 +78,10 @@ jobs:
             PRERELEASE="--prerelease"
           fi
 
-          gh release create "${{ steps.version.outputs.ref }}" \
+          gh release create "$REF" \
             --repo DiagScope/releases \
             --title "DiagScope ${VERSION}" \
-            --notes "## DiagScope ${VERSION}
-
-### Install via Homebrew (recommended)
-
-\`\`\`bash
-brew tap DiagScope/tap
-brew install diagscope
-\`\`\`
-
-### Manual download
-
-Download \`diagscope-${VERSION}.jar\` below — requires **Java 25+**.
-
-\`\`\`bash
-java -jar diagscope-${VERSION}.jar scan --help
-\`\`\`
-
-See the [README](https://github.com/DiagScope/diagscope/blob/main/README.md) for full usage." \
+            --generate-notes \
             $PRERELEASE \
             "$JAR"
 
