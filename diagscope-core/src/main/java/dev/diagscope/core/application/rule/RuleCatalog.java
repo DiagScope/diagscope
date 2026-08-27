@@ -1235,6 +1235,107 @@ public final class RuleCatalog {
                         + " One finding is emitted per class, not one per injected field, to"
                         + " reduce noise when multiple fields are involved.");
 
+        // ── Wave 4 ────────────────────────────────────────────────────────────
+        put(catalog, TransactionalReadOnlyMissingRule.ID,
+                "@Transactional query method missing readOnly = true",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Transactional with Spring Data or JPA",
+                "A @Transactional method whose name starts with a query hint (find, get, list,"
+                        + " count, query, fetch, search, exists, load) does not declare"
+                        + " readOnly = true. The transaction opens in full read-write mode.",
+                "A full read-write transaction holds a more expensive connection-pool slot and"
+                        + " prevents the JDBC driver from routing the query to a read replica."
+                        + " Hibernate does not skip its dirty-check flush at session end,"
+                        + " adding unnecessary CPU overhead. Under connection-pool pressure,"
+                        + " this delays all requests — not just the query-heavy ones.",
+                "The method carries @Transactional, its annotation attributes do not include"
+                        + " readOnly = true, and its name starts with a recognized query prefix.",
+                "False positives occur for methods that read data and then conditionally write"
+                        + " — those methods intentionally need a read-write transaction."
+                        + " Use readOnly = true only when the method is guaranteed not to"
+                        + " perform any write operations.");
+
+        put(catalog, AsyncDefaultExecutorRule.ID,
+                "@Async without a named executor uses SimpleAsyncTaskExecutor",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Async",
+                "An @Async method specifies no executor name. Spring falls back to"
+                        + " SimpleAsyncTaskExecutor, which spawns a new OS thread for every"
+                        + " method invocation with no pooling or reuse.",
+                "Each call creates one OS thread, consuming stack memory (256KB–1MB), file"
+                        + " descriptors, and OS scheduling slots. Under any meaningful load the"
+                        + " thread count grows without bound. The failure surface as gradual"
+                        + " heap growth and increasing thread count in JMX, culminating in"
+                        + " OutOfMemoryError: unable to create new native thread during spikes.",
+                "The method carries @Async and its annotation attribute map has no 'value'"
+                        + " key (the executor bean name).",
+                "A globally-configured AsyncConfigurer that replaces the default executor is"
+                        + " not visible at the call site and will not suppress this finding."
+                        + " If a central async configuration is in place, suppress per-method.");
+
+        put(catalog, MissingResponseStatusRule.ID,
+                "@ExceptionHandler without @ResponseStatus returns HTTP 200 on errors",
+                "observability", Severity.WARNING, ALL_LANGUAGES,
+                "Spring MVC @Controller, @RestController, @ControllerAdvice, @RestControllerAdvice",
+                "A @ExceptionHandler method in a controller or advice class carries no"
+                        + " @ResponseStatus annotation and its return type is not ResponseEntity."
+                        + " Spring MVC defaults to HTTP 200 OK for such handlers.",
+                "Clients that inspect the HTTP status to distinguish success from failure"
+                        + " interpret the error response as a success. Monitoring systems that"
+                        + " count 4xx/5xx responses see no errors. SLO dashboards show 100%"
+                        + " success. Caching layers may cache the 200 response and prevent"
+                        + " clients from retrying. The error is invisible at the HTTP layer.",
+                "The method carries @ExceptionHandler, is declared in a class with a"
+                        + " controller or advice annotation, has no @ResponseStatus, and its"
+                        + " return type does not contain ResponseEntity.",
+                "Handlers that intentionally return 200 with error detail in the body"
+                        + " (e.g. a legacy API contract) are false positives. Suppress with"
+                        + " diagscope:ignore or add an explicit @ResponseStatus(OK).");
+
+        put(catalog, CacheEvictMissingRule.ID,
+                "Class uses @Cacheable but has no cache eviction",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using Spring Cache (@Cacheable, @CacheEvict, @CachePut)",
+                "A class declares at least one @Cacheable method but no @CacheEvict or"
+                        + " @CachePut method anywhere in the same declaring type. Without an"
+                        + " explicit eviction strategy, cache entries accumulate indefinitely.",
+                "In local caches (ConcurrentHashMap, Caffeine) the heap grows unboundedly;"
+                        + " in distributed caches (Redis, Hazelcast) the store fills until"
+                        + " eviction policies discard entries silently. Stale data is served"
+                        + " for the lifetime of the application or until a restart. The problem"
+                        + " is invisible in development (small data volumes, short sessions)"
+                        + " and surfaces weeks or months after go-live.",
+                "Methods are grouped by declaring type. A type with at least one @Cacheable"
+                        + " method is checked for any @CacheEvict or @CachePut method. One"
+                        + " finding is emitted per type, at the first @Cacheable method's location.",
+                "External eviction policies (Redis TTL, Caffeine expireAfterWrite) and a"
+                        + " globally-configured CacheManager with TTL are not visible to static"
+                        + " analysis and produce false positives. Suppress with diagscope:ignore"
+                        + " when TTL-only eviction is the intentional strategy.");
+
+        put(catalog, TransactionalOnFinalMethodRule.ID,
+                "@Transactional or @Async on a final method is silently ignored",
+                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using @Transactional or @Async (CGLIB proxy mode)",
+                "A method annotated with @Transactional or @Async is also final (Java 'final'"
+                        + " keyword; Kotlin methods without 'open'). CGLIB cannot subclass a"
+                        + " final method, so the annotation is silently ignored at runtime.",
+                "For @Transactional: no transaction boundary is opened, writes run in"
+                        + " auto-commit mode, and rollback has no effect — data consistency"
+                        + " guarantees are silently lost. For @Async: the method runs"
+                        + " synchronously on the calling thread while the caller believes the"
+                        + " work was dispatched asynchronously. Both failures are invisible"
+                        + " in development and discovered only under production conditions.",
+                "The parser synthesises a 'Final' signal for the Java 'final' modifier"
+                        + " and for Kotlin methods that lack 'open', 'abstract', or 'override'."
+                        + " The rule fires when 'Final' AND (@Transactional OR @Async) appear"
+                        + " in the effective annotation set.",
+                "The 'kotlin-spring' compiler plugin (plugin.spring) automatically opens"
+                        + " all Spring-annotated classes and methods; projects using it will"
+                        + " not be affected at runtime, but this rule still fires because the"
+                        + " plugin behaviour is not visible to static analysis. Suppress if"
+                        + " the plugin is configured for the entire project.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

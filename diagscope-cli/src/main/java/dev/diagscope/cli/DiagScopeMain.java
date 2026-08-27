@@ -27,6 +27,11 @@ import dev.diagscope.core.application.rule.RetryOnAllExceptionsRule;
 import dev.diagscope.core.application.rule.ScheduledNoInitialDelayRule;
 import dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule;
 import dev.diagscope.core.application.rule.FieldInjectionUsedRule;
+import dev.diagscope.core.application.rule.TransactionalReadOnlyMissingRule;
+import dev.diagscope.core.application.rule.AsyncDefaultExecutorRule;
+import dev.diagscope.core.application.rule.MissingResponseStatusRule;
+import dev.diagscope.core.application.rule.CacheEvictMissingRule;
+import dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
@@ -198,7 +203,13 @@ public final class DiagScopeMain {
                 // AOP: synchronized method on Spring bean
                 new SynchronizedOnSpringBeanRule(),
                 // Spring: field injection instead of constructor injection
-                new FieldInjectionUsedRule()
+                new FieldInjectionUsedRule(),
+                // Wave 4
+                new TransactionalReadOnlyMissingRule(),
+                new AsyncDefaultExecutorRule(),
+                new MissingResponseStatusRule(),
+                new CacheEvictMissingRule(),
+                new TransactionalOnFinalMethodRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -318,7 +329,13 @@ public final class DiagScopeMain {
                 // AOP: synchronized method on Spring bean
                 dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule.ID,
                 // Spring: field injection
-                dev.diagscope.core.application.rule.FieldInjectionUsedRule.ID
+                dev.diagscope.core.application.rule.FieldInjectionUsedRule.ID,
+                // Wave 4
+                dev.diagscope.core.application.rule.TransactionalReadOnlyMissingRule.ID,
+                dev.diagscope.core.application.rule.AsyncDefaultExecutorRule.ID,
+                dev.diagscope.core.application.rule.MissingResponseStatusRule.ID,
+                dev.diagscope.core.application.rule.CacheEvictMissingRule.ID,
+                dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule.ID
         );
     }
 

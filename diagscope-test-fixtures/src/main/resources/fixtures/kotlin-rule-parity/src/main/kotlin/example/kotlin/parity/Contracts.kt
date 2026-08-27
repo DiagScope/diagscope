@@ -16,7 +16,7 @@ annotation class Service
 annotation class Repository
 annotation class KafkaListener(val topics: Array<String>, val errorHandler: String = "")
 annotation class KafkaHandler
-annotation class Transactional(val propagation: Propagation = Propagation.REQUIRED)
+annotation class Transactional(val propagation: Propagation = Propagation.REQUIRED, val readOnly: Boolean = false)
 
 enum class Propagation {
     REQUIRED,
@@ -236,3 +236,12 @@ class CreateKotlinOrderRequest(
 )
 
 annotation class Entity  // JPA @Entity stub
+
+// Wave 4 annotation stubs
+annotation class Cacheable(val value: String = "")
+annotation class CacheEvict(val value: String = "")
+annotation class CachePut(val value: String = "")
+annotation class ExceptionHandler
+annotation class ResponseStatus(val value: Int = 500)
+annotation class RestControllerAdvice
+annotation class ControllerAdvice

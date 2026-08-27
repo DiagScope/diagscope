@@ -249,7 +249,16 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         MethodId id = new MethodId(declaringType, Objects.requireNonNullElse(function.getName(), "<anonymous>"),
                 function.getValueParameters().stream().map(KotlinParserProjectAnalyzer::parameterType).toList());
         SourceLocation location = location(root, file, lines, function);
-        List<AnnotationDescriptor> methodAnnotations = annotations(function);
+        List<AnnotationDescriptor> methodAnnotations = new ArrayList<>(annotations(function));
+        // Synthesise a "Final" annotation for Kotlin methods that are effectively final
+        // (not 'open', 'abstract', or 'override'). This mirrors the JavaParser's handling
+        // of the Java 'final' modifier so TRANSACTIONAL_ON_FINAL_METHOD works uniformly.
+        if (!function.hasModifier(KtTokens.OPEN_KEYWORD)
+                && !function.hasModifier(KtTokens.ABSTRACT_KEYWORD)
+                && !function.hasModifier(KtTokens.OVERRIDE_KEYWORD)) {
+            methodAnnotations.add(new AnnotationDescriptor("Final", Map.of()));
+        }
+        methodAnnotations = List.copyOf(methodAnnotations);
 
         Map<String, String> variableTypes = declaredVariables(owner);
         var fieldNames = new LinkedHashSet<>(variableTypes.keySet());

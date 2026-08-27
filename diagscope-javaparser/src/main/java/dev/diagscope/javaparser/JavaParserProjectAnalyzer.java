@@ -350,6 +350,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             augmented.add(new AnnotationDescriptor("Synchronized", Map.of()));
             methodAnnotations = List.copyOf(augmented);
         }
+        // Synthesise a "Final" annotation for the Java 'final' keyword so that
+        // TRANSACTIONAL_ON_FINAL_METHOD can detect it without a MethodModel change.
+        if (method.isFinal()) {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor("Final", Map.of()));
+            methodAnnotations = List.copyOf(augmented);
+        }
 
         var variableTypes = new LinkedHashMap<>(declaredVariables);
         method.getParameters().forEach(parameter ->

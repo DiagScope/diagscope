@@ -20,7 +20,7 @@ import java.util.function.Function;
 @interface PostMapping { String value() default ""; }
 @interface PutMapping { String value() default ""; }
 @interface KafkaHandler {}
-@interface Transactional { Propagation propagation() default Propagation.REQUIRED; }
+@interface Transactional { Propagation propagation() default Propagation.REQUIRED; boolean readOnly() default false; }
 
 enum Propagation { REQUIRED, REQUIRES_NEW, MANDATORY }
 
@@ -202,3 +202,12 @@ class CreateJavaOrderRequest {
 }
 
 @interface Entity {}  // JPA @Entity stub
+
+// Wave 4 annotation stubs
+@interface Cacheable { String value() default ""; }
+@interface CacheEvict { String value() default ""; }
+@interface CachePut   { String value() default ""; }
+@interface ExceptionHandler {}
+@interface ResponseStatus { int value() default 500; }
+@interface RestControllerAdvice {}
+@interface ControllerAdvice {}

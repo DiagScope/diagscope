@@ -1336,6 +1336,200 @@ class DiagnosticRulesTest {
         assertThat(new FieldInjectionUsedRule().evaluate(project(m1, m2))).hasSize(1);
     }
 
+    // ── TRANSACTIONAL_READONLY_MISSING ────────────────────────────────────────
+
+    @Test
+    void transactionalReadOnlyMissing_findMethodWithoutReadOnly_reported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "findById", List.of("Long")),
+                location(10), Set.of("Transactional", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Order", false);
+        var findings = new TransactionalReadOnlyMissingRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(TransactionalReadOnlyMissingRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.evidence()).containsEntry("missingAttribute", "readOnly");
+        });
+    }
+
+    @Test
+    void transactionalReadOnlyMissing_withReadOnlyTrue_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "findById", List.of("Long")),
+                location(10), Set.of("Transactional", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("readOnly", "true")),
+                CallableShape.fixed(1), "Order", false);
+        assertThat(new TransactionalReadOnlyMissingRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void transactionalReadOnlyMissing_writeMethodNotFlagged() {
+        // 'save' does not start with a query prefix — write methods should not be flagged
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "saveOrder", List.of("Order")),
+                location(10), Set.of("Transactional", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Order", false);
+        assertThat(new TransactionalReadOnlyMissingRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── ASYNC_DEFAULT_EXECUTOR ────────────────────────────────────────────────
+
+    @Test
+    void asyncDefaultExecutor_noExecutorName_reported() {
+        var m = new MethodModel(
+                new MethodId("example.NotificationService", "sendEmail", List.of("String")),
+                location(10), Set.of("Async", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "void", false);
+        var findings = new AsyncDefaultExecutorRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(AsyncDefaultExecutorRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.evidence()).containsEntry("missingExecutor", "true");
+        });
+    }
+
+    @Test
+    void asyncDefaultExecutor_namedExecutor_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.NotificationService", "sendEmail", List.of("String")),
+                location(10), Set.of("Async", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Async", Map.of("value", "notificationExecutor")),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new AsyncDefaultExecutorRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void asyncDefaultExecutor_noAsyncAnnotation_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.NotificationService", "sendEmail", List.of("String")),
+                location(10), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new AsyncDefaultExecutorRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── MISSING_RESPONSE_STATUS ───────────────────────────────────────────────
+
+    @Test
+    void missingResponseStatus_exceptionHandlerNoStatus_reported() {
+        var m = new MethodModel(
+                new MethodId("example.GlobalExceptionHandler", "handleError", List.of("RuntimeException")),
+                location(10), Set.of("ExceptionHandler", "RestControllerAdvice"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "ErrorResponse", false);
+        var findings = new MissingResponseStatusRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(MissingResponseStatusRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void missingResponseStatus_withResponseStatus_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.GlobalExceptionHandler", "handleError", List.of("RuntimeException")),
+                location(10), Set.of("ExceptionHandler", "RestControllerAdvice", "ResponseStatus"),
+                List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "ErrorResponse", false);
+        assertThat(new MissingResponseStatusRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void missingResponseStatus_returnsResponseEntity_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.GlobalExceptionHandler", "handleError", List.of("RuntimeException")),
+                location(10), Set.of("ExceptionHandler", "ControllerAdvice"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "ResponseEntity<ErrorResponse>", false);
+        assertThat(new MissingResponseStatusRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── CACHE_EVICT_MISSING ───────────────────────────────────────────────────
+
+    @Test
+    void cacheEvictMissing_cacheableWithoutEvict_reported() {
+        var m = new MethodModel(
+                new MethodId("example.ProductService", "findProduct", List.of("Long")),
+                location(10), Set.of("Cacheable", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Product", false);
+        var findings = new CacheEvictMissingRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(CacheEvictMissingRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.MEDIUM);
+        });
+    }
+
+    @Test
+    void cacheEvictMissing_withCacheEvict_notReported() {
+        var read = new MethodModel(
+                new MethodId("example.ProductService", "findProduct", List.of("Long")),
+                location(10), Set.of("Cacheable", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Product", false);
+        var write = new MethodModel(
+                new MethodId("example.ProductService", "updateProduct", List.of("Product")),
+                location(20), Set.of("CacheEvict", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "void", false);
+        assertThat(new CacheEvictMissingRule().evaluate(project(read, write))).isEmpty();
+    }
+
+    @Test
+    void cacheEvictMissing_noCacheable_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.ProductService", "findProduct", List.of("Long")),
+                location(10), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Product", false);
+        assertThat(new CacheEvictMissingRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── TRANSACTIONAL_ON_FINAL_METHOD ─────────────────────────────────────────
+
+    @Test
+    void transactionalOnFinalMethod_finalTransactional_reported() {
+        // "Final" is the synthetic marker injected by the parsers for the 'final' modifier
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "placeOrder", List.of()),
+                location(10), Set.of("Transactional", "Service", "Final"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new TransactionalOnFinalMethodRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(TransactionalOnFinalMethodRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.ERROR);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void transactionalOnFinalMethod_nonFinalTransactional_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "placeOrder", List.of()),
+                location(10), Set.of("Transactional", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new TransactionalOnFinalMethodRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void transactionalOnFinalMethod_finalWithoutProxy_notReported() {
+        // Final but no @Transactional or @Async — nothing to proxy, rule should not fire
+        var m = new MethodModel(
+                new MethodId("example.OrderService", "helperMethod", List.of()),
+                location(10), Set.of("Service", "Final"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new TransactionalOnFinalMethodRule().evaluate(project(m))).isEmpty();
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */
