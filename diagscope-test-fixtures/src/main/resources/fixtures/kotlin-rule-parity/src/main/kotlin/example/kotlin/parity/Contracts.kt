@@ -245,3 +245,27 @@ annotation class ExceptionHandler
 annotation class ResponseStatus(val value: Int = 500)
 annotation class RestControllerAdvice
 annotation class ControllerAdvice
+
+// Wave 5 annotation stubs
+annotation class Bean
+annotation class Around(val value: String = "")
+annotation class Before(val value: String = "")
+annotation class After(val value: String = "")
+annotation class AfterReturning(val value: String = "")
+annotation class AfterThrowing(val value: String = "")
+annotation class FeignClient(val name: String = "", val value: String = "", val fallback: kotlin.reflect.KClass<*> = Void::class, val fallbackFactory: kotlin.reflect.KClass<*> = Void::class)
+annotation class Configuration
+
+/** Stub for Jackson ObjectMapper (subset of real API). */
+class ObjectMapper {
+    @Throws(Exception::class) fun writeValueAsString(value: Any?): String = ""
+    @Throws(Exception::class) fun <T> readValue(content: String, valueType: Class<T>): T? = null
+}
+
+/** Stub for ThreadPoolTaskScheduler (for safe fixture). */
+class ThreadPoolTaskScheduler {
+    fun setPoolSize(poolSize: Int) {}
+    fun setThreadNamePrefix(prefix: String) {}
+    fun setErrorHandler(handler: (Throwable) -> Unit) {}
+    fun initialize() {}
+}

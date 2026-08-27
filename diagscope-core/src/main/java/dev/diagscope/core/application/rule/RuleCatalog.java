@@ -1336,6 +1336,104 @@ public final class RuleCatalog {
                         + " plugin behaviour is not visible to static analysis. Suppress if"
                         + " the plugin is configured for the entire project.");
 
+        // ── Wave 5 ────────────────────────────────────────────────────────────
+        put(catalog, ScheduledNonVoidReturnRule.ID,
+                "@Scheduled method with non-void return type — return value is silently discarded",
+                "correctness", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Scheduled",
+                "A @Scheduled method declares a return type other than void. Spring invokes the"
+                        + " method reflectively via the task scheduler and discards the return"
+                        + " value without any warning at startup or at runtime.",
+                "The developer who added the return type expects the result to be observable"
+                        + " — for logging, chaining, or storage — but it is silently dropped"
+                        + " on every execution. This is a correctness bug with no compile-time"
+                        + " or runtime signal.",
+                "The method carries @Scheduled and its declared return type is anything other"
+                        + " than void (Java) or Unit (Kotlin).",
+                null);
+
+        put(catalog, AopAdviceOnPrivateMethodRule.ID,
+                "AOP advice on private method — advice is registered but never executes",
+                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using Spring AOP (@Around, @Before, @After, @AfterReturning, @AfterThrowing)",
+                "An AOP advice annotation (@Around, @Before, @After, @AfterReturning, or"
+                        + " @AfterThrowing) is placed on a private method. Spring AOP works"
+                        + " through a proxy; private methods cannot be overridden by the proxy,"
+                        + " so the advice never executes.",
+                "The pointcut registers successfully at startup and produces no error, but no"
+                        + " advice logic runs at the call site. Security audits, performance"
+                        + " monitoring, and transactional boundaries that depend on the advice"
+                        + " are silently non-functional. This is identical in nature to"
+                        + " ASYNC_ON_PRIVATE_METHOD — proxy-based AOP cannot intercept private"
+                        + " methods in any framework configuration.",
+                "The method's visibility is PRIVATE (from ProxyProfile) and it carries at"
+                        + " least one of the five standard Spring AOP advice annotations.",
+                "AspectJ load-time weaving (LTW) can advise private methods. Projects using"
+                        + " LTW will see false positives. Suppress if LTW is configured.");
+
+        put(catalog, FeignClientNoFallbackRule.ID,
+                "@FeignClient without fallback — remote failures propagate with no degradation",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Cloud applications using OpenFeign (@FeignClient)",
+                "A @FeignClient interface declares no fallback or fallbackFactory attribute."
+                        + " Any failure from the remote service — timeout, 5xx, network partition"
+                        + " — propagates as an uncaught exception to the caller.",
+                "Without a fallback, a single unavailable downstream service can cascade"
+                        + " failures through the entire service chain. The caller has no"
+                        + " opportunity to return a safe default, serve from cache, or degrade"
+                        + " gracefully. A circuit breaker (Resilience4j) without a fallback"
+                        + " still throws an exception when the circuit is open.",
+                "Methods are grouped by declaring type. Types with @FeignClient in their"
+                        + " effective annotation set are checked for fallback or fallbackFactory"
+                        + " attributes. One finding is emitted per affected Feign client type.",
+                "Fallbacks configured via a global FeignClientConfigurer or a default"
+                        + " error decoder are not visible at the annotation level and will"
+                        + " not suppress this finding. Suppress per-client if centralised"
+                        + " fallback handling is in place.");
+
+        put(catalog, MultipleScheduledNoThreadPoolRule.ID,
+                "Multiple @Scheduled tasks share a single thread — one slow task blocks all others",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications with two or more @Scheduled methods",
+                "The project declares two or more @Scheduled methods but no TaskScheduler or"
+                        + " ThreadPoolTaskScheduler bean. All tasks run sequentially on a single"
+                        + " shared thread.",
+                "A task that blocks (network call, lock wait, slow query) prevents every"
+                        + " other scheduled task from starting until it completes. A task that"
+                        + " hangs indefinitely stops all scheduled work for the lifetime of the"
+                        + " application. The symptom — 'the cleanup job stopped running' — is"
+                        + " typically traced back to an unrelated task that hung hours earlier.",
+                "The rule counts methods annotated with @Scheduled across the project. If"
+                        + " the count reaches two or more, it checks for any @Bean method whose"
+                        + " return type contains TaskScheduler or ScheduledExecutorService."
+                        + " If no such bean is found, one WARNING is emitted at the first"
+                        + " scheduled method's location.",
+                "A TaskScheduler configured programmatically via SchedulingConfigurer and"
+                        + " not exposed as a @Bean will not suppress this finding. Suppress"
+                        + " manually if a custom scheduler is in place through a non-bean path.");
+
+        put(catalog, ObjectMapperCreatedPerRequestRule.ID,
+                "ObjectMapper constructed per-call — should be a shared @Bean",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Java and Kotlin applications using Jackson ObjectMapper",
+                "A new ObjectMapper() is constructed inside a regular method body rather than"
+                        + " being declared once as a shared Spring @Bean and injected.",
+                "ObjectMapper construction is expensive: the constructor scans the classpath"
+                        + " and registers all available serialisers, deserialisers, and modules."
+                        + " This can take tens of milliseconds and allocate hundreds of objects"
+                        + " on a cold JVM. Multiplied by request rate, this creates measurable"
+                        + " CPU and heap pressure that profilers attribute to construction,"
+                        + " not to serialisation itself. ObjectMapper is thread-safe after"
+                        + " construction and explicitly documented as a singleton candidate.",
+                "The rule walks method.invocations() looking for InvocationEvidence with"
+                        + " methodName 'ObjectMapper' (constructor calls are recorded with the"
+                        + " class name as method name). Methods annotated with @Bean,"
+                        + " @Configuration, or test setup annotations are excluded.",
+                "Construction inside @Bean methods is the intentional factory pattern and"
+                        + " is always suppressed. Test setup methods (@BeforeEach, @Before)"
+                        + " are also suppressed — test ObjectMapper instances are typically"
+                        + " configured differently from production ones.");
+
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
                 "Blocking JVM call inside a coroutine builder lambda",

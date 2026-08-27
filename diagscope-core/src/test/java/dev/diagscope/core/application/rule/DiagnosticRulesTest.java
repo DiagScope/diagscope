@@ -1530,6 +1530,217 @@ class DiagnosticRulesTest {
         assertThat(new TransactionalOnFinalMethodRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── SCHEDULED_NON_VOID_RETURN ─────────────────────────────────────────────
+
+    @Test
+    void scheduledNonVoidReturn_nonVoidReturn_reported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportService", "generateReport", List.of()),
+                location(10), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "String", false);
+        var findings = new ScheduledNonVoidReturnRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(ScheduledNonVoidReturnRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void scheduledNonVoidReturn_voidReturn_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportService", "cleanupFiles", List.of()),
+                location(10), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new ScheduledNonVoidReturnRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void scheduledNonVoidReturn_noScheduledAnnotation_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.ReportService", "generateReport", List.of()),
+                location(10), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "String", false);
+        assertThat(new ScheduledNonVoidReturnRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── AOP_ADVICE_ON_PRIVATE_METHOD ──────────────────────────────────────────
+
+    @Test
+    void aopAdviceOnPrivateMethod_aroundOnPrivate_reported() {
+        var privateProfile = new ProxyProfile(
+                MethodVisibility.PRIVATE, false, false, false, true, false, Set.of(), List.of());
+        var m = new MethodModel(
+                new MethodId("example.LoggingAspect", "logTime", List.of("Object")),
+                location(10), Set.of("Around"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), privateProfile, Map.of(),
+                CallableShape.fixed(1), "Object", false);
+        var findings = new AopAdviceOnPrivateMethodRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(AopAdviceOnPrivateMethodRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.ERROR);
+        });
+    }
+
+    @Test
+    void aopAdviceOnPrivateMethod_aroundOnPublic_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.LoggingAspect", "logTime", List.of("Object")),
+                location(10), Set.of("Around"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "Object", false);
+        assertThat(new AopAdviceOnPrivateMethodRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void aopAdviceOnPrivateMethod_privateNoAdvice_notReported() {
+        var privateProfile = new ProxyProfile(
+                MethodVisibility.PRIVATE, false, false, false, true, false, Set.of(), List.of());
+        var m = new MethodModel(
+                new MethodId("example.LoggingAspect", "helper", List.of()),
+                location(10), Set.of("Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), privateProfile, Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new AopAdviceOnPrivateMethodRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── FEIGN_CLIENT_NO_FALLBACK ──────────────────────────────────────────────
+
+    @Test
+    void feignClientNoFallback_noFallbackAttr_reported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentClient", "charge", List.of("String")),
+                location(10), Set.of("FeignClient"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("FeignClient", Map.of("name", "payment-service")),
+                CallableShape.fixed(1), "String", false);
+        var findings = new FeignClientNoFallbackRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(FeignClientNoFallbackRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.MEDIUM);
+        });
+    }
+
+    @Test
+    void feignClientNoFallback_withFallback_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentClient", "charge", List.of("String")),
+                location(10), Set.of("FeignClient"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("FeignClient", Map.of("name", "payment-service", "fallback", "PaymentClientFallback")),
+                CallableShape.fixed(1), "String", false);
+        assertThat(new FeignClientNoFallbackRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void feignClientNoFallback_withFallbackFactory_notReported() {
+        var m = new MethodModel(
+                new MethodId("example.PaymentClient", "charge", List.of("String")),
+                location(10), Set.of("FeignClient"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("FeignClient", Map.of("name", "payment-service", "fallbackFactory", "PaymentClientFallbackFactory")),
+                CallableShape.fixed(1), "String", false);
+        assertThat(new FeignClientNoFallbackRule().evaluate(project(m))).isEmpty();
+    }
+
+    // ── MULTIPLE_SCHEDULED_NO_THREAD_POOL ─────────────────────────────────────
+
+    @Test
+    void multipleScheduledNoThreadPool_twoScheduledNoBean_reported() {
+        var s1 = new MethodModel(
+                new MethodId("example.SchedulerService", "job1", List.of()),
+                location(10), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var s2 = new MethodModel(
+                new MethodId("example.SchedulerService", "job2", List.of()),
+                location(20), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var findings = new MultipleScheduledNoThreadPoolRule().evaluate(project(s1, s2));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(MultipleScheduledNoThreadPoolRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+        });
+    }
+
+    @Test
+    void multipleScheduledNoThreadPool_twoScheduledWithBean_notReported() {
+        var s1 = new MethodModel(
+                new MethodId("example.SchedulerService", "job1", List.of()),
+                location(10), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var s2 = new MethodModel(
+                new MethodId("example.SchedulerService", "job2", List.of()),
+                location(20), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        var beanMethod = new MethodModel(
+                new MethodId("example.SchedulerConfig", "taskScheduler", List.of()),
+                location(30), Set.of("Bean"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "ThreadPoolTaskScheduler", false);
+        assertThat(new MultipleScheduledNoThreadPoolRule().evaluate(project(s1, s2, beanMethod))).isEmpty();
+    }
+
+    @Test
+    void multipleScheduledNoThreadPool_oneScheduled_notReported() {
+        var s1 = new MethodModel(
+                new MethodId("example.SchedulerService", "job1", List.of()),
+                location(10), Set.of("Scheduled", "Service"), List.of(), List.of(),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "void", false);
+        assertThat(new MultipleScheduledNoThreadPoolRule().evaluate(project(s1))).isEmpty();
+    }
+
+    // ── OBJECT_MAPPER_CREATED_PER_REQUEST ─────────────────────────────────────
+
+    @Test
+    void objectMapperCreatedPerRequest_constructorInMethod_reported() {
+        var inv = new InvocationEvidence(location(15), "", "", "ObjectMapper", List.of(),
+                InvocationResultUsage.UNKNOWN);
+        var m = new MethodModel(
+                new MethodId("example.JsonService", "serialize", List.of("Object")),
+                location(10), Set.of("Service"), List.of(), List.of(inv),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "String", false);
+        var findings = new ObjectMapperCreatedPerRequestRule().evaluate(project(m));
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.ruleId()).isEqualTo(ObjectMapperCreatedPerRequestRule.ID);
+            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+        });
+    }
+
+    @Test
+    void objectMapperCreatedPerRequest_inBeanMethod_notReported() {
+        var inv = new InvocationEvidence(location(15), "", "", "ObjectMapper", List.of(),
+                InvocationResultUsage.UNKNOWN);
+        var m = new MethodModel(
+                new MethodId("example.JacksonConfig", "objectMapper", List.of()),
+                location(10), Set.of("Bean", "Configuration"), List.of(), List.of(inv),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "ObjectMapper", false);
+        assertThat(new ObjectMapperCreatedPerRequestRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void objectMapperCreatedPerRequest_noObjectMapperInvocation_notReported() {
+        var inv = new InvocationEvidence(location(15), "", "", "JsonWriter", List.of(),
+                InvocationResultUsage.UNKNOWN);
+        var m = new MethodModel(
+                new MethodId("example.JsonService", "serialize", List.of("Object")),
+                location(10), Set.of("Service"), List.of(), List.of(inv),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(1), "String", false);
+        assertThat(new ObjectMapperCreatedPerRequestRule().evaluate(project(m))).isEmpty();
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */

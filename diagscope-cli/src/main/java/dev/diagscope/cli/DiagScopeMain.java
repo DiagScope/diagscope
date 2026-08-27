@@ -32,6 +32,11 @@ import dev.diagscope.core.application.rule.AsyncDefaultExecutorRule;
 import dev.diagscope.core.application.rule.MissingResponseStatusRule;
 import dev.diagscope.core.application.rule.CacheEvictMissingRule;
 import dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule;
+import dev.diagscope.core.application.rule.ScheduledNonVoidReturnRule;
+import dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule;
+import dev.diagscope.core.application.rule.FeignClientNoFallbackRule;
+import dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule;
+import dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
@@ -209,7 +214,13 @@ public final class DiagScopeMain {
                 new AsyncDefaultExecutorRule(),
                 new MissingResponseStatusRule(),
                 new CacheEvictMissingRule(),
-                new TransactionalOnFinalMethodRule()
+                new TransactionalOnFinalMethodRule(),
+                // Wave 5
+                new ScheduledNonVoidReturnRule(),
+                new AopAdviceOnPrivateMethodRule(),
+                new FeignClientNoFallbackRule(),
+                new MultipleScheduledNoThreadPoolRule(),
+                new ObjectMapperCreatedPerRequestRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -335,7 +346,13 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.AsyncDefaultExecutorRule.ID,
                 dev.diagscope.core.application.rule.MissingResponseStatusRule.ID,
                 dev.diagscope.core.application.rule.CacheEvictMissingRule.ID,
-                dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule.ID
+                dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule.ID,
+                // Wave 5
+                dev.diagscope.core.application.rule.ScheduledNonVoidReturnRule.ID,
+                dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule.ID,
+                dev.diagscope.core.application.rule.FeignClientNoFallbackRule.ID,
+                dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule.ID,
+                dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule.ID
         );
     }
 

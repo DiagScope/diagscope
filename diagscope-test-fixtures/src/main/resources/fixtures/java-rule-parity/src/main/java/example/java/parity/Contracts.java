@@ -211,3 +211,28 @@ class CreateJavaOrderRequest {
 @interface ResponseStatus { int value() default 500; }
 @interface RestControllerAdvice {}
 @interface ControllerAdvice {}
+
+// Wave 5 annotation stubs
+@interface Bean {}
+@interface Around { String value() default ""; }
+@interface Before { String value() default ""; }
+@interface After  { String value() default ""; }
+@interface AfterReturning { String value() default ""; }
+@interface AfterThrowing  { String value() default ""; }
+@interface FeignClient { String name() default ""; String value() default ""; String fallback() default ""; String fallbackFactory() default ""; }
+@interface Configuration {}
+
+/** Stub for Jackson ObjectMapper (subset of real API). */
+class ObjectMapper {
+    ObjectMapper() {}
+    String writeValueAsString(Object value) throws Exception { return ""; }
+    <T> T readValue(String content, Class<T> valueType) throws Exception { return null; }
+}
+
+/** Stub for ThreadPoolTaskScheduler (for safe fixture). */
+class ThreadPoolTaskScheduler {
+    void setPoolSize(int poolSize) {}
+    void setThreadNamePrefix(String threadNamePrefix) {}
+    void setErrorHandler(java.util.function.Consumer<Throwable> errorHandler) {}
+    void initialize() {}
+}
