@@ -6,14 +6,17 @@ class JavaParityController {
     private final JavaConcurrencyAndSafetyService concurrency;
     private final JavaMaintainabilityService maintainability;
     private final JavaTransactionAndHttpService transactionHttp;
+    private final JavaBatchProcessorService batchProcessor;
 
     JavaParityController(JavaParityService service, JavaConcurrencyAndSafetyService concurrency,
                          JavaMaintainabilityService maintainability,
-                         JavaTransactionAndHttpService transactionHttp) {
+                         JavaTransactionAndHttpService transactionHttp,
+                         JavaBatchProcessorService batchProcessor) {
         this.service = service;
         this.concurrency = concurrency;
         this.maintainability = maintainability;
         this.transactionHttp = transactionHttp;
+        this.batchProcessor = batchProcessor;
     }
 
     @GetMapping("/java-parity")
@@ -73,8 +76,22 @@ class JavaParityController {
         // Transaction and HTTP timeout rules
         transactionHttp.saveWithoutTransaction(id);
         transactionHttp.saveWithTransaction(id);
+        transactionHttp.saveInsideReadOnlyTransaction(id);
+        transactionHttp.findAndDereference(id);
         transactionHttp.callWithoutTimeout(id);
         transactionHttp.callWithTimeout(id);
+        // Wave 6: null-safety and transaction rules
+        transactionHttp.lookupOrNull(id);
+        transactionHttp.lookupWithFallback(id);
+        transactionHttp.getAndDereference(id);
+        transactionHttp.getWithDefault(id);
+        transactionHttp.fetchWithDirtyReads();
+        transactionHttp.fetchWithDefaultIsolation();
+        transactionHttp.importEntities(java.util.List.of(id));
+        transactionHttp.importEntitiesSafe(java.util.List.of(id));
+        transactionHttp.processItemBatch(java.util.List.of(id));
+        batchProcessor.processAllItems(java.util.List.of(id));
+        batchProcessor.processAllItemsSafe(java.util.List.of(id));
         return id;
     }
 }

@@ -5,7 +5,8 @@ class KotlinParityController(
     private val service: KotlinParityService,
     private val concurrency: KotlinConcurrencyAndSafetyService,
     private val maintainability: KotlinMaintainabilityService,
-    private val transactionHttp: KotlinTransactionAndHttpService
+    private val transactionHttp: KotlinTransactionAndHttpService,
+    private val batchProcessor: KotlinBatchProcessorService
 ) {
     @GetMapping("/kotlin-parity")
     fun inspect(id: String, token: String): String {
@@ -63,8 +64,22 @@ class KotlinParityController(
         // Transaction and HTTP timeout rules
         transactionHttp.saveWithoutTransaction(id)
         transactionHttp.saveWithTransaction(id)
+        transactionHttp.saveInsideReadOnlyTransaction(id)
+        transactionHttp.findAndDereference(id)
         transactionHttp.callWithoutTimeout(id)
         transactionHttp.callWithTimeout(id)
+        // Wave 6: null-safety and transaction rules
+        transactionHttp.lookupOrNull(id)
+        transactionHttp.lookupWithFallback(id)
+        transactionHttp.getAndDereference(id)
+        transactionHttp.getWithDefault(id)
+        transactionHttp.fetchWithDirtyReads()
+        transactionHttp.fetchWithDefaultIsolation()
+        transactionHttp.importEntities(listOf(id))
+        transactionHttp.importEntitiesSafe(listOf(id))
+        transactionHttp.processItemBatch(listOf(id))
+        batchProcessor.processAllItems(listOf(id))
+        batchProcessor.processAllItemsSafe(listOf(id))
         return id
     }
 }

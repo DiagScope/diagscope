@@ -622,6 +622,24 @@ only a guard on the same named receiver does.
 Recommended response: replace `get()` with `orElseThrow()` (which carries a meaningful message),
 `orElse(default)`, or `ifPresentOrElse(...)`.
 
+## `ENTITY_MANAGER_FIND_DEREFERENCE`
+
+Detects a value returned by `EntityManager.find(...)` that is assigned to a local variable and later
+used as a method-call receiver without a visible null guard. `EntityManager.find(...)` returns `null`
+when no row exists.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the rule can see common guard calls, but not every control-flow
+  null check.
+- Final confidence: capped by reachability.
+
+Known limitation: plain `if (entity == null)` checks are not represented in the current
+parser-neutral evidence model, so the rule may report code that guards the value with ordinary
+branching.
+
+Recommended response: handle the missing row explicitly before dereferencing: check for null,
+wrap with `Optional.ofNullable(...)`, or use a repository API that returns `Optional`.
+
 ## `EXCESSIVE_METHOD_PARAMETERS`
 
 Detects a non-constructor method that declares more than five parameters. Long parameter lists are hard
@@ -695,6 +713,22 @@ class level but not individually will be missed.
 
 Recommended response: annotate the service method (or its class) with `@Transactional`. Ensure that
 the propagation level matches the business requirement (`REQUIRED` is the safe default).
+
+## `READONLY_TRANSACTION_WRITE`
+
+Reports persistence writes (`save`, `delete`, `persist`, `merge`, `flush`, `executeUpdate`,
+`batchUpdate`, etc.) inside a method explicitly annotated with `@Transactional(readOnly = true)`.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH`; both the read-only transaction attribute and the write call are
+  syntax-visible.
+- Final confidence: capped by reachability.
+
+Known limitation: the rule relies on method names and receiver hints. Custom persistence abstractions
+with domain-specific write names may be missed.
+
+Recommended response: move the write to a read-write `@Transactional` method, or remove
+`readOnly = true` only after confirming the method is intentionally mutating state.
 
 ## `HTTP_TIMEOUT_NOT_SET`
 

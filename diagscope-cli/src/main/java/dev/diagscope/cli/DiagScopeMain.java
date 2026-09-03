@@ -37,11 +37,17 @@ import dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.FeignClientNoFallbackRule;
 import dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule;
 import dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule;
+import dev.diagscope.core.application.rule.OptionalOrElseNullRule;
+import dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule;
+import dev.diagscope.core.application.rule.TransactionIsolationDangerousRule;
+import dev.diagscope.core.application.rule.RequiresNewInLoopRule;
+import dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
+import dev.diagscope.core.application.rule.EntityManagerFindDereferenceRule;
 import dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule;
 import dev.diagscope.core.application.rule.OutboxPatternMissingRule;
 import dev.diagscope.core.application.rule.SecretInStringLiteralRule;
@@ -70,6 +76,7 @@ import dev.diagscope.core.application.rule.MdcContextLostRule;
 import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
 import dev.diagscope.core.application.rule.MutinySubscriptionFailureUnobservedRule;
 import dev.diagscope.core.application.rule.ReactiveMessageFailureNotPropagatedRule;
+import dev.diagscope.core.application.rule.ReadOnlyTransactionWriteRule;
 import dev.diagscope.core.application.rule.SensitivePayloadLoggedRule;
 import dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule;
 import dev.diagscope.core.application.rule.DynamicMetricNameRule;
@@ -151,8 +158,16 @@ public final class DiagScopeMain {
                 new NPlusOneQueryRiskRule(),
                 // Null safety
                 new OptionalGetWithoutCheckRule(),
+                new EntityManagerFindDereferenceRule(),
                 // Transactions
                 new MissingTransactionAnnotationRule(),
+                new ReadOnlyTransactionWriteRule(),
+                // Wave 6: null-safety, transactions, database
+                new OptionalOrElseNullRule(),
+                new MapGetDereferencedWithoutCheckRule(),
+                new TransactionIsolationDangerousRule(),
+                new RequiresNewInLoopRule(),
+                new JpaBatchLoopWithoutFlushClearRule(),
                 // Resilience: HTTP timeout
                 new HttpTimeoutNotSetRule(),
                 // Maintainability
@@ -279,10 +294,12 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule.ID,
                 dev.diagscope.core.application.rule.NPlusOneQueryRiskRule.ID,
                 dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule.ID,
+                dev.diagscope.core.application.rule.EntityManagerFindDereferenceRule.ID,
                 dev.diagscope.core.application.rule.ExcessiveMethodParametersRule.ID,
                 dev.diagscope.core.application.rule.HighMethodComplexityRule.ID,
                 dev.diagscope.core.application.rule.CheckThenActOnMapRule.ID,
                 dev.diagscope.core.application.rule.MissingTransactionAnnotationRule.ID,
+                dev.diagscope.core.application.rule.ReadOnlyTransactionWriteRule.ID,
                 dev.diagscope.core.application.rule.HttpTimeoutNotSetRule.ID,
                 dev.diagscope.core.application.rule.GodClassRule.ID,
                 // Exception handling: interrupt contract
@@ -352,7 +369,13 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule.ID,
                 dev.diagscope.core.application.rule.FeignClientNoFallbackRule.ID,
                 dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule.ID,
-                dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule.ID
+                dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule.ID,
+                // Wave 6
+                dev.diagscope.core.application.rule.OptionalOrElseNullRule.ID,
+                dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule.ID,
+                dev.diagscope.core.application.rule.TransactionIsolationDangerousRule.ID,
+                dev.diagscope.core.application.rule.RequiresNewInLoopRule.ID,
+                dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule.ID
         );
     }
 

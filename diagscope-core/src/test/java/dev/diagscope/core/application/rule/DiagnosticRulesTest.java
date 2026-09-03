@@ -1741,6 +1741,268 @@ class DiagnosticRulesTest {
         assertThat(new ObjectMapperCreatedPerRequestRule().evaluate(project(m))).isEmpty();
     }
 
+    // ── ReadOnlyTransactionWriteRule ─────────────────────────────────────────
+
+    @Test
+    void readonly_transaction_write_fires_for_repository_save() {
+        var save = new InvocationEvidence(location(20), "orderRepository", "OrderRepository",
+                "save", List.of("order"), InvocationResultUsage.IGNORED);
+        var method = new MethodModel(
+                new MethodId("example.OrderService", "lookupAndTouch", List.of()),
+                location(10), Set.of("Transactional"), List.of(), List.of(save),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("readOnly", "true")),
+                CallableShape.fixed(0), "Order", false);
+
+        assertThat(new ReadOnlyTransactionWriteRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(ReadOnlyTransactionWriteRule.ID);
+                    assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(finding.evidence()).containsEntry("writeOperation", "save");
+                });
+    }
+
+    @Test
+    void readonly_transaction_write_is_suppressed_for_read_write_transaction() {
+        var save = new InvocationEvidence(location(20), "orderRepository", "OrderRepository",
+                "save", List.of("order"), InvocationResultUsage.IGNORED);
+        var method = new MethodModel(
+                new MethodId("example.OrderService", "update", List.of()),
+                location(10), Set.of("Transactional"), List.of(), List.of(save),
+                List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("readOnly", "false")),
+                CallableShape.fixed(0), "Order", false);
+
+        assertThat(new ReadOnlyTransactionWriteRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── EntityManagerFindDereferenceRule ─────────────────────────────────────
+
+    @Test
+    void entity_manager_find_dereference_fires_without_visible_null_guard() {
+        var find = new InvocationEvidence(location(20), "entityManager", "EntityManager",
+                "find", List.of("Order.class", "id"), InvocationResultUsage.ASSIGNED,
+                false, false, "order", false, false, false);
+        var dereference = new InvocationEvidence(location(21), "order", "Order",
+                "total", List.of(), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(find, dereference), List.of());
+
+        assertThat(new EntityManagerFindDereferenceRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(EntityManagerFindDereferenceRule.ID);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.MEDIUM);
+                    assertThat(finding.evidence()).containsEntry("assignedTo", "order");
+                });
+    }
+
+    @Test
+    void entity_manager_find_dereference_is_suppressed_when_null_guard_is_visible() {
+        var find = new InvocationEvidence(location(20), "entityManager", "EntityManager",
+                "find", List.of("Order.class", "id"), InvocationResultUsage.ASSIGNED,
+                false, false, "order", false, false, false);
+        var guard = new InvocationEvidence(location(21), "Objects", "Objects",
+                "requireNonNull", List.of("order"), InvocationResultUsage.OBSERVED);
+        var dereference = new InvocationEvidence(location(22), "order", "Order",
+                "total", List.of(), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(find, guard, dereference), List.of());
+
+        assertThat(new EntityManagerFindDereferenceRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── OptionalOrElseNullRule ────────────────────────────────────────────────
+
+    @Test
+    void optional_or_else_null_fires_when_null_literal_is_argument() {
+        var inv = new InvocationEvidence(location(15), "result", "Optional",
+                "orElse", List.of("null"), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(inv), List.of());
+
+        assertThat(new OptionalOrElseNullRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(OptionalOrElseNullRule.ID);
+                    assertThat(finding.severity()).isEqualTo(Severity.WARNING);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.HIGH);
+                });
+    }
+
+    @Test
+    void optional_or_else_null_is_suppressed_for_non_null_argument() {
+        var inv = new InvocationEvidence(location(15), "result", "Optional",
+                "orElse", List.of("defaultValue"), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(inv), List.of());
+
+        assertThat(new OptionalOrElseNullRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── MapGetDereferencedWithoutCheckRule ────────────────────────────────────
+
+    @Test
+    void map_get_dereferenced_fires_without_visible_null_guard() {
+        var get = new InvocationEvidence(location(10), "cache", "Map",
+                "get", List.of("key"), InvocationResultUsage.ASSIGNED,
+                false, false, "value", false, false, false);
+        var deref = new InvocationEvidence(location(11), "value", "String",
+                "toUpperCase", List.of(), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(get, deref), List.of());
+
+        assertThat(new MapGetDereferencedWithoutCheckRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(MapGetDereferencedWithoutCheckRule.ID);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.MEDIUM);
+                    assertThat(finding.evidence()).containsEntry("assignedTo", "value");
+                });
+    }
+
+    @Test
+    void map_get_dereferenced_is_suppressed_when_containsKey_guard_is_visible() {
+        var containsKey = new InvocationEvidence(location(10), "cache", "Map",
+                "containsKey", List.of("key"), InvocationResultUsage.OBSERVED);
+        var get = new InvocationEvidence(location(11), "cache", "Map",
+                "get", List.of("key"), InvocationResultUsage.ASSIGNED,
+                false, false, "value", false, false, false);
+        var deref = new InvocationEvidence(location(12), "value", "String",
+                "toUpperCase", List.of(), InvocationResultUsage.OBSERVED);
+        MethodModel method = method(List.of(), List.of(containsKey, get, deref), List.of());
+
+        assertThat(new MapGetDereferencedWithoutCheckRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── TransactionIsolationDangerousRule ─────────────────────────────────────
+
+    @Test
+    void transaction_isolation_dangerous_fires_for_read_uncommitted() {
+        MethodModel method = new MethodModel(
+                new MethodId("example.ReportService", "fetchDirty", List.of()),
+                location(10), Set.of("Transactional"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("isolation", "READ_UNCOMMITTED")),
+                CallableShape.fixed(0), "List", false);
+
+        assertThat(new TransactionIsolationDangerousRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(TransactionIsolationDangerousRule.ID);
+                    assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.HIGH);
+                    assertThat(finding.evidence()).containsEntry("isolation", "READ_UNCOMMITTED");
+                });
+    }
+
+    @Test
+    void transaction_isolation_dangerous_is_suppressed_for_read_committed() {
+        MethodModel method = new MethodModel(
+                new MethodId("example.ReportService", "fetchSafe", List.of()),
+                location(10), Set.of("Transactional"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("isolation", "READ_COMMITTED")),
+                CallableShape.fixed(0), "List", false);
+
+        assertThat(new TransactionIsolationDangerousRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── RequiresNewInLoopRule ─────────────────────────────────────────────────
+
+    @Test
+    void requires_new_in_loop_fires_when_caller_invokes_in_loop() {
+        // Caller method: invokes processItem() inside a loop
+        var callInLoop = new InvocationEvidence(location(30), "auditService", "AuditService",
+                "processItem", List.of("item"), InvocationResultUsage.IGNORED,
+                false, false, "", false, true, false); // insideLoop = true
+        var callerMethod = new MethodModel(
+                new MethodId("example.BatchService", "processBatch", List.of("List")),
+                location(10), Set.of("Transactional"), List.of(), List.of(callInLoop), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of()),
+                CallableShape.fixed(1), "void", false);
+
+        // Callee method: has REQUIRES_NEW
+        var calleeMethod = new MethodModel(
+                new MethodId("example.AuditService", "processItem", List.of("Object")),
+                location(50), Set.of("Transactional"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("propagation", "REQUIRES_NEW")),
+                CallableShape.fixed(1), "void", false);
+
+        var entrypoint = new Entrypoint(EntrypointType.REST, callerMethod.id(), "POST /batch", location(1));
+        var flow = new Flow(entrypoint, List.of(
+                new FlowMethod(callerMethod, 0, Confidence.HIGH, List.of(callerMethod.id())),
+                new FlowMethod(calleeMethod, 1, Confidence.HIGH, List.of(callerMethod.id(), calleeMethod.id()))
+        ), List.of());
+
+        assertThat(new RequiresNewInLoopRule().evaluate(flow))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(RequiresNewInLoopRule.ID);
+                    assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(finding.confidence()).isEqualTo(Confidence.MEDIUM);
+                });
+    }
+
+    @Test
+    void requires_new_in_loop_is_suppressed_when_call_is_not_inside_loop() {
+        var callNotInLoop = new InvocationEvidence(location(30), "auditService", "AuditService",
+                "processItem", List.of("item"), InvocationResultUsage.IGNORED,
+                false, false, "", false, false, false); // insideLoop = false
+        var callerMethod = new MethodModel(
+                new MethodId("example.BatchService", "processBatch", List.of("List")),
+                location(10), Set.of("Transactional"), List.of(), List.of(callNotInLoop), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of()),
+                CallableShape.fixed(1), "void", false);
+
+        var calleeMethod = new MethodModel(
+                new MethodId("example.AuditService", "processItem", List.of("Object")),
+                location(50), Set.of("Transactional"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of("Transactional", Map.of("propagation", "REQUIRES_NEW")),
+                CallableShape.fixed(1), "void", false);
+
+        var entrypoint = new Entrypoint(EntrypointType.REST, callerMethod.id(), "POST /batch", location(1));
+        var flow = new Flow(entrypoint, List.of(
+                new FlowMethod(callerMethod, 0, Confidence.HIGH, List.of(callerMethod.id())),
+                new FlowMethod(calleeMethod, 1, Confidence.HIGH, List.of(callerMethod.id(), calleeMethod.id()))
+        ), List.of());
+
+        assertThat(new RequiresNewInLoopRule().evaluate(flow)).isEmpty();
+    }
+
+    // ── JpaBatchLoopWithoutFlushClearRule ─────────────────────────────────────
+
+    @Test
+    void jpa_batch_loop_fires_when_persist_in_loop_without_flush_and_clear() {
+        var persist = new InvocationEvidence(location(20), "em", "EntityManager",
+                "persist", List.of("entity"), InvocationResultUsage.IGNORED,
+                false, false, "", false, true, false); // insideLoop = true
+        MethodModel method = method(List.of(), List.of(persist), List.of());
+
+        assertThat(new JpaBatchLoopWithoutFlushClearRule().evaluate(flow(method, Confidence.HIGH)))
+                .singleElement()
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(JpaBatchLoopWithoutFlushClearRule.ID);
+                    assertThat(finding.severity()).isEqualTo(Severity.WARNING);
+                    assertThat(finding.evidence()).containsEntry("writeOperation", "persist");
+                    assertThat(finding.evidence()).containsEntry("missing", "flush() and clear()");
+                });
+    }
+
+    @Test
+    void jpa_batch_loop_is_suppressed_when_flush_and_clear_are_present() {
+        var persist = new InvocationEvidence(location(20), "em", "EntityManager",
+                "persist", List.of("entity"), InvocationResultUsage.IGNORED,
+                false, false, "", false, true, false);
+        var flush = new InvocationEvidence(location(25), "em", "EntityManager",
+                "flush", List.of(), InvocationResultUsage.IGNORED);
+        var clear = new InvocationEvidence(location(26), "em", "EntityManager",
+                "clear", List.of(), InvocationResultUsage.IGNORED);
+        MethodModel method = method(List.of(), List.of(persist, flush, clear), List.of());
+
+        assertThat(new JpaBatchLoopWithoutFlushClearRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
     // ── Helper overloads ──────────────────────────────────────────────────────
 
     /** Creates a method on a concrete class (declaringTypeIsInterface = false). */

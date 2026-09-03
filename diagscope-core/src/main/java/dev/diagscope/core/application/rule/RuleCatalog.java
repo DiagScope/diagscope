@@ -607,6 +607,21 @@ public final class RuleCatalog {
                         + " same Optional; a guard on a different Optional in the same method will"
                         + " not suppress the finding. Kotlin nullable types are not in scope.");
 
+        put(catalog, EntityManagerFindDereferenceRule.ID,
+                "EntityManager.find() result dereferenced without null guard",
+                "null-safety", Severity.WARNING, ALL_LANGUAGES,
+                "JPA applications using EntityManager directly",
+                "A value returned by EntityManager.find(...) is assigned to a local variable and"
+                        + " then dereferenced without a syntax-visible null guard.",
+                "EntityManager.find(...) returns null when no row exists. Dereferencing that value"
+                        + " turns an expected missing-row case into a NullPointerException with"
+                        + " little domain context.",
+                "A find(...) call on an EntityManager-looking receiver is assigned to a variable,"
+                        + " and a later invocation uses that variable as receiver without an observed"
+                        + " Objects.requireNonNull, Optional.ofNullable, or equivalent guard.",
+                "The rule cannot see plain if (value == null) checks until null-check evidence is"
+                        + " represented in the parser-neutral model, so guarded code may need review.");
+
         // ── Transactions ────────────────────────────────────────────────────────
         put(catalog, MissingTransactionAnnotationRule.ID,
                 "Write operation outside a transaction boundary",
@@ -625,6 +640,22 @@ public final class RuleCatalog {
                 "The rule uses method-name and receiver-type heuristics, so a custom repository"
                         + " with an unconventional name may be missed, and a method that calls a"
                         + " helper that is itself @Transactional will still be flagged.");
+
+        put(catalog, ReadOnlyTransactionWriteRule.ID,
+                "Write operation inside read-only transaction",
+                "transactions", Severity.ERROR, ALL_LANGUAGES,
+                "Spring Data / JPA / Hibernate applications using @Transactional(readOnly = true)",
+                "A method explicitly marked @Transactional(readOnly = true) performs a persistence"
+                        + " write such as save, delete, persist, merge, flush, update, or executeUpdate.",
+                "The method advertises a read-only transaction while mutating state. Depending on"
+                        + " the database, provider, and connection routing, the write can fail at"
+                        + " runtime, bypass expected flushing, or be routed to infrastructure intended"
+                        + " only for reads.",
+                "The method carries @Transactional with readOnly = true and contains a write-method"
+                        + " invocation on a repository, DAO, EntityManager, Hibernate Session,"
+                        + " JdbcTemplate, or similar persistence receiver.",
+                "The rule relies on method names and receiver hints. Custom persistence abstractions"
+                        + " with domain-specific write method names may be missed.");
 
         // ── Resilience: HTTP timeout ──────────────────────────────────────────────
         put(catalog, HttpTimeoutNotSetRule.ID,
@@ -1456,6 +1487,109 @@ public final class RuleCatalog {
                         + " from the lambda — inter-procedural analysis would be required."
                         + " Deeply nested withContext wrappers inside complex lambdas may not"
                         + " suppress the finding correctly, causing false positives.");
+
+        // ── Wave 6 ────────────────────────────────────────────────────────────
+        put(catalog, OptionalOrElseNullRule.ID,
+                "Optional.orElse(null) propagates null instead of enforcing presence",
+                "null-safety", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application using java.util.Optional",
+                "A call to Optional.orElse(null) returns the wrapped value if present, or null if"
+                        + " the Optional is empty — silently re-introducing the null the Optional was"
+                        + " supposed to eliminate. The caller cannot distinguish a legitimate absent"
+                        + " case from a successful result.",
+                "Every code path that receives a null from this call site is a latent"
+                        + " NullPointerException waiting for the Optional to be empty. The NPE"
+                        + " explodes further downstream with no link to the orElse(null) that produced"
+                        + " it, making root-cause analysis significantly harder.",
+                "A call to orElse() whose single argument is the literal null. Both Java"
+                        + " and Kotlin parsers record argument text, so the check is syntactic.",
+                "Intentional interop with APIs that expect null (legacy serializers, nullable"
+                        + " JSON fields) may generate false positives. Suppress with diagscope:ignore"
+                        + " and an inline comment explaining the nullable contract.");
+
+        put(catalog, MapGetDereferencedWithoutCheckRule.ID,
+                "Map.get() result dereferenced without a null guard",
+                "null-safety", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application using java.util.Map or similar map-like structures",
+                "The result of Map.get(key) is assigned to a local variable and then used as a"
+                        + " method-call receiver without a visible guard for the absent-key case."
+                        + " Map.get() returns null when the key is not present.",
+                "This pattern is so idiomatic that it barely reads as a bug. Yet any missing key"
+                        + " — cold start, expired entry, unexpected input — produces a"
+                        + " NullPointerException at the dereference site, far from the get() that"
+                        + " returned null. The stack trace points to the symptom, not the cause.",
+                "A get() invocation on a map-looking receiver (type or scope name contains"
+                        + " map, cache, registry, store, index, or similar) whose result is assigned"
+                        + " to a variable, followed by a dereference of that variable without an"
+                        + " intervening containsKey, getOrDefault, computeIfAbsent, or"
+                        + " requireNonNull guard.",
+                "Plain if (value == null) guards are not represented in the current"
+                        + " parser-neutral evidence model — same known limitation as"
+                        + " ENTITY_MANAGER_FIND_DEREFERENCE. Code that guards with ordinary branching"
+                        + " may be falsely flagged.");
+
+        put(catalog, TransactionIsolationDangerousRule.ID,
+                "@Transactional(isolation = READ_UNCOMMITTED) enables dirty reads",
+                "transactions", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using @Transactional with explicit isolation levels",
+                "A method sets the transaction isolation to READ_UNCOMMITTED, the weakest level."
+                        + " The method can observe rows written by concurrent transactions that have"
+                        + " not yet committed — including data that will be rolled back.",
+                "Application state is built on phantom data that may never have legally existed."
+                        + " In financial systems this is a data-integrity defect. In any system it"
+                        + " is a concurrency time bomb: invisible in development (no concurrent"
+                        + " writers), catastrophic in production (concurrent writes under load)."
+                        + " READ_COMMITTED (the database default) prevents dirty reads at minimal"
+                        + " overhead.",
+                "The method carries @Transactional and the isolation attribute resolves to"
+                        + " READ_UNCOMMITTED or its numeric equivalent 1. Detection is deterministic"
+                        + " via annotationAttributes.",
+                "A small set of bulk reporting queries intentionally use READ_UNCOMMITTED for"
+                        + " performance on non-critical reads. Suppress with diagscope:ignore and an"
+                        + " inline comment documenting the dirty-read tolerance.");
+
+        put(catalog, RequiresNewInLoopRule.ID,
+                "REQUIRES_NEW transaction called inside a loop — one DB transaction per iteration",
+                "transactions", Severity.ERROR, ALL_LANGUAGES,
+                "Spring applications using @Transactional(propagation = REQUIRES_NEW)",
+                "A method declared @Transactional(propagation = REQUIRES_NEW) is called from"
+                        + " inside a loop in a calling method visible in the flow. Each iteration"
+                        + " suspends the outer transaction, opens a brand-new one, commits it, and"
+                        + " resumes the outer transaction.",
+                "N iterations produce N independent transactions: N connection acquisitions, N"
+                        + " lock acquisitions, N commit round-trips to the database coordinator."
+                        + " Under any meaningful batch size this saturates the connection pool."
+                        + " Each held connection prevents other requests from acquiring one, causing"
+                        + " cascading latency spikes across all endpoints.",
+                "For each method in the flow that declares propagation = REQUIRES_NEW, the"
+                        + " preceding flow method (the direct caller) is checked for an invocation"
+                        + " whose method name matches the REQUIRES_NEW method and whose insideLoop"
+                        + " flag is true.",
+                "Matching is by method name only — two methods with the same name in different"
+                        + " classes may produce a false positive. Confidence is capped at MEDIUM."
+                        + " The rule fires only when REQUIRES_NEW is explicitly declared; default"
+                        + " or inherited propagation is not flagged.");
+
+        put(catalog, JpaBatchLoopWithoutFlushClearRule.ID,
+                "EntityManager.persist() in a loop without flush() + clear()",
+                "database", Severity.WARNING, ALL_LANGUAGES,
+                "JPA applications using EntityManager directly for batch operations",
+                "A method calls EntityManager.persist() or merge() inside a loop without calling"
+                        + " flush() and clear() anywhere in the same method. Every persisted entity"
+                        + " accumulates in the first-level cache (persistence context) for the entire"
+                        + " duration of the loop.",
+                "Hibernate must dirty-check every managed entity on every write. With N entities"
+                        + " in the loop, the dirty-check cost is O(N) per iteration — the total"
+                        + " work is O(N²). Memory pressure grows linearly with the number of"
+                        + " iterations. Imports of thousands of rows manifest as GC pressure,"
+                        + " extreme slowness, or OutOfMemoryError that is traced to the wrong place.",
+                "A persist or merge invocation with insideLoop = true on an EntityManager-like"
+                        + " receiver (scope or type contains entitymanager, em, session, or similar),"
+                        + " where neither flush() nor clear() is present anywhere in the method's"
+                        + " invocation list.",
+                "flush() + clear() called inside a helper method invoked from the loop is not"
+                        + " visible at this level and may produce a false positive. Suppress with"
+                        + " diagscope:ignore when batching is intentionally delegated to a helper.");
 
         return Collections.unmodifiableMap(catalog);
     }
