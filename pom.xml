@@ -31,9 +31,9 @@
         <javaparser.version>3.28.2</javaparser.version>
         <kotlin.version>2.4.10</kotlin.version>
         <picocli.version>4.7.7</picocli.version>
-        <jackson.version>2.22.0</jackson.version>
+        <jackson.version>2.22.3</jackson.version>
         <junit.version>6.1.0</junit.version>
-        <assertj.version>3.27.6</assertj.version>
+        <assertj.version>3.27.7</assertj.version>
 
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.5.5</maven.surefire.plugin.version>
