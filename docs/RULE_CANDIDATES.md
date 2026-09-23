@@ -827,6 +827,223 @@ Every rule should declare a confidence level at the finding level:
 - **MEDIUM** — pattern is likely problematic but depends on runtime configuration (e.g., scheduler error handler configured via XML).
 - **LOW** — heuristic, may have false positives in intentional patterns. Emit as INFO.
 
+## Wave 6 — Implemented 2026-09-03
+
+Seven new rules targeting null-safety gaps, transaction correctness, and database batch anti-patterns detected after analyzing production incidents in high-throughput JPA services.
+
+---
+
+### OPTIONAL_OR_ELSE_NULL
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Null safety
+
+**What it detects**
+`Optional.orElse(null)` on a method that returns `Optional<T>` — silently re-introducing the `null` the `Optional` was meant to eliminate.
+
+**Why it matters**
+Every caller receives either the wrapped value or `null`. Callers cannot distinguish a legitimate empty case from a successful result. The resulting `NullPointerException` surfaces far from this call site with no link to the `orElse(null)` origin.
+
+**Detection strategy**
+`method.invocations()` contains an `InvocationEvidence` with `methodName == "orElse"` and the argument text equals `"null"`. Syntactic check; no type resolution required.
+
+---
+
+### MAP_GET_DEREFERENCED_WITHOUT_CHECK
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Null safety
+
+**What it detects**
+The result of `Map.get(key)` assigned to a local variable and then used as a method-call receiver without a visible `containsKey`, `getOrDefault`, `computeIfAbsent`, or `requireNonNull` guard.
+
+**Why it matters**
+`Map.get()` returns `null` for a missing key. The pattern is so idiomatic that it barely reads as a bug — yet any missing key produces a `NullPointerException` at the dereference site, far from the `get()` that returned `null`.
+
+**Detection strategy**
+`method.invocations()` has a `get()` call on a map-looking receiver, its result is assigned to a named variable, and a subsequent invocation uses that variable as receiver without an observed guard. Known limitation: plain `if (value == null)` is not represented in the current evidence model.
+
+---
+
+### TRANSACTION_ISOLATION_DANGEROUS
+**Status:** `done`
+**Severity:** ERROR
+**Category:** Transactions
+
+**What it detects**
+`@Transactional(isolation = READ_UNCOMMITTED)` — the weakest isolation level, enabling dirty reads of uncommitted data.
+
+**Why it matters**
+Application state is built on phantom data that may never have legally existed. In financial systems this is a data-integrity defect. In any system it is a concurrency time bomb: invisible in development, catastrophic in production under concurrent writes.
+
+**Detection strategy**
+`annotationAttributes("Transactional").get("isolation")` resolves to `READ_UNCOMMITTED` or its numeric equivalent `1`. Detection is deterministic via annotation attributes.
+
+---
+
+### REQUIRES_NEW_IN_LOOP
+**Status:** `done`
+**Severity:** ERROR
+**Category:** Transactions
+
+**What it detects**
+A method declared `@Transactional(propagation = REQUIRES_NEW)` called from inside a loop in a calling method visible in the flow. Each iteration suspends the outer transaction and opens a brand-new one.
+
+**Why it matters**
+N iterations produce N independent transactions: N connection acquisitions, N lock acquisitions, N commit round-trips. Under any meaningful batch size this saturates the connection pool and causes cascading latency spikes across all endpoints.
+
+**Detection strategy**
+For each `REQUIRES_NEW` method in the flow, the preceding method checks `insideLoop == true` on the invocation whose name matches. Confidence is MEDIUM due to name-only matching.
+
+---
+
+### JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Database
+
+**What it detects**
+`EntityManager.persist()` or `merge()` inside a loop without `flush()` and `clear()` in the same method. Every persisted entity accumulates in the first-level cache for the entire loop duration.
+
+**Why it matters**
+Hibernate dirty-checks every managed entity on every write. With N entities the cost is O(N) per iteration — total work O(N²). Imports of thousands of rows manifest as GC pressure, extreme slowness, or `OutOfMemoryError`.
+
+**Detection strategy**
+`method.invocations()` has a `persist`/`merge` call with `insideLoop == true` on an `EntityManager`-like receiver, where neither `flush()` nor `clear()` appears anywhere in the method's invocation list.
+
+---
+
+### ENTITY_MANAGER_FIND_DEREFERENCE
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Null safety
+
+**What it detects**
+A value returned by `EntityManager.find(...)` assigned to a local variable and later used as a method-call receiver without a visible null guard. `EntityManager.find()` returns `null` when no row exists.
+
+**Detection strategy**
+A `find(...)` call on an `EntityManager`-looking receiver is assigned to a variable, and a later invocation uses that variable as receiver without an observed `Objects.requireNonNull`, `Optional.ofNullable`, or equivalent guard.
+
+---
+
+### READONLY_TRANSACTION_WRITE
+**Status:** `done`
+**Severity:** ERROR
+**Category:** Transactions
+
+**What it detects**
+Persistence writes (`save`, `delete`, `persist`, `merge`, `flush`, `executeUpdate`, `batchUpdate`, etc.) inside a method explicitly annotated with `@Transactional(readOnly = true)`.
+
+**Why it matters**
+The method advertises a read-only transaction while mutating state. Depending on the database, provider, and connection routing, the write can fail at runtime, bypass expected flushing, or be routed to infrastructure intended only for reads.
+
+**Detection strategy**
+The method carries `@Transactional` with `readOnly = true` and contains a write-method invocation on a repository, DAO, EntityManager, Hibernate Session, JdbcTemplate, or similar persistence receiver.
+
+---
+
+## Wave 7 — Implemented 2026-09-23
+
+Six new rules targeting code quality, performance, transactional correctness, resource management, and caching consistency.
+
+---
+
+### EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE
+**Status:** `done`
+**Severity:** INFO
+**Category:** Correctness
+
+**What it detects**
+Exception or error constructors called with no message argument (e.g. `throw new RuntimeException()`). The resulting exception has `getMessage() == null`.
+
+**Why it matters**
+Log aggregators display only the class name with no diagnostic context. Root-cause investigation requires a full stack trace just to understand what went wrong. In distributed systems a context-free exception in any one service makes the entire trace unreadable.
+
+**Detection strategy**
+Constructor-call invocations (methodName = simple class name, scope = "", receiverType = "") whose name matches `.*Exception` or `.*Error` with an empty argument list. Confidence LOW — naming convention only.
+
+---
+
+### PROPAGATION_SUPPORTS_WRITE_RISK
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Transactions
+
+**What it detects**
+`@Transactional(propagation = SUPPORTS)` methods that contain write operations on persistence APIs. `SUPPORTS` runs without a transaction when no transaction context exists.
+
+**Why it matters**
+Writes outside a transaction bypass rollback, leave data in an inconsistent half-written state, and can silently commit partial results with no error. The bug is invisible in tests where a surrounding `@Transactional` test method provides a context.
+
+**Detection strategy**
+Project-level scan: methods carrying `@Transactional` with propagation attribute matching `SUPPORTS`/`PROPAGATION.SUPPORTS`/`2`, whose invocations list contains a write-method name on a persistence-looking receiver.
+
+---
+
+### STREAM_IO_NOT_CLOSED
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Resource management
+
+**What it detects**
+`Files.list()`, `Files.walk()`, `Files.lines()`, `Files.find()`, or `BufferedReader.lines()` called outside a try-with-resources block. These return a `Stream` backed by an OS file descriptor.
+
+**Why it matters**
+Without closing, the file handle remains open until GC. In a long-running service, a burst of requests exhausts the JVM file-handle limit and causes `IOException: Too many open files` on unrelated operations. The failure typically surfaces during off-hours batch runs.
+
+**Detection strategy**
+InvocationEvidence with `resourceManaged == false` and method name in `{list, walk, lines, find}` where the scope/receiverType hint contains "files" or "reader". Confidence HIGH for `Files.*`, MEDIUM otherwise.
+
+---
+
+### LOG_MESSAGE_STRING_CONCAT
+**Status:** `done`
+**Severity:** INFO
+**Category:** Performance
+
+**What it detects**
+Logger calls where any argument contains string concatenation (`+`) with non-constant values instead of SLF4J parameterised substitution.
+
+**Why it matters**
+The concatenation is evaluated unconditionally even when the log level is disabled. In hot paths, this produces significant GC pressure from throwaway `String` objects. Profiler traces surface this as allocation spikes with no obvious source.
+
+**Detection strategy**
+InvocationEvidence where `loggerReceiver == true`, method name in `LOGGER_METHODS`, and any argument text contains ` + ` after filtering out constant-only expressions. Confidence LOW.
+
+---
+
+### CACHE_NAME_MISMATCH
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Correctness
+
+**What it detects**
+`@CacheEvict` or `@CachePut` annotations whose `value`/`cacheNames` don't intersect with any `@Cacheable` name on the same type. An eviction targeting an unknown cache has no effect.
+
+**Why it matters**
+Stale cache entries accumulate indefinitely. The application returns stale data after updates and the eviction call silently does nothing. The bug is never detected by unit tests because each test exercises only one side of the cache.
+
+**Detection strategy**
+Project-level scan: group methods by declaring type; compute intersection of cacheable names with eviction names. Fire if the eviction set is non-empty and intersection is empty.
+
+---
+
+### SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Resilience
+
+**What it detects**
+`@Scheduled(fixedRate = N)` where N < 500 ms and the method body contains at least 2 invocations. The default Spring scheduler runs all scheduled tasks on a single thread.
+
+**Why it matters**
+If the method takes longer than the fixedRate, tasks accumulate in the scheduler queue. Combined with a single-threaded default scheduler, this causes thread starvation for all other scheduled tasks in the application.
+
+**Detection strategy**
+Project-level scan: methods carrying `@Scheduled` with `fixedRate` attribute parseable as a long < 500 and with `invocations().size() >= 2`. Skips `fixedRateString` (may be a property placeholder).
+
+---
+
 ### Categories introduced over time
 | Wave | New categories | Rules |
 |---|---|---|
@@ -835,20 +1052,25 @@ Every rule should declare a confidence level at the finding level:
 | Wave 3 | **Spring** | `FIELD_INJECTION_USED` |
 | Wave 4 | **AOP / Proxy bypass** | `TRANSACTIONAL_ON_FINAL_METHOD` (joined wave 1's `ASYNC_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_INTERFACE`) |
 | Wave 5 | **Correctness** | `SCHEDULED_NON_VOID_RETURN` |
+| Wave 6 | **Null safety** (expanded) | `OPTIONAL_OR_ELSE_NULL`, `MAP_GET_DEREFERENCED_WITHOUT_CHECK`, `ENTITY_MANAGER_FIND_DEREFERENCE` |
+| Wave 7 | **Resource management** | `STREAM_IO_NOT_CLOSED` |
 
 ### Categories expanded over time
-| Category | Wave 1 | Wave 2 | Wave 3 | Wave 4 | Wave 5 |
-|---|---|---|---|---|---|
-| Exception handling | `INTERRUPTED_EXCEPTION_SWALLOWED`, `EXCEPTION_SUPPRESSED_IN_FINALLY` | | | | |
-| Concurrency | `COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED`, `EXECUTOR_NOT_SHUTDOWN` | | | | |
-| AOP / Proxy | `ASYNC_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_INTERFACE` | | `SYNCHRONIZED_ON_SPRING_BEAN` | | `AOP_ADVICE_ON_PRIVATE_METHOD` |
-| Resilience | `SCHEDULED_EXCEPTION_NOT_HANDLED` | `RETRY_ON_ALL_EXCEPTIONS` | | | `FEIGN_CLIENT_NO_FALLBACK` |
-| Kafka | `KAFKA_DEAD_LETTER_NOT_CONFIGURED`, `KAFKA_RETRY_WITHOUT_BACKOFF`, `OUTBOX_PATTERN_MISSING` | `KAFKA_TOPIC_HARDCODED` | | | |
-| Database | `BULK_OPERATION_IN_LOOP`, `MISSING_PAGINATION` | | | | |
-| Observability | `SPAN_NOT_CLOSED` | | | `MISSING_RESPONSE_STATUS` | |
-| Configuration | | `VALUE_WITHOUT_DEFAULT` | `SCHEDULED_NO_INITIAL_DELAY` | | |
-| Performance | | `HTTP_CLIENT_CREATED_PER_REQUEST`, `TRANSACTION_WITH_HTTP_CALL` | | `TRANSACTIONAL_READONLY_MISSING`, `ASYNC_DEFAULT_EXECUTOR`, `CACHE_EVICT_MISSING` | `OBJECT_MAPPER_CREATED_PER_REQUEST`, `MULTIPLE_SCHEDULED_NO_THREAD_POOL` |
-| Security | | `CORS_WILDCARD_ORIGIN`, `ENTITY_EXPOSED_IN_REST_RESPONSE` | | | |
+| Category | Wave 1 | Wave 2 | Wave 3 | Wave 4 | Wave 5 | Wave 6 | Wave 7 |
+|---|---|---|---|---|---|---|---|
+| Exception handling | `INTERRUPTED_EXCEPTION_SWALLOWED`, `EXCEPTION_SUPPRESSED_IN_FINALLY` | | | | | | `EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE` |
+| Concurrency | `COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED`, `EXECUTOR_NOT_SHUTDOWN` | | | | | | |
+| AOP / Proxy | `ASYNC_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_INTERFACE` | | `SYNCHRONIZED_ON_SPRING_BEAN` | | `AOP_ADVICE_ON_PRIVATE_METHOD` | | |
+| Resilience | `SCHEDULED_EXCEPTION_NOT_HANDLED` | `RETRY_ON_ALL_EXCEPTIONS` | | | `FEIGN_CLIENT_NO_FALLBACK` | | `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` |
+| Kafka | `KAFKA_DEAD_LETTER_NOT_CONFIGURED`, `KAFKA_RETRY_WITHOUT_BACKOFF`, `OUTBOX_PATTERN_MISSING` | `KAFKA_TOPIC_HARDCODED` | | | | | |
+| Database | `BULK_OPERATION_IN_LOOP`, `MISSING_PAGINATION` | | | | | `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR` | |
+| Observability | `SPAN_NOT_CLOSED` | | | `MISSING_RESPONSE_STATUS` | | | |
+| Configuration | | `VALUE_WITHOUT_DEFAULT` | `SCHEDULED_NO_INITIAL_DELAY` | | | | |
+| Performance | | `HTTP_CLIENT_CREATED_PER_REQUEST`, `TRANSACTION_WITH_HTTP_CALL` | | `TRANSACTIONAL_READONLY_MISSING`, `ASYNC_DEFAULT_EXECUTOR`, `CACHE_EVICT_MISSING` | `OBJECT_MAPPER_CREATED_PER_REQUEST`, `MULTIPLE_SCHEDULED_NO_THREAD_POOL` | | `LOG_MESSAGE_STRING_CONCAT` |
+| Security | | `CORS_WILDCARD_ORIGIN`, `ENTITY_EXPOSED_IN_REST_RESPONSE` | | | | | |
+| Null safety | | | | | | `OPTIONAL_OR_ELSE_NULL`, `MAP_GET_DEREFERENCED_WITHOUT_CHECK`, `ENTITY_MANAGER_FIND_DEREFERENCE` | |
+| Transactions | | | | | | `TRANSACTION_ISOLATION_DANGEROUS`, `REQUIRES_NEW_IN_LOOP`, `READONLY_TRANSACTION_WRITE` | `PROPAGATION_SUPPORTS_WRITE_RISK` |
+| Correctness | | | | | | | `CACHE_NAME_MISMATCH` |
 
 ### Current rule count by wave
 | Wave | Date | Rules added | Running total |
@@ -857,6 +1079,8 @@ Every rule should declare a confidence level at the finding level:
 | Wave 2 | 2026-08-26 | +7 | 69 |
 | Wave 3 | 2026-08-26 | +3 | 72 |
 | Wave 4 | 2026-08-26 | +5 | 77 |
-| Wave 5 | 2026-08-27 | +5 | **82** |
+| Wave 5 | 2026-08-27 | +5 | 82 |
+| Wave 6 | 2026-09-03 | +7 | 89 |
+| Wave 7 | 2026-09-23 | +6 | **95** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

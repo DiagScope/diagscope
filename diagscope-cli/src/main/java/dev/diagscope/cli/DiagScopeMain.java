@@ -42,6 +42,12 @@ import dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule;
 import dev.diagscope.core.application.rule.TransactionIsolationDangerousRule;
 import dev.diagscope.core.application.rule.RequiresNewInLoopRule;
 import dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule;
+import dev.diagscope.core.application.rule.ExceptionConstructorWithoutMessageRule;
+import dev.diagscope.core.application.rule.PropagationSupportsWriteRiskRule;
+import dev.diagscope.core.application.rule.StreamIoNotClosedRule;
+import dev.diagscope.core.application.rule.LogMessageStringConcatRule;
+import dev.diagscope.core.application.rule.CacheNameMismatchRule;
+import dev.diagscope.core.application.rule.ScheduledFixedRateTooAggressiveRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
@@ -190,7 +196,11 @@ public final class DiagScopeMain {
                 // Observability: unclosed spans
                 new SpanNotClosedRule(),
                 // Kafka: dead-letter topic not configured
-                new KafkaDeadLetterNotConfiguredRule()
+                new KafkaDeadLetterNotConfiguredRule(),
+                // Wave 7: code quality, resource management, performance
+                new ExceptionConstructorWithoutMessageRule(),
+                new StreamIoNotClosedRule(),
+                new LogMessageStringConcatRule()
         );
         var fullEngine = new RuleEngine(flowRules, List.of(
                 new GodClassRule(),
@@ -235,7 +245,11 @@ public final class DiagScopeMain {
                 new AopAdviceOnPrivateMethodRule(),
                 new FeignClientNoFallbackRule(),
                 new MultipleScheduledNoThreadPoolRule(),
-                new ObjectMapperCreatedPerRequestRule()
+                new ObjectMapperCreatedPerRequestRule(),
+                // Wave 7: transactions, caching, scheduling
+                new PropagationSupportsWriteRiskRule(),
+                new CacheNameMismatchRule(),
+                new ScheduledFixedRateTooAggressiveRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -375,7 +389,14 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule.ID,
                 dev.diagscope.core.application.rule.TransactionIsolationDangerousRule.ID,
                 dev.diagscope.core.application.rule.RequiresNewInLoopRule.ID,
-                dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule.ID
+                dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule.ID,
+                // Wave 7
+                dev.diagscope.core.application.rule.ExceptionConstructorWithoutMessageRule.ID,
+                dev.diagscope.core.application.rule.PropagationSupportsWriteRiskRule.ID,
+                dev.diagscope.core.application.rule.StreamIoNotClosedRule.ID,
+                dev.diagscope.core.application.rule.LogMessageStringConcatRule.ID,
+                dev.diagscope.core.application.rule.CacheNameMismatchRule.ID,
+                dev.diagscope.core.application.rule.ScheduledFixedRateTooAggressiveRule.ID
         );
     }
 

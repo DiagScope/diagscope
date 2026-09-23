@@ -22,7 +22,7 @@ class RuleRemediationCatalogTest {
                     assertThat(remediation.snippet()).contains("logger.error").doesNotContain(";");
                 });
 
-        assertThat(RuleRemediationCatalog.forFinding(finding(SilentCatchRule.ID, "Worker.java"))).isEmpty();
+        assertThat(RuleRemediationCatalog.forFinding(finding(SilentFailureConversionRule.ID, "Worker.java"))).isEmpty();
     }
 
     private static Finding finding(String rule, String file) {

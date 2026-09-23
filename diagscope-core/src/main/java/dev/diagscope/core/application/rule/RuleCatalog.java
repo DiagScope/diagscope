@@ -1591,6 +1591,138 @@ public final class RuleCatalog {
                         + " visible at this level and may produce a false positive. Suppress with"
                         + " diagscope:ignore when batching is intentionally delegated to a helper.");
 
+        // Wave 7: code quality, transactions, resource management, performance, caching, scheduling
+        put(catalog, ExceptionConstructorWithoutMessageRule.ID,
+                "Exception constructed without a message — getMessage() returns null",
+                "correctness", Severity.INFO, ALL_LANGUAGES,
+                "Spring and general Java/Kotlin applications throwing exceptions without context",
+                "A constructor call to a class whose name ends with 'Exception' or 'Error'"
+                        + " is detected with an empty argument list. The resulting exception has"
+                        + " getMessage() == null and provides no context beyond its class name.",
+                "A context-free exception forces every investigator to trace the stack back to"
+                        + " the source to understand what went wrong. In a distributed system"
+                        + " where a single user request traverses multiple services, a null"
+                        + " message in any one of them makes the entire trace unreadable."
+                        + " Including the relevant identifier (orderId, userId, resourceId) in"
+                        + " the message turns a 20-minute investigation into a 20-second search.",
+                "Invocations whose method name matches .*Exception|.*Error with an empty"
+                        + " arguments list are flagged. Confidence is capped at LOW because the"
+                        + " match is by naming convention only.",
+                "A class named XxxException that does not extend Throwable will produce a"
+                        + " false positive. The rule does not track exception classes created"
+                        + " solely for testing (inside @Test methods).");
+
+        put(catalog, PropagationSupportsWriteRiskRule.ID,
+                "@Transactional(SUPPORTS) method with write operations — may commit without a transaction",
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Transactional(propagation = SUPPORTS) on write methods",
+                "A method annotated @Transactional(propagation = SUPPORTS) that also invokes"
+                        + " write operations on a persistence API (repository, EntityManager,"
+                        + " JdbcTemplate). SUPPORTS means the method runs with a transaction"
+                        + " if the caller has one, or without one if it does not.",
+                "When SUPPORTS is called from a non-transactional context, each write commits"
+                        + " immediately in auto-commit mode. A failure mid-method leaves partial"
+                        + " writes in the database — no rollback, no atomicity. This creates"
+                        + " silent data-corruption bugs that pass integration tests (which run"
+                        + " inside a transaction) and surface only in production with concurrent"
+                        + " or partially-failed writes.",
+                "Methods with @Transactional where the propagation attribute resolves to"
+                        + " SUPPORTS or 2, that also contain invocations of write method names"
+                        + " (save, persist, delete, etc.) on persistence-like receivers.",
+                "Write detection relies on method names; a method named 'save' that is not"
+                        + " a persistence write will produce a false positive. Suppress with"
+                        + " diagscope:ignore when SUPPORTS is intentional for a read-only method.");
+
+        put(catalog, StreamIoNotClosedRule.ID,
+                "I/O-backed stream (Files.list/walk/lines) not wrapped in try-with-resources",
+                "resource-management", Severity.WARNING, ALL_LANGUAGES,
+                "Java/Kotlin applications that use Files.list(), Files.walk(), Files.lines(), or BufferedReader.lines()",
+                "A call to Files.list(), Files.walk(), Files.lines(), or BufferedReader.lines()"
+                        + " is detected outside a try-with-resources block. These methods return"
+                        + " a Stream backed by an OS file descriptor that must be explicitly closed.",
+                "Unlike collection streams, I/O-backed streams wrap an OS file handle. Without"
+                        + " closing, the handle remains open until the stream is garbage-collected"
+                        + " — which may never happen in a long-running service. The JVM file-handle"
+                        + " limit (typically 1024–65536 per process) is exhausted silently over time,"
+                        + " eventually causing IOException: Too many open files on unrelated I/O"
+                        + " operations, taking the entire service down.",
+                "Invocations of list, walk, lines, or find on a receiver whose type or scope"
+                        + " contains 'Files' or 'BufferedReader', where the resourceManaged flag"
+                        + " is false. Confidence HIGH for Files.*; MEDIUM for other receivers.",
+                "The rule does not track a stream variable assigned to a local and later closed"
+                        + " manually in a finally block. Such patterns would still be flagged."
+                        + " Suppress with diagscope:ignore when manual close is verified.");
+
+        put(catalog, LogMessageStringConcatRule.ID,
+                "Logger call uses string concatenation instead of parameterised substitution",
+                "performance", Severity.INFO, ALL_LANGUAGES,
+                "Spring and general Java/Kotlin applications using SLF4J, Log4j2, or JUL loggers",
+                "A call to a logger method (debug, info, warn, error, etc.) is detected where"
+                        + " at least one argument contains the string concatenation operator '+'."
+                        + " This causes the JVM to build the message string unconditionally,",
+                "Logger arguments formed by string concatenation are evaluated whether or not"
+                        + " the configured log level is enabled. In production, DEBUG and TRACE"
+                        + " are typically disabled, yet the application still pays the CPU and"
+                        + " allocation cost for every concatenation on every invocation."
+                        + " In hot paths — loops, reactive pipelines, per-request code — this"
+                        + " creates significant GC pressure from throwaway String objects."
+                        + " Profiler traces surface this as unexpected allocation spikes with"
+                        + " no obvious allocation site.",
+                "Logger invocations (identified via DiagnosticSignals.isLoggerCall) where any"
+                        + " argument string contains ' + '. Arguments that appear to be constant"
+                        + " string-only expressions are excluded. Confidence LOW.",
+                "The rule detects '+' in raw argument text and will miss cases where a helper"
+                        + " method builds the concatenated string before passing it. It will also"
+                        + " flag constant expressions like 'PREFIX + SUFFIX' which the compiler"
+                        + " folds at compile time. Confidence is LOW to account for these cases.");
+
+        put(catalog, CacheNameMismatchRule.ID,
+                "@CacheEvict or @CachePut targets a cache name that @Cacheable never populates",
+                "correctness", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using Spring Cache with @Cacheable and @CacheEvict/@CachePut",
+                "Within the same declaring type, the cache names declared on @CacheEvict or"
+                        + " @CachePut annotations do not intersect with the cache names declared"
+                        + " on @Cacheable annotations. The eviction call targets a cache that"
+                        + " the class never populates.",
+                "A cache-name mismatch makes eviction a no-op. Stale data from the populated"
+                        + " cache is served indefinitely after a write, regardless of how many"
+                        + " times the eviction method is called. In financial or catalogue services"
+                        + " this means users see outdated prices, stock levels, or permissions"
+                        + " after a change is committed to the database. The bug is invisible in"
+                        + " development (tests call the eviction and re-read, but from the correct"
+                        + " cache, so results look fresh) and surfaces only under production data.",
+                "Methods in the same declaring type are grouped. Cache names are extracted from"
+                        + " the 'value' or 'cacheNames' attributes of @Cacheable, @CacheEvict,"
+                        + " and @CachePut. The set intersection is computed; an empty intersection"
+                        + " with a non-empty eviction set triggers the finding.",
+                "Cache names set via @CacheConfig at the class level are not extracted; a"
+                        + " class using @CacheConfig + bare @CachePut may produce a false positive."
+                        + " Suppress with diagscope:ignore in that case.");
+
+        put(catalog, ScheduledFixedRateTooAggressiveRule.ID,
+                "@Scheduled(fixedRate) below 500 ms with non-trivial method body",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Scheduled with fixedRate on non-trivial methods",
+                "A @Scheduled method has a fixedRate attribute below 500 ms and contains"
+                        + " more than one invocation. The very high polling frequency combined"
+                        + " with non-trivial work increases the risk of execution overlap and"
+                        + " resource exhaustion.",
+                "fixedRate fires the task at a fixed wall-clock interval regardless of how"
+                        + " long the previous execution took. With a sub-500ms rate, a task"
+                        + " that makes a database query, HTTP call, or does any I/O will trigger"
+                        + " hundreds of operations per minute per instance — even when there is"
+                        + " nothing to process. Under the default single-threaded scheduler,"
+                        + " slow executions queue up indefinitely. Under a thread-pool scheduler,"
+                        + " concurrent executions contend over shared resources. Either way,"
+                        + " the application degrades under production load.",
+                "Methods with @Scheduled where fixedRate (as a long literal) is below 500,"
+                        + " and the method has at least 2 invocations. fixedRateString is"
+                        + " excluded because the value may be a property placeholder.",
+                "The invocation-count threshold is a blunt proxy for cost. A 100ms task"
+                        + " with 2 trivial in-memory calls is not problematic. Suppress with"
+                        + " diagscope:ignore when the high rate and non-trivial body are"
+                        + " intentional and the per-tick cost is demonstrably low.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

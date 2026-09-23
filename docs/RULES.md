@@ -770,6 +770,138 @@ Recommended response: split the class into smaller, cohesive units — each with
 responsibility. Consider domain services, command/query objects, or collaborator classes so each
 piece is independently testable.
 
+## `OPTIONAL_OR_ELSE_NULL`
+
+Detects `Optional.orElse(null)` — silently re-introducing the `null` the `Optional` was supposed to eliminate.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; the argument is the literal `null`, which is syntactically explicit.
+- Final confidence: capped by reachability.
+
+Known limitation: intentional nullable interop with legacy APIs that expect `null` (e.g. older serializers) will be flagged; suppress with `diagscope:ignore` and a comment explaining the nullable contract.
+
+Recommended response: replace `orElse(null)` with `orElseThrow()` (forces callers to handle absence), `orElse(defaultValue)` (explicit fallback), or return `Optional<T>` to propagate the absent-case contract.
+
+## `MAP_GET_DEREFERENCED_WITHOUT_CHECK`
+
+Detects the result of `Map.get(key)` assigned to a local variable and later used as a method-call receiver without a guard for the absent-key case. `Map.get()` returns `null` when the key is not present.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; the guard may exist in a caller not visible to this method.
+- Final confidence: capped by reachability.
+
+Known limitation: plain `if (value == null)` checks are not represented in the current parser-neutral evidence model. Code that guards with ordinary branching may be falsely flagged.
+
+Recommended response: replace `map.get(key)` followed by dereference with `map.getOrDefault(key, defaultValue)`, `map.computeIfAbsent(key, ...)`, or guard explicitly with `map.containsKey(key)` before use.
+
+## `TRANSACTION_ISOLATION_DANGEROUS`
+
+Detects `@Transactional(isolation = READ_UNCOMMITTED)` — the weakest isolation level, which permits dirty reads of uncommitted data from concurrent transactions.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `HIGH`; the isolation attribute is read directly from the annotation.
+- Final confidence: capped by reachability.
+
+Known limitation: bulk reporting queries that intentionally use `READ_UNCOMMITTED` for performance on non-critical reads are valid use cases; suppress with `diagscope:ignore` and an inline comment documenting the dirty-read tolerance.
+
+Recommended response: use the default `READ_COMMITTED` isolation level, which prevents dirty reads at minimal overhead. If lower latency is the goal, consider query hints or read-replica routing without lowering isolation.
+
+## `REQUIRES_NEW_IN_LOOP`
+
+Detects a `@Transactional(propagation = REQUIRES_NEW)` method called from inside a loop in a calling method visible in the flow. Each iteration suspends the outer transaction and opens a brand-new one, producing one database transaction per loop iteration.
+
+- Default severity: `ERROR`.
+- Evidence confidence: `MEDIUM`; matching is by method name only.
+- Final confidence: capped by reachability.
+
+Known limitation: two methods with the same name in different classes may produce a false positive. The rule fires only when `REQUIRES_NEW` is explicitly declared; default or inherited propagation is not flagged.
+
+Recommended response: collect the work to be done inside the loop, then call the `REQUIRES_NEW` method once outside the loop with the batch. Alternatively, use `saveAll()` / `deleteAllById()` which apply their own batching internally.
+
+## `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR`
+
+Detects `EntityManager.persist()` or `merge()` inside a loop without `flush()` and `clear()` anywhere in the same method. Every persisted entity accumulates in the first-level cache for the entire loop duration.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; receiver matching uses scope-name heuristics.
+- Final confidence: capped by reachability.
+
+Known limitation: `flush()` + `clear()` called inside a helper method invoked from the loop is not visible at this level and may produce false positives. Suppress with `diagscope:ignore` when batching is intentionally delegated to a helper.
+
+Recommended response: add `entityManager.flush(); entityManager.clear();` after every N iterations (N = JDBC batch size, typically 50–100) to keep the persistence context bounded. Alternatively use `saveAll()` on a Spring Data repository, which applies the configured `spring.jpa.properties.hibernate.jdbc.batch_size` automatically.
+
+## `EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE`
+
+Detects exception and error constructors called with no message argument (e.g. `throw new RuntimeException()`). The resulting exception has `getMessage() == null`, and log aggregators show only the class name with no context.
+
+- Default severity: `INFO`.
+- Evidence confidence: `LOW`; matches by naming convention (`.*Exception` or `.*Error`).
+- Final confidence: capped by reachability.
+
+Known limitation: a class whose name ends with `Exception` or `Error` but does not extend `Throwable` may produce a false positive.
+
+Recommended response: pass a descriptive message that includes the relevant domain values: `new RuntimeException("Operation failed for id: " + id)`. The message should describe what went wrong, what value was missing or violated, and ideally which identifier was involved. Avoid generic messages such as `"Unexpected error"` — they add no value over the class name alone.
+
+## `PROPAGATION_SUPPORTS_WRITE_RISK`
+
+Detects `@Transactional(propagation = SUPPORTS)` methods that contain write operations on persistence APIs (repositories, DAO, `EntityManager`, `JdbcTemplate`). `SUPPORTS` runs without a transaction when no transaction context exists, so writes may execute outside a transaction silently.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; matches by annotation attribute and write-method name list.
+- Final confidence: not capped (project rule).
+
+Known limitation: does not detect writes delegated to helper methods not visible in the same method body.
+
+Recommended response: change propagation to `REQUIRED` (the default) to guarantee a transaction exists before any write operation is attempted. Use `SUPPORTS` only for read-only methods that benefit from participating in a transaction when one is active but are also safe to run without one.
+
+## `STREAM_IO_NOT_CLOSED`
+
+Detects `Files.list()`, `Files.walk()`, `Files.lines()`, `Files.find()`, and `BufferedReader.lines()` called outside a try-with-resources block. These methods return a `Stream` backed by an OS file descriptor that must be explicitly closed.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` for `Files.*` calls; `MEDIUM` when inferred from method name alone.
+- Final confidence: capped by reachability.
+
+Known limitation: does not detect whether the stream result is assigned to a variable and manually closed in a `finally` block.
+
+Recommended response: wrap the call in try-with-resources: `try (var stream = Files.walk(path)) { ... }`. For small files, use `Files.readAllLines()` or `Files.readString()` which read and close atomically.
+
+## `LOG_MESSAGE_STRING_CONCAT`
+
+Detects logger calls (SLF4J, Log4j, JUL) where any argument contains string concatenation (`+`) with non-constant values instead of parameterised substitution. The concatenation is evaluated unconditionally, even when the log level is disabled.
+
+- Default severity: `INFO`.
+- Evidence confidence: `LOW`; checks for ` + ` in raw argument text.
+- Final confidence: capped by reachability.
+
+Known limitation: will miss string building in helper methods; may flag compile-time constant folding where the `+` involves only literals and `static final` fields.
+
+Recommended response: replace string concatenation with SLF4J parameterised substitution: `log.debug("Processing order {}", orderId)`. The framework skips message formatting entirely when the level is disabled. For expensive `toString()` calls, wrap in a guard: `if (log.isDebugEnabled())`.
+
+## `CACHE_NAME_MISMATCH`
+
+Detects `@CacheEvict` or `@CachePut` annotations whose cache names do not intersect with any `@Cacheable` name on the same type. An eviction targeting an unknown cache name has no effect, leaving stale entries in the real cache indefinitely.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; compares cache name sets within the same declaring type.
+- Final confidence: not capped (project rule).
+
+Known limitation: does not resolve cache names coming from Spring property placeholders or `@AliasFor` meta-annotations.
+
+Recommended response: align all `@CacheEvict` and `@CachePut` `value`/`cacheNames` attributes with the exact names used in `@Cacheable` on the same class. Introduce a shared constant to avoid copy-paste drift.
+
+## `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE`
+
+Detects `@Scheduled(fixedRate = N)` methods where N is below 500 ms and the method body contains at least two invocations. A very high scheduling frequency combined with a non-trivial body risks thread starvation in the default single-thread scheduler and causes continuous GC pressure.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; compares `fixedRate` literal against a 500 ms threshold.
+- Final confidence: not capped (project rule).
+
+Known limitation: skips `fixedRateString` (Spring property placeholders); does not evaluate whether the method body is actually expensive at runtime.
+
+Recommended response: use a `fixedDelay` instead of `fixedRate` for polling tasks so that the next execution starts only after the previous one completes. For truly latency-sensitive polling, configure a dedicated `ThreadPoolTaskScheduler` with an appropriate pool size.
+
 ## Rule admission criteria
 
 Before adding another rule:

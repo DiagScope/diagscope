@@ -100,6 +100,20 @@ Kafka listener has no dead-letter topic configured. Failed messages after retry 
 - Affected flows: Kafka topic=payments (`MEDIUM`, depth 0)
 - Fingerprint: `sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f`
 
+**Copy-ready remediation (review before applying):**
+
+```java
+@Bean
+public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
+    var recoverer = new DeadLetterPublishingRecoverer(template);
+    var backoff = new ExponentialBackOff(1000L, 2.0);
+    backoff.setMaxElapsedTime(30_000L);
+    return new DefaultErrorHandler(recoverer, backoff);
+}
+```
+
+Register the DefaultErrorHandler as a @Bean so all listeners inherit it without per-listener errorHandler attributes. Adapt names and domain fields, then review the change in context.
+
 <details><summary>Call paths (1)</summary>
 
 - `KAFKA_LISTENER` Kafka topic=payments
@@ -188,6 +202,17 @@ Exception is caught and ignored.
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: Kafka topic=payments (`HIGH`, depth 0)
 - Fingerprint: `sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f`
+
+**Copy-ready remediation (review before applying):**
+
+```java
+catch (SomeException exception) {
+    logger.error("Operation failed for {}", operationId, exception);
+    throw new ServiceException("Operation failed", exception);
+}
+```
+
+At a boundary where propagation is not possible, log and record a metric; never leave the block empty. Adapt names and domain fields, then review the change in context.
 
 <details><summary>Call paths (1)</summary>
 
