@@ -48,6 +48,11 @@ import dev.diagscope.core.application.rule.StreamIoNotClosedRule;
 import dev.diagscope.core.application.rule.LogMessageStringConcatRule;
 import dev.diagscope.core.application.rule.CacheNameMismatchRule;
 import dev.diagscope.core.application.rule.ScheduledFixedRateTooAggressiveRule;
+import dev.diagscope.core.application.rule.RegexCompiledInLoopRule;
+import dev.diagscope.core.application.rule.StringFormatInLoopRule;
+import dev.diagscope.core.application.rule.TransactionalAsyncCombinationRule;
+import dev.diagscope.core.application.rule.ThreadSleepInFlowRule;
+import dev.diagscope.core.application.rule.SequentialFutureJoinInLoopRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
@@ -200,7 +205,12 @@ public final class DiagScopeMain {
                 // Wave 7: code quality, resource management, performance
                 new ExceptionConstructorWithoutMessageRule(),
                 new StreamIoNotClosedRule(),
-                new LogMessageStringConcatRule()
+                new LogMessageStringConcatRule(),
+                // Wave 8
+                new RegexCompiledInLoopRule(),
+                new StringFormatInLoopRule(),
+                new ThreadSleepInFlowRule(),
+                new SequentialFutureJoinInLoopRule()
         );
         var fullEngine = new RuleEngine(flowRules, List.of(
                 new GodClassRule(),
@@ -249,7 +259,9 @@ public final class DiagScopeMain {
                 // Wave 7: transactions, caching, scheduling
                 new PropagationSupportsWriteRiskRule(),
                 new CacheNameMismatchRule(),
-                new ScheduledFixedRateTooAggressiveRule()
+                new ScheduledFixedRateTooAggressiveRule(),
+                // Wave 8
+                new TransactionalAsyncCombinationRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -396,7 +408,13 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.StreamIoNotClosedRule.ID,
                 dev.diagscope.core.application.rule.LogMessageStringConcatRule.ID,
                 dev.diagscope.core.application.rule.CacheNameMismatchRule.ID,
-                dev.diagscope.core.application.rule.ScheduledFixedRateTooAggressiveRule.ID
+                dev.diagscope.core.application.rule.ScheduledFixedRateTooAggressiveRule.ID,
+                // Wave 8
+                dev.diagscope.core.application.rule.RegexCompiledInLoopRule.ID,
+                dev.diagscope.core.application.rule.StringFormatInLoopRule.ID,
+                dev.diagscope.core.application.rule.TransactionalAsyncCombinationRule.ID,
+                dev.diagscope.core.application.rule.ThreadSleepInFlowRule.ID,
+                dev.diagscope.core.application.rule.SequentialFutureJoinInLoopRule.ID
         );
     }
 

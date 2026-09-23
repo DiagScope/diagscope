@@ -902,6 +902,66 @@ Known limitation: skips `fixedRateString` (Spring property placeholders); does n
 
 Recommended response: use a `fixedDelay` instead of `fixedRate` for polling tasks so that the next execution starts only after the previous one completes. For truly latency-sensitive polling, configure a dedicated `ThreadPoolTaskScheduler` with an appropriate pool size.
 
+## `REGEX_COMPILED_IN_LOOP`
+
+Detects `Pattern.compile()` called inside a loop body. Each call re-parses the regex and builds a new automaton, performing identical expensive work on every iteration.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; matched by method name `compile` and scope/receiverType hint containing `pattern`.
+- Final confidence: capped by reachability.
+
+Known limitation: does not detect `Pattern.compile()` in a helper method called from inside the loop.
+
+Recommended response: move `Pattern.compile(...)` to a `static final` field. The pattern is compiled once at class load time and shared across all iterations at zero additional cost.
+
+## `STRING_FORMAT_IN_LOOP`
+
+Detects `String.format()` or `MessageFormat.format()` called inside a loop body. The format string is re-parsed on every call, allocating intermediate specifier objects and varargs arrays each iteration.
+
+- Default severity: `INFO`.
+- Evidence confidence: `HIGH`; matched by method name `format` and scope/receiverType hint containing `string` or `messageformat`.
+- Final confidence: capped by reachability.
+
+Known limitation: does not inspect whether the format string is constant or dynamic.
+
+Recommended response: replace with `StringBuilder` concatenation for simple substitutions. For SLF4J log messages use parameterised substitution `log.debug("{} processed", item)`.
+
+## `TRANSACTIONAL_ASYNC_COMBINATION`
+
+Detects methods annotated with both `@Transactional` and `@Async`. Spring's `@Async` proxy submits the body to a thread-pool executor where the calling thread's `ThreadLocal` transaction context is absent — a new independent transaction is opened on the worker thread that cannot participate in the caller's transaction.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; annotation presence is unambiguous.
+- Final confidence: not capped (project rule).
+
+Known limitation: meta-annotations composed of both (`@AsyncTransactional`) are not detected without symbol resolution.
+
+Recommended response: remove `@Transactional` from the async method and put it on a synchronous helper the async method delegates to. This ensures transactional semantics apply within the async thread's own scope.
+
+## `THREAD_SLEEP_IN_FLOW`
+
+Detects `Thread.sleep()` in the call graph reachable from a REST, Kafka, or `@Scheduled` entrypoint. Sleeping blocks the server thread for the full duration, preventing it from serving other requests. Under concurrent load all available threads can be pinned simultaneously.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH`; matched by method name `sleep` and scope/receiverType hint containing `thread`.
+- Final confidence: capped by reachability.
+
+Known limitation: does not distinguish a sleep in a dedicated background thread (not serving requests) from one in a request-handling path.
+
+Recommended response: for retry back-off use `@Retryable(backoff = @Backoff(...))`. For polling use `@Scheduled(fixedDelay = ...)`. For reactive flows use `Mono.delay()`.
+
+## `SEQUENTIAL_FUTURE_JOIN_IN_LOOP`
+
+Detects `CompletableFuture.join()` called inside a loop, which serialises what should be parallel async work. Each `join()` blocks the calling thread until that specific future completes — the total latency becomes the sum of all task durations, not the maximum.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; matched by method name `join` inside a loop with scope/receiverType hint containing `future` or `completable`.
+- Final confidence: capped by reachability.
+
+Known limitation: does not distinguish intentional sequential ordering (future-2 depends on future-1's result) from accidental serialisation.
+
+Recommended response: collect all futures first, then fan in with `CompletableFuture.allOf(futures.toArray(...)).join()` and extract results with `getNow()`. This waits only for the slowest task, not for each one sequentially.
+
 ## Rule admission criteria
 
 Before adding another rule:

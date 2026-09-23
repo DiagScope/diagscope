@@ -1081,6 +1081,7 @@ Project-level scan: methods carrying `@Scheduled` with `fixedRate` attribute par
 | Wave 4 | 2026-08-26 | +5 | 77 |
 | Wave 5 | 2026-08-27 | +5 | 82 |
 | Wave 6 | 2026-09-03 | +7 | 89 |
-| Wave 7 | 2026-09-23 | +6 | **95** |
+| Wave 7 | 2026-09-23 | +6 | 95 |
+| Wave 8 | 2026-09-23 | +5 | **100** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

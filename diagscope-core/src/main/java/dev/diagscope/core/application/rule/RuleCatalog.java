@@ -1723,6 +1723,97 @@ public final class RuleCatalog {
                         + " diagscope:ignore when the high rate and non-trivial body are"
                         + " intentional and the per-tick cost is demonstrably low.");
 
+        // Wave 8
+        put(catalog, RegexCompiledInLoopRule.ID,
+                "Pattern.compile() called inside a loop body",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Boot services that validate or transform strings in loops",
+                "Pattern.compile() re-parses the entire regular expression and builds a new NFA/DFA"
+                        + " automaton on every call. When this sits inside a loop, N identical"
+                        + " compilations are performed, each allocating intermediate objects that"
+                        + " immediately become garbage.",
+                "Regex compilation is one of the most CPU-intensive string operations in the JVM."
+                        + " Moving it out of the loop to a static final field eliminates all"
+                        + " redundant work: the pattern is compiled once at class load time"
+                        + " and shared across all loop iterations at zero additional cost.",
+                "Invocations of Pattern.compile() with insideLoop == true, matched by scope/receiverType"
+                        + " hint containing 'pattern'. Confidence HIGH.",
+                "Does not detect Pattern.compile() called inside a helper method that is in turn"
+                        + " called from the loop body.");
+
+        put(catalog, StringFormatInLoopRule.ID,
+                "String.format() or MessageFormat.format() called inside a loop",
+                "performance", Severity.INFO, ALL_LANGUAGES,
+                "Services processing collections, streams, or batch payloads in loops",
+                "String.format() re-parses the format string and allocates varargs arrays on"
+                        + " every call. Inside a loop, this happens N times for the same format"
+                        + " spec that never changes.",
+                "Benchmarks show String.format to be 3–10× slower than equivalent StringBuilder"
+                        + " concatenation for simple substitutions. In high-throughput loops"
+                        + " (Kafka consumers, batch processors, report generators) the overhead"
+                        + " accumulates into measurable latency and GC pressure.",
+                "Invocations of format() with insideLoop == true and scope/receiverType hint"
+                        + " containing 'string' or 'messageformat'. Confidence HIGH.",
+                "Does not inspect whether the format string is constant or dynamic.");
+
+        put(catalog, TransactionalAsyncCombinationRule.ID,
+                "@Transactional and @Async both declared on the same method",
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "Spring services using async processing with database writes",
+                "A method annotated with both @Transactional and @Async will execute on a"
+                        + " new thread (via the @Async proxy) where no transaction context exists."
+                        + " Spring opens a brand-new independent transaction on the worker thread"
+                        + " that cannot participate in the caller's transaction.",
+                "@Transactional context is stored in a ThreadLocal bound to the calling thread."
+                        + " When @Async submits the work to a thread-pool executor, that ThreadLocal"
+                        + " is absent on the new thread. Each async invocation runs its own"
+                        + " independent transaction — a failure in the caller after the async method"
+                        + " committed leaves the database in a partially-written state with no"
+                        + " rollback possible.",
+                "Project-wide scan for methods whose annotations() set contains both 'Transactional'"
+                        + " and 'Async'. Confidence HIGH.",
+                "Meta-annotations (e.g. a custom @AsyncTransactional that carries both)"
+                        + " are not detected.");
+
+        put(catalog, ThreadSleepInFlowRule.ID,
+                "Thread.sleep() called in the flow of a web or messaging entrypoint",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "REST controllers, Kafka listeners, and scheduled tasks in servlet-model services",
+                "Thread.sleep() blocks the calling thread for the full duration. In a"
+                        + " servlet-model or platform-thread web server, every request consumes"
+                        + " a pooled thread. A sleeping thread holds that slot and prevents it"
+                        + " from serving other requests.",
+                "Under a spike — slow downstream, misconfigured retry loop, burst of concurrent"
+                        + " requests — all available threads can be pinned simultaneously. The"
+                        + " result is a complete service outage: new requests queue indefinitely,"
+                        + " health checks time out, and the load balancer marks the instance"
+                        + " unhealthy. The root cause is often buried in a utility method"
+                        + " invisible to on-call engineers.",
+                "Invocations of sleep() where scope/receiverType hint contains 'thread', found"
+                        + " anywhere in the flow reachable from a REST/Kafka/Scheduled entrypoint."
+                        + " Confidence HIGH.",
+                "Does not distinguish a sleep in a dedicated background thread (not serving"
+                        + " requests) from one in a request-handling path. Use diagscope:ignore"
+                        + " for intentional background-thread sleeps.");
+
+        put(catalog, SequentialFutureJoinInLoopRule.ID,
+                "CompletableFuture.join() called inside a loop, serialising parallel tasks",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Services that fan out concurrent tasks with CompletableFuture",
+                "CompletableFuture.join() blocks the calling thread until that specific future"
+                        + " completes. Called in a loop, it processes futures one at a time:"
+                        + " the thread waits for future-0, then future-1, and so on. Total latency"
+                        + " becomes the sum of all task durations, not the maximum.",
+                "Submitting N HTTP calls or DB queries as CompletableFuture tasks and joining"
+                        + " them in a loop reduces to N sequential blocking calls. At N=10 remote"
+                        + " calls of 100 ms each, the loop takes 1000 ms where CompletableFuture.allOf"
+                        + " would take ≈100 ms. The regression is invisible in tests that use mocks"
+                        + " returning instantly and only surfaces under realistic latencies.",
+                "Invocations of join() with insideLoop == true and scope/receiverType hint"
+                        + " containing 'future' or 'completable'. Confidence MEDIUM.",
+                "Does not distinguish intentional sequential ordering (where future-2 depends on"
+                        + " future-1's result) from accidental serialisation.");
+
         return Collections.unmodifiableMap(catalog);
     }
 
