@@ -10,7 +10,7 @@ locks, blocking calls in reactive loops, N+1 queries, and more.
 It does not style-check your code. Every finding is anchored to a specific entrypoint → method chain
 so you see *which production path* goes blind when something breaks.
 
-44 rules. Java and Kotlin. Spring, Quarkus, Micronaut, and framework-free projects.
+100 rules. Java and Kotlin. Spring, Quarkus, Micronaut, and framework-free projects.
 
 ## Install
 

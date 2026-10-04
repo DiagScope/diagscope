@@ -574,21 +574,77 @@ Recommended response: always provide a timeout (`future.get(5, TimeUnit.SECONDS)
 
 ## `BLOCKING_CALL_IN_REACTIVE_CONTEXT`
 
-Detects a blocking call (`Thread.sleep`, `Object.wait`, `LockSupport.park`, `CountDownLatch.await`,
-`Semaphore.acquire`, bare `Future.get`) inside a method annotated with `@NonBlocking`, `@Incoming`,
-`@Outgoing`, or `@MessageMapping`. Reactive runtimes expect event-loop threads never to block; a single
-blocking call stalls the entire thread and can cascade into a full service hang under load.
+Detects a blocking call on an event-loop thread. Reactive runtimes (Reactor, Mutiny, Vert.x, WebFlux)
+multiplex every request onto a few threads; one blocking call stalls all of them and can cascade into a
+service-wide hang. Mutiny and Reactor additionally refuse to block there and fail with
+`IllegalStateException`.
 
-- Default severity: `ERROR`.
-- Evidence confidence: `HIGH` for unambiguously blocking receivers; `MEDIUM` for receiver-inferred cases.
+**Where the event loop is established** (shared `ExecutionContexts` classifier):
+
+- an annotation — `@NonBlocking`, `@Incoming`, `@Outgoing`, `@ReactiveTransactional`, `@WithTransaction`,
+  `@WithSession`, `@WithSessionOnDemand` (`HIGH`), `@MessageMapping` (`MEDIUM`);
+- a reactive return type — `Uni`, `Multi`, `Mono`, `Flux`, `Publisher` and RxJava types (`MEDIUM`,
+  because it is weaker evidence than an annotation).
+
+The context is followed along the flow's call path: a helper reached from an event-loop handler is
+reported against the helper, with the whole path attached. It ends at a method that declares another
+context (`@Blocking`, `@RunOnVirtualThread`, `@Async`) and at a caller that hands work to another thread
+in its own body (`subscribeOn`, `publishOn`, `runSubscriptionOn`, `executeBlocking`, an executor).
+
+**What counts as blocking** (shared `BlockingCalls` catalog, resolved by receiver type; a naming hint is
+used only when the type is unknown, and caps confidence at `MEDIUM`):
+
+- thread-level, reported as `ERROR`: `Thread.sleep`, `TimeUnit.sleep`, `Object.wait`, `LockSupport.park`,
+  `CountDownLatch`/`CyclicBarrier`/`Condition.await`, `Semaphore.acquire`, blocking-queue `take`/`put`,
+  `Future.get()`/`join()`, `Thread.join`, `Process.waitFor`, `Mono.block`/`Flux.blockLast`, RxJava
+  `blockingGet`, Mutiny `await().indefinitely()`/`atMost()`;
+- blocking I/O, reported as `WARNING`: JDBC, `JdbcTemplate`, `EntityManager`, `RestTemplate`,
+  `HttpURLConnection`, `HttpClient.send`, `Files.*`, file streams and sockets.
+
+- Default severity: `ERROR` for thread-level blocking, `WARNING` for blocking I/O.
+- Evidence confidence: `HIGH` for a resolved receiver type; `MEDIUM` for name hints and for contexts
+  inferred from a return type or inherited through the call path.
 - Final confidence: capped by reachability.
 
-Known limitation: `Future.get(timeout, unit)` (two extra arguments) is not flagged because the bounded
-wait is intentional.
+Known limitations: bounded waits (`Future.get(timeout, unit)`, `latch.await(timeout, unit)`) are not
+reported. A method that offloads anywhere in its body is skipped entirely, because source text cannot say
+which lambda runs where. Only methods reachable from an entrypoint are evaluated.
 
-Recommended response: use the reactive equivalent — `Mono.delay()`, `Mono.fromCallable()` on a
-`boundedElastic` scheduler, or `subscribeOn(Schedulers.boundedElastic())` — and never block the
-event-loop thread.
+Recommended response: do not block on a reactive type — return the `Uni`/`Mono` and compose it; move
+blocking work to a worker (`@Blocking` in Quarkus, `subscribeOn(Schedulers.boundedElastic())` in Reactor,
+`vertx.executeBlocking`) or switch to a non-blocking client.
+
+## `BLOCKING_CALL_IN_COROUTINE`
+
+Detects a blocking call on a kotlinx.coroutines dispatcher thread. `Dispatchers.Default` has one thread
+per CPU core; a handful of blocked threads under load starve every other coroutine on the dispatcher,
+producing latency spikes whose thread dumps look legitimate.
+
+A call runs on a coroutine thread when it is in the body of a `suspend` function or inside the lambda of
+`launch`, `async`, `runBlocking`, `produce`, `actor` or `withContext`. The innermost enclosing builder that
+names a dispatcher decides:
+
+- `Dispatchers.IO` or any custom dispatcher: not reported;
+- `Dispatchers.Default`, `Main` or `Unconfined`: reported with `HIGH` confidence — `Default` is not a
+  blocking pool either;
+- no dispatcher named: the caller's dispatcher is inherited and unknown, reported with `MEDIUM`
+  confidence.
+
+The same `BlockingCalls` catalog as `BLOCKING_CALL_IN_REACTIVE_CONTEXT` decides what is blocking, by
+receiver type, so `map.get()` or `optional.get()` are not mistaken for `Future.get()`. The finding is
+anchored at the blocking call, not at the builder.
+
+- Default severity: `ERROR` for thread-level blocking, `WARNING` for blocking I/O.
+- Final confidence: `MEDIUM` unless the dispatcher is explicitly `Default`/`Main`/`Unconfined`.
+
+Known limitations: only the body of the suspend function or builder lambda is inspected; a blocking call
+in a plain helper it calls is not followed. A suspend function that blocks may legitimately be called under
+`withContext(Dispatchers.IO)` by its callers, which is why findings that rely on the `suspend` modifier
+alone stay at `MEDIUM`. Enclosure uses source line ranges. Methods that declare `@Blocking`,
+`@RunOnVirtualThread` or an event-loop annotation are left to the other rules.
+
+Recommended response: wrap the call in `withContext(Dispatchers.IO) { ... }`, or use the suspending
+equivalent (`delay`, `Deferred.await`, a non-blocking client).
 
 ## `N_PLUS_ONE_QUERY_RISK`
 

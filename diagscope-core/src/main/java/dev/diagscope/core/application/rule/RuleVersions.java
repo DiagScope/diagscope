@@ -63,6 +63,13 @@ public final class RuleVersions {
         overrides.put(MutinyFailureRecoveredSilentlyRule.ID, "1.1.0");
         // Mutiny subscription detection tolerates formatting variations in the subscribe() receiver.
         overrides.put(MutinySubscriptionFailureUnobservedRule.ID, "1.0.1");
+        // Event-loop context now covers reactive return types and the call path below an annotated
+        // method, and the blocking-call catalog gained typed receivers, Mono.block, Mutiny await and
+        // blocking I/O. Evidence keys are unchanged, so existing fingerprints survive.
+        overrides.put(BlockingCallInReactiveContextRule.ID, "1.1.0");
+        // Detection moved from lambda text to typed invocations and suspend functions; findings are now
+        // anchored at the blocking call instead of the builder, so existing fingerprints change.
+        overrides.put(BlockingCallInCoroutineRule.ID, "2.0.0");
         return Map.copyOf(overrides);
     }
 }

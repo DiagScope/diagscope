@@ -2,6 +2,30 @@
 
 All notable project changes are recorded in this file.
 
+## Unreleased
+
+### Added
+
+- Shared execution-context model (`ExecutionContexts`): a method's thread is classified from annotations
+  (`@NonBlocking`, `@Blocking`, `@RunOnVirtualThread`, ...), the Kotlin `suspend` modifier, and reactive
+  return types, and the context is followed along the flow's call path.
+- Shared blocking-call catalog (`BlockingCalls`) that classifies calls by resolved receiver type, covering
+  thread primitives, futures, `Mono.block`, RxJava `blocking*`, Mutiny `await().indefinitely()`, and
+  blocking I/O (JDBC, JPA, `RestTemplate`, `HttpClient.send`, files, sockets).
+- The Kotlin adapter exposes `suspend` functions through the synthetic `Suspend` annotation.
+
+### Changed
+
+- `BLOCKING_CALL_IN_REACTIVE_CONTEXT` (1.1.0) now also covers methods whose return type is `Uni`, `Multi`,
+  `Mono` or `Flux`, follows blocking helpers reached from an event-loop handler, stops at `@Blocking` /
+  `@RunOnVirtualThread` boundaries, and reports blocking I/O as `WARNING`. Evidence keys are unchanged, so
+  existing fingerprints survive.
+- `BLOCKING_CALL_IN_COROUTINE` (2.0.0) now inspects `suspend` function bodies and builder lambdas through
+  typed invocations instead of lambda text. `map.get()`/`optional.get()` are no longer reported as
+  `Future.get()`, `Dispatchers.Default` is no longer treated as blocking-safe, and findings are anchored at
+  the blocking call instead of the builder. **Fingerprints of existing findings of this rule change;**
+  re-baseline after review.
+
 ## 0.1.0-alpha.1 — Alpha foundation
 
 ### Added

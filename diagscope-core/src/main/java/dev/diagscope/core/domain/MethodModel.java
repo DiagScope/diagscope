@@ -39,6 +39,13 @@ public record MethodModel(
         boolean declaringTypeIsInterface,
         List<SourceLocation> throwsInFinally
 ) {
+    /**
+     * Synthetic annotation the Kotlin adapter adds to {@code suspend} functions, so rules can tell a
+     * coroutine body from a plain one without a new field on every constructor. Mirrors the synthetic
+     * {@code Final} annotation used for effectively final Kotlin methods.
+     */
+    public static final String SUSPEND_ANNOTATION = "Suspend";
+
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");

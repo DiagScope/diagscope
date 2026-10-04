@@ -459,6 +459,12 @@ Blocks the coroutine dispatcher thread. With a limited thread pool (default: num
 3. Check if the call is wrapped in `withContext(Dispatchers.IO)` or `withContext(Dispatchers.Default)`.
 4. If in a coroutine context without `withContext`: emit ERROR.
 
+**Revision (rule version 2.0.0)**  
+Detection no longer matches lambda text. It uses typed invocations from the shared `BlockingCalls`
+catalog, the Kotlin `suspend` modifier (exposed as the synthetic `Suspend` annotation), and the
+innermost enclosing builder's dispatcher. `Dispatchers.Default` is no longer treated as blocking-safe.
+Findings are anchored at the blocking call, so fingerprints of earlier findings change.
+
 ---
 
 ---

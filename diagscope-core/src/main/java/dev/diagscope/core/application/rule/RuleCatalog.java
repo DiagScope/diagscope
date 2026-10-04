@@ -530,16 +530,29 @@ public final class RuleCatalog {
                 "Blocking call on reactive/event-loop thread",
                 "concurrency", Severity.ERROR, ALL_LANGUAGES,
                 "Quarkus, Spring WebFlux, Vert.x or any Project Reactor / Mutiny application",
-                "A blocking operation (Thread.sleep, Object.wait, CountDownLatch.await, etc.) is"
-                        + " called inside a method declared as non-blocking or reactive.",
+                "A blocking operation (Thread.sleep, Object.wait, CountDownLatch.await, Future.get,"
+                        + " Mono.block, Mutiny await().indefinitely(), or blocking I/O such as JDBC,"
+                        + " RestTemplate and file access) runs on an event-loop thread: either in a"
+                        + " method declared non-blocking, or in a helper that such a method calls.",
                 "Reactive runtimes multiplex many requests onto a small number of event-loop"
                         + " threads. A single blocking call stalls the thread and prevents other"
                         + " events from being processed, cascading into a full service hang under"
-                        + " load.",
-                "A call to a known blocking method inside a method carrying @NonBlocking,"
-                        + " @Incoming, @Outgoing, @MessageMapping, or @ReactiveTransactional.",
-                "The rule detects reactive context from annotations only; methods that are reactive"
-                        + " because they return Mono/Flux without annotation are not detected.");
+                        + " load. Mutiny and Reactor refuse to block on those threads and fail with"
+                        + " IllegalStateException at runtime.",
+                "The event-loop context comes from an annotation (@NonBlocking, @Incoming, @Outgoing,"
+                        + " @ReactiveTransactional, @WithTransaction, @WithSession, @MessageMapping) or from a"
+                        + " reactive return type (Uni, Multi, Mono, Flux and RxJava types), and is followed"
+                        + " along the flow's call path until a method declares another context (@Blocking,"
+                        + " @RunOnVirtualThread, @Async). Receiver types are resolved when possible; when"
+                        + " they are not, naming hints are used and the confidence drops to MEDIUM."
+                        + " Thread-level blocking is reported as ERROR, blocking I/O as WARNING.",
+                "A method that hands work to another thread anywhere in its body (subscribeOn,"
+                        + " publishOn, runSubscriptionOn, executeBlocking, an executor) is skipped"
+                        + " entirely, because source text cannot tell which lambda runs where."
+                        + " Future.get(timeout, unit) and other bounded waits are not reported."
+                        + " A reactive return type is weaker evidence than an annotation, so those"
+                        + " findings carry MEDIUM confidence. Dynamic dispatch the call graph cannot"
+                        + " resolve ends the inherited context.");
 
         // ── Performance ───────────────────────────────────────────────────────
         put(catalog, NPlusOneQueryRiskRule.ID,
@@ -1467,26 +1480,32 @@ public final class RuleCatalog {
 
         // ── Kotlin coroutines: blocking calls inside coroutine builders ───────
         put(catalog, BlockingCallInCoroutineRule.ID,
-                "Blocking JVM call inside a coroutine builder lambda",
+                "Blocking call on a coroutine dispatcher thread",
                 "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
                 "Kotlin applications using kotlinx.coroutines",
-                "A blocking JVM call (Thread.sleep, Object.wait, synchronous IO, or"
-                        + " CompletableFuture.get/join) is detected inside the lambda body of a"
-                        + " 'launch', 'async', or 'runBlocking' coroutine builder, without wrapping"
-                        + " in 'withContext(Dispatchers.IO)'.",
+                "A blocking call (Thread.sleep, Object.wait, CountDownLatch.await, Future.get,"
+                        + " Mono.block, or blocking I/O such as JDBC, RestTemplate and file access) runs"
+                        + " in a suspend function or inside a 'launch', 'async', 'runBlocking', 'produce',"
+                        + " 'actor' or 'withContext' lambda, without a blocking-friendly dispatcher.",
                 "Blocking a coroutine dispatcher thread makes it unavailable for other coroutines."
                         + " The default dispatcher pool size equals the number of CPU cores;"
                         + " a single blocking call under load starves all other coroutines on that"
                         + " dispatcher, causing latency spikes that are hard to diagnose because"
                         + " thread dumps show legitimate-looking call stacks.",
-                "DiagScope inspects the text of each lambda argument on 'launch', 'async', and"
-                        + " 'runBlocking' invocations for known blocking patterns. The finding is"
-                        + " suppressed when the lambda text contains"
-                        + " 'withContext(Dispatchers.IO' or 'withContext(Dispatchers.Default'.",
-                "The rule cannot detect blocking calls hidden inside helper functions called"
-                        + " from the lambda — inter-procedural analysis would be required."
-                        + " Deeply nested withContext wrappers inside complex lambdas may not"
-                        + " suppress the finding correctly, causing false positives.");
+                "A call is on a coroutine thread when it is in the body of a suspend function or inside a"
+                        + " coroutine-builder lambda (enclosure is derived from source line ranges). The"
+                        + " innermost builder that names a dispatcher decides: Dispatchers.IO or a custom"
+                        + " dispatcher is accepted; Dispatchers.Default, Main and Unconfined are reported with"
+                        + " HIGH confidence because they are not blocking pools; an inherited dispatcher is"
+                        + " reported with MEDIUM confidence. Receiver types are used to recognise blocking"
+                        + " calls, so map.get() or optional.get() are not mistaken for Future.get()."
+                        + " Thread-level blocking is ERROR, blocking I/O is WARNING.",
+                "Only the body of the suspend function or builder lambda itself is inspected; a blocking"
+                        + " call inside a plain helper that it calls is not followed. A suspend function"
+                        + " that blocks may legitimately be called under withContext(Dispatchers.IO) by"
+                        + " its callers, which is why findings that rely on the suspend modifier alone"
+                        + " are MEDIUM confidence. Enclosure uses line ranges, so a blocking call written"
+                        + " on the same line as a closing builder lambda is treated as inside it.");
 
         // ── Wave 6 ────────────────────────────────────────────────────────────
         put(catalog, OptionalOrElseNullRule.ID,

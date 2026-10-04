@@ -35,7 +35,9 @@ mvn clean verify
 1. define a stable rule ID;
 2. add or reuse a typed parser-neutral evidence record in the core;
 3. map the required syntax facts into that evidence in each applicable language adapter;
-4. implement `DiagnosticRule` over reached `FlowMethod` values in the core;
+4. implement `DiagnosticRule` over reached `FlowMethod` values in the core. Rules about threads reuse
+   `ExecutionContexts` (which thread a method runs on, including inheritance along the call path) and
+   `BlockingCalls` (what blocks) instead of keeping their own heuristics;
 5. add positive, negative, and boundary fixtures;
 6. test that path confidence caps the finding;
 7. add unit, parser, flow, fixture, and CLI tests as applicable;
