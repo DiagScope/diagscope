@@ -127,6 +127,21 @@ class KotlinRuleParityTest {
                 .noneMatch(method -> method.contains("onOrderSafely"));
     }
 
+    @Test
+    void tracks_event_loop_and_coroutine_contexts_for_blocking_calls() {
+        assertThat(methodsFor("BLOCKING_CALL_IN_REACTIVE_CONTEXT"))
+                .anyMatch(method -> method.contains("awaitOnEventLoop"))
+                .anyMatch(method -> method.contains("slowHelper"))
+                .noneMatch(method -> method.contains("awaitOnWorker"))
+                .noneMatch(method -> method.contains("workerHelper"));
+        assertThat(methodsFor("BLOCKING_CALL_IN_COROUTINE"))
+                .anyMatch(method -> method.contains("sleepInSuspend("))
+                .anyMatch(method -> method.contains("waitInBackground("))
+                .noneMatch(method -> method.contains("sleepInSuspendSafe"))
+                .noneMatch(method -> method.contains("waitInBackgroundSafe"))
+                .noneMatch(method -> method.contains("lookupInBackground"));
+    }
+
     private Set<String> ruleIds() {
         return ruleIds(result);
     }

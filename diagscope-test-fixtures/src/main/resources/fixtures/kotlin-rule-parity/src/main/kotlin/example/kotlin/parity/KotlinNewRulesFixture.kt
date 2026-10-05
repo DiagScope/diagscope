@@ -230,6 +230,23 @@ class KotlinCoroutineService(
         }
     }
 
+    /** triggers BLOCKING_CALL_IN_COROUTINE: Thread.sleep in a suspend function. */
+    suspend fun sleepInSuspend(millis: Long) {
+        Thread.sleep(millis) // parks the dispatcher thread
+    }
+
+    /** Safe: a main-safe suspend function moves the blocking call to the IO pool. */
+    suspend fun sleepInSuspendSafe(millis: Long) {
+        withContext(Dispatchers.IO) { Thread.sleep(millis) }
+    }
+
+    /** Safe: a map lookup in a coroutine is not a blocking Future.get(). */
+    fun lookupInBackground(cache: Map<String, String>, key: String) {
+        GlobalScope.launch(CoroutineExceptionHandler { _, ex -> logger.error("Lookup failed", ex) }) {
+            cache.get(key)
+        }
+    }
+
     /** Safe: CoroutineExceptionHandler provided in context. */
     fun processInBackgroundSafe(id: String) {
         GlobalScope.launch(CoroutineExceptionHandler { _, ex ->

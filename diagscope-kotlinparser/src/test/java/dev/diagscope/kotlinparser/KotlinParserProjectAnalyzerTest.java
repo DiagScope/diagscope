@@ -4,6 +4,7 @@ import dev.diagscope.core.application.AnalysisOptions;
 import dev.diagscope.core.application.AnalysisRequest;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
+import dev.diagscope.core.application.rule.BlockingCallInCoroutineRule;
 import dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule;
 import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
 import dev.diagscope.core.application.rule.MutinySubscriptionFailureUnobservedRule;
@@ -454,6 +455,57 @@ class KotlinParserProjectAnalyzerTest {
         Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
         Files.writeString(sourceRoot.resolve("Flow.kt"), source);
         return new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+    }
+
+    @Test
+    void marks_suspend_functions_and_finds_blocking_calls_on_coroutine_threads() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("coroutines"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Worker.kt"), """
+                package sample
+
+                import kotlinx.coroutines.*
+
+                class Worker {
+                    suspend fun blocks() {
+                        Thread.sleep(100)
+                    }
+
+                    suspend fun mainSafe() {
+                        withContext(Dispatchers.IO) {
+                            Thread.sleep(100)
+                        }
+                    }
+
+                    fun plain() {
+                        Thread.sleep(100)
+                    }
+
+                    fun background() {
+                        GlobalScope.launch {
+                            Thread.sleep(100)
+                        }
+                    }
+
+                    fun lookup(cache: Map<String, String>) {
+                        GlobalScope.launch {
+                            cache.get("k")
+                        }
+                    }
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(analyzed.parseFailures()).isEmpty();
+        assertThat(method(analyzed, "Worker", "blocks").annotations()).contains(MethodModel.SUSPEND_ANNOTATION);
+        assertThat(method(analyzed, "Worker", "mainSafe").annotations()).contains(MethodModel.SUSPEND_ANNOTATION);
+        assertThat(method(analyzed, "Worker", "plain").annotations()).doesNotContain(MethodModel.SUSPEND_ANNOTATION);
+
+        assertThat(new BlockingCallInCoroutineRule().evaluate(analyzed))
+                .extracting(finding -> finding.location().startLine())
+                .containsExactlyInAnyOrder(7, 22);
     }
 
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {

@@ -109,6 +109,15 @@ class JavaRuleParityTest {
         return scanned;
     }
 
+    @Test
+    void tracks_event_loop_context_from_return_types_and_stops_at_worker_boundaries() {
+        assertThat(methodsFor("BLOCKING_CALL_IN_REACTIVE_CONTEXT"))
+                .anyMatch(method -> method.contains("awaitOnEventLoop"))
+                .anyMatch(method -> method.contains("slowHelper"))
+                .noneMatch(method -> method.contains("awaitOnWorker"))
+                .noneMatch(method -> method.contains("workerHelper"));
+    }
+
     private Set<String> ruleIds() { return ruleIds(result); }
 
     private static Set<String> ruleIds(JsonNode report) {
