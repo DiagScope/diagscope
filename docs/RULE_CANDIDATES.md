@@ -1163,6 +1163,58 @@ outside `@Bean` factories; INFO inside (may be intentional for local/test profil
 
 ---
 
+## Wave 11 — Implemented 2026-10-14
+
+Twenty-four rules for security, performance patterns, concurrency lifecycle and JPA/Spring pitfalls.
+Rules marked *parser* needed the adapters to surface a fact the model did not carry: `@OneToMany(fetch =
+EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level markers (as
+`FieldInjectionPresent` already does), and Java `new X()` expressions now carry `insideLoop`.
+
+| Rule | Severity | Notes |
+|---|---|---|
+| `BCRYPT_CREATED_PER_CALL` | WARNING | encoder built outside `@Bean`; hashing cost is in `encode()`, so the finding is about reuse/testability |
+| `SIMPLE_DATE_FORMAT_PER_CALL` | WARNING | HIGH confidence inside loops |
+| `RANDOM_PER_CALL` | WARNING | `new Random()` without a seed, any `new SecureRandom(...)` |
+| `DELETE_ALL_WITHOUT_ID` | WARNING | no-arg `deleteAll()` on a repository; reactive repositories skipped |
+| `CACHEABLE_ON_VOID_METHOD` | WARNING | Spring caches the `null`, so later calls can skip the method body |
+| `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID` | INFO | parameterless `@CacheEvict` without `allEntries`/`key` |
+| `SYSTEM_ENV_IN_BEAN` | WARNING | `System.getenv/getProperty` in a Spring bean; JVM-constant properties ignored |
+| `SENSITIVE_HEADER_LOGGED` | ERROR | only a header *read* inside a log argument, not a mention in the message |
+| `OPEN_REDIRECT_RISK` | ERROR | non-constant `sendRedirect`/`RedirectView` in a REST handler without visible validation |
+| `PATH_TRAVERSAL_RISK` | ERROR | non-constant `File`/`Paths.get`/`Path.of` in a REST handler without normalisation |
+| `TIMER_STARTED_NOT_STOPPED` | ERROR | Micrometer `Timer.start` sample never stopped |
+| `OBJECT_INPUT_STREAM_RISK` | ERROR | no `ObjectInputFilter` in the method |
+| `XML_EXTERNAL_ENTITY_RISK` | ERROR | `FEATURE_SECURE_PROCESSING` alone is *not* accepted (it does not stop external entities); MEDIUM when it is the only hardening |
+| `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION` | ERROR | also `Throwable`, `RuntimeException` and Jakarta `dontRollbackOn` |
+| `SEMAPHORE_RELEASE_NOT_IN_FINALLY` | ERROR | HIGH when released outside `finally`, MEDIUM when never released in the method |
+| `COUNT_DOWN_LATCH_NOT_IN_FINALLY` | WARNING | only when other work precedes the `countDown()` |
+| `VIRTUAL_THREAD_WITH_THREAD_LOCAL` | WARNING | `@RunOnVirtualThread` + `ThreadLocal.set` |
+| `REFLECTIVE_ACCESS_IN_PRODUCTION` | WARNING | `setAccessible(true)` outside test lifecycle methods |
+| `EAGER_COLLECTION_FETCH` | WARNING | *parser*; once per entity, on its first method |
+| `LAZY_BEAN_CIRCULAR_INDICATOR` | INFO | *parser*; `@Lazy` constructor parameter on a Spring bean |
+| `JPA_ENTITY_CONSTRUCTOR_IN_LOOP` | WARNING | *parser*; usually co-reported with `BULK_OPERATION_IN_LOOP` |
+| `MISSING_BULKHEAD_ON_HTTP_CLIENT` | INFO | flow rule: whole path checked for `@Bulkhead`/`@CircuitBreaker` |
+| `HTTP_CLIENT_NO_ERROR_HANDLER` | WARNING | `new RestTemplate()` without `setErrorHandler` |
+| `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` | WARNING | LOW confidence: ack mode may be set by property or default factory |
+
+### Proposed but not implemented (reasons)
+
+| Proposal | Why not |
+|---|---|
+| `TEST_USES_THREAD_SLEEP`, `TEST_WITHOUT_ASSERTION`, `SPRING_DIRTY_CONTEXT` | The analyzer only scans `src/main/java` and `src/main/kotlin`; test sources are never parsed, so these could not fire on a real project. Needs an opt-in test-source scan first. |
+| `ENTITY_MANAGER_CLEAR_IN_TRANSACTION` | Already implemented in wave 10. |
+| `POST_CONSTRUCT_CALLS_OVERRIDABLE` | Premise is wrong: `@PostConstruct` runs after construction, subclass included. The hazard exists for constructors, which are not mapped as methods. |
+| `AUTOWIRED_REQUIRED_FALSE_UNSAFE` | Needs null-check evidence, which the model does not carry. |
+| `MISSING_PAGEABLE_ON_FIND_ALL` / `MISSING_PAGEABLE_IN_QUERY_METHOD` | Strict subset of `MISSING_PAGINATION`. |
+| `LOG_EXCEPTION_MESSAGE_ONLY` | `LOG_WITHOUT_THROWABLE` already reports `log.error(e.getMessage())` in a catch. |
+| `MISSING_TRANSACTION_ANNOTATION_ON_WRITE` | Overlaps `MISSING_TRANSACTION_ANNOTATION`, which detects the write operations themselves. |
+| `MISSING_SCHEMA_VALIDATION` | Same condition as `MISSING_REQUEST_BODY_VALIDATION`. |
+| `PLACEHOLDER_IN_LOG_MESSAGE` | Premise is wrong: with `{}` placeholders `toString()` is only called when the level is enabled. |
+| `MISSING_TRANSACTION_TIMEOUT` | Either duplicates `TRANSACTION_WITH_HTTP_CALL` or fires on every `@Transactional`; needs a sharper definition. |
+| `KAFKA_LISTENER_MISSING_CONCURRENCY` | Depends on an unspecified list of "high-throughput" topic names. |
+
+---
+
 ### Current rule count by wave
 | Wave | Date | Rules added | Running total |
 |---|---|---|---|
@@ -1174,6 +1226,8 @@ outside `@Bean` factories; INFO inside (may be intentional for local/test profil
 | Wave 6 | 2026-09-03 | +7 | 89 |
 | Wave 7 | 2026-09-23 | +6 | 95 |
 | Wave 8 | 2026-09-23 | +5 | 100 |
-| Wave 9 | 2026-10-14 | +7 | **107** |
+| Wave 9 | 2026-10-14 | +7 | 107 |
+| Wave 10 | 2026-10-14 | +15 | 122 |
+| Wave 11 | 2026-10-14 | +24 | **146** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

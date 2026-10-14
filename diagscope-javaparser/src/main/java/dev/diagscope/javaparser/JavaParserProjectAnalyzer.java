@@ -109,6 +109,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     );
     /** DI annotations that, when placed on a field, indicate field injection rather than constructor injection. */
     private static final Set<String> FIELD_INJECTION_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
+    private static final Set<String> EAGER_COLLECTION_ANNOTATIONS = Set.of("OneToMany", "ManyToMany");
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -283,9 +284,34 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     .anyMatch(field -> field.asFieldDeclaration().getAnnotations().stream()
                             .map(a -> a.getName().getIdentifier())
                             .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+            var syntheticMarkers = new ArrayList<AnnotationDescriptor>();
             if (hasFieldInjection) {
+                syntheticMarkers.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+            }
+            // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER).
+            String eagerFields = type.getMembers().stream()
+                    .filter(BodyDeclaration::isFieldDeclaration)
+                    .filter(member -> annotations(member.asFieldDeclaration().getAnnotations()).stream()
+                            .anyMatch(a -> EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
+                                    && a.attributes().getOrDefault("fetch", "").contains("EAGER")))
+                    .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
+                    .map(variable -> variable.getNameAsString())
+                    .collect(java.util.stream.Collectors.joining(","));
+            if (!eagerFields.isEmpty()) {
+                syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of("fields", eagerFields)));
+            }
+            // @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here.
+            boolean lazyConstructorParameter = type.getMembers().stream()
+                    .filter(BodyDeclaration::isConstructorDeclaration)
+                    .flatMap(member -> member.asConstructorDeclaration().getParameters().stream())
+                    .anyMatch(parameter -> parameter.getAnnotations().stream()
+                            .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())));
+            if (lazyConstructorParameter) {
+                syntheticMarkers.add(new AnnotationDescriptor("LazyConstructorParameter", Map.of()));
+            }
+            if (!syntheticMarkers.isEmpty()) {
                 var augmented = new ArrayList<>(typeAnnotations);
-                augmented.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+                augmented.addAll(syntheticMarkers);
                 typeAnnotations = List.copyOf(augmented);
             }
             types.add(typeInfo(qualifiedName, type, typeAnnotations));
@@ -1335,8 +1361,23 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 "",             // receiverType
                 simpleName,
                 args,
-                InvocationResultUsage.IGNORED
+                InvocationResultUsage.IGNORED,
+                false,
+                false,
+                assignedConstructorVariable(call),
+                false,
+                insideLoop(call),
+                false,
+                List.of()
         );
+    }
+
+    /** Name of the variable a {@code new X()} expression is assigned to, or empty when it is not. */
+    private static String assignedConstructorVariable(ObjectCreationExpr call) {
+        return call.getParentNode()
+                .filter(parent -> parent instanceof com.github.javaparser.ast.body.VariableDeclarator)
+                .map(parent -> ((com.github.javaparser.ast.body.VariableDeclarator) parent).getNameAsString())
+                .orElse("");
     }
 
     /** Conservative source-only argument types used by the cross-language linker. */
@@ -1415,7 +1456,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     /** True when the call runs inside a for/while/do-while body, so it repeats per iteration. */
-    private static boolean insideLoop(MethodCallExpr call) {
+    private static boolean insideLoop(Node call) {
         Node current = call;
         while (current.getParentNode().isPresent()) {
             Node parent = current.getParentNode().orElseThrow();

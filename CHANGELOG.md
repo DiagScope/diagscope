@@ -6,6 +6,14 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Wave 11: 24 rules (122 → 146) covering security (`SENSITIVE_HEADER_LOGGED`, `OPEN_REDIRECT_RISK`,
+  `PATH_TRAVERSAL_RISK`, `OBJECT_INPUT_STREAM_RISK`, `XML_EXTERNAL_ENTITY_RISK`), concurrency lifecycle
+  (`SEMAPHORE_RELEASE_NOT_IN_FINALLY`, `COUNT_DOWN_LATCH_NOT_IN_FINALLY`, `VIRTUAL_THREAD_WITH_THREAD_LOCAL`,
+  `TIMER_STARTED_NOT_STOPPED`), JPA/Spring (`EAGER_COLLECTION_FETCH`, `JPA_ENTITY_CONSTRUCTOR_IN_LOOP`,
+  `DELETE_ALL_WITHOUT_ID`, `LAZY_BEAN_CIRCULAR_INDICATOR`, `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION`), resource
+  reuse and others. See `docs/RULE_CANDIDATES.md` for the full list and for proposals that were not implemented.
+- The Java and Kotlin adapters surface `@OneToMany/@ManyToMany(fetch = EAGER)` fields and `@Lazy` constructor
+  parameters as synthetic class-level markers; Java `new X()` evidence now carries `insideLoop`.
 - Shared execution-context model (`ExecutionContexts`): a method's thread is classified from annotations
   (`@NonBlocking`, `@Blocking`, `@RunOnVirtualThread`, ...), the Kotlin `suspend` modifier, and reactive
   return types, and the context is followed along the flow's call path.

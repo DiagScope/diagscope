@@ -142,6 +142,48 @@ class KotlinRuleParityTest {
                 .noneMatch(method -> method.contains("lookupInBackground"));
     }
 
+    @Test
+    void reports_wave_11_rules_and_keeps_the_safe_variants_silent() {
+        assertThat(ruleIds()).contains(
+                "BCRYPT_CREATED_PER_CALL",
+                "SIMPLE_DATE_FORMAT_PER_CALL",
+                "RANDOM_PER_CALL",
+                "DELETE_ALL_WITHOUT_ID",
+                "CACHEABLE_ON_VOID_METHOD",
+                "SYSTEM_ENV_IN_BEAN",
+                "SENSITIVE_HEADER_LOGGED",
+                "OPEN_REDIRECT_RISK",
+                "PATH_TRAVERSAL_RISK",
+                "TIMER_STARTED_NOT_STOPPED",
+                "OBJECT_INPUT_STREAM_RISK",
+                "XML_EXTERNAL_ENTITY_RISK",
+                "TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION",
+                "SEMAPHORE_RELEASE_NOT_IN_FINALLY",
+                "COUNT_DOWN_LATCH_NOT_IN_FINALLY",
+                "VIRTUAL_THREAD_WITH_THREAD_LOCAL",
+                "REFLECTIVE_ACCESS_IN_PRODUCTION",
+                "EAGER_COLLECTION_FETCH",
+                "LAZY_BEAN_CIRCULAR_INDICATOR",
+                "JPA_ENTITY_CONSTRUCTOR_IN_LOOP",
+                "CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID",
+                "MISSING_BULKHEAD_ON_HTTP_CLIENT",
+                "HTTP_CLIENT_NO_ERROR_HANDLER",
+                "KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE");
+        assertThat(methodsFor("BCRYPT_CREATED_PER_CALL")).noneMatch(method -> method.contains("passwordEncoder"));
+        assertThat(methodsFor("DELETE_ALL_WITHOUT_ID")).noneMatch(method -> method.contains("resetOrdersInBatch"));
+        assertThat(methodsFor("CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID")).noneMatch(method -> method.contains("clearAllOrders"));
+        assertThat(methodsFor("SENSITIVE_HEADER_LOGGED")).noneMatch(method -> method.contains("traceMissing"));
+        assertThat(methodsFor("TIMER_STARTED_NOT_STOPPED")).noneMatch(method -> method.contains("timedWorkSafe"));
+        assertThat(methodsFor("XML_EXTERNAL_ENTITY_RISK")).noneMatch(method -> method.contains("parseXmlSafe"));
+        assertThat(evidenceValues("TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION", "attribute")).hasSize(1);
+        assertThat(methodsFor("SEMAPHORE_RELEASE_NOT_IN_FINALLY")).noneMatch(method -> method.contains("limitedSafe"));
+        assertThat(methodsFor("COUNT_DOWN_LATCH_NOT_IN_FINALLY")).noneMatch(method -> method.contains("taskSafe"));
+        assertThat(methodsFor("HTTP_CLIENT_NO_ERROR_HANDLER")).noneMatch(method -> method.contains("restTemplateSafe"));
+        assertThat(methodsFor("KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE")).noneMatch(method -> method.contains("Wave11Service.onOrderSafe("));
+        assertThat(methodsFor("OPEN_REDIRECT_RISK")).noneMatch(method -> method.contains("home"));
+        assertThat(methodsFor("MISSING_BULKHEAD_ON_HTTP_CLIENT")).noneMatch(method -> method.contains("proxySafe"));
+    }
+
     private Set<String> ruleIds() {
         return ruleIds(result);
     }

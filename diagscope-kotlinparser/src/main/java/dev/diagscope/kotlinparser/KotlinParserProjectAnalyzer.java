@@ -49,6 +49,7 @@ import org.jetbrains.kotlin.psi.KtFile;
 import org.jetbrains.kotlin.psi.KtLambdaArgument;
 import org.jetbrains.kotlin.psi.KtLambdaExpression;
 import org.jetbrains.kotlin.psi.KtLoopExpression;
+import org.jetbrains.kotlin.psi.KtNamedDeclaration;
 import org.jetbrains.kotlin.psi.KtNamedFunction;
 import org.jetbrains.kotlin.psi.KtObjectDeclaration;
 import org.jetbrains.kotlin.psi.KtParameter;
@@ -100,6 +101,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     );
     /** DI annotations that, when placed on a class property, indicate field injection. */
     private static final Set<String> FIELD_INJECTION_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
+    private static final Set<String> EAGER_COLLECTION_ANNOTATIONS = Set.of("OneToMany", "ManyToMany");
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "await", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -1279,6 +1281,32 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                         .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
         if (hasFieldInjection) {
             declaredAnnotations.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+        }
+        // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER), on properties or
+        // on primary-constructor properties.
+        var eagerFields = new ArrayList<String>();
+        var propertyLike = new ArrayList<KtAnnotated>();
+        PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
+                .filter(prop -> !prop.isLocal() && containingType(prop) == type).forEach(propertyLike::add);
+        if (type.getPrimaryConstructor() != null) propertyLike.addAll(type.getPrimaryConstructorParameters());
+        for (KtAnnotated candidate : propertyLike) {
+            boolean eager = annotations(candidate).stream().anyMatch(a ->
+                    EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
+                            && a.attributes().getOrDefault("fetch", "").contains("EAGER"));
+            if (eager && candidate instanceof KtNamedDeclaration named && named.getName() != null) {
+                eagerFields.add(named.getName());
+            }
+        }
+        if (!eagerFields.isEmpty()) {
+            declaredAnnotations.add(new AnnotationDescriptor("EagerCollectionFetch",
+                    Map.of("fields", String.join(",", eagerFields))));
+        }
+        // @Lazy on a constructor parameter (primary or secondary).
+        var constructorParameters = new ArrayList<KtParameter>(type.getPrimaryConstructorParameters());
+        type.getSecondaryConstructors().forEach(constructor -> constructorParameters.addAll(constructor.getValueParameters()));
+        if (constructorParameters.stream().anyMatch(parameter -> annotations(parameter).stream()
+                .anyMatch(a -> "Lazy".equals(a.name())))) {
+            declaredAnnotations.add(new AnnotationDescriptor("LazyConstructorParameter", Map.of()));
         }
         declaredAnnotations = List.copyOf(declaredAnnotations);
         boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)
