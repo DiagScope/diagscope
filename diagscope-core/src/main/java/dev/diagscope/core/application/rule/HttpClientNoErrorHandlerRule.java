@@ -42,7 +42,7 @@ public final class HttpClientNoErrorHandlerRule implements ProjectRule {
             for (InvocationEvidence invocation : method.invocations()) {
                 if (!RuleSupport.isConstructorOf(invocation, "RestTemplate")) continue;
                 findings.add(new Finding(
-                        ID, Severity.WARNING, Confidence.MEDIUM, invocation.location(),
+                        ID, Severity.INFO, Confidence.MEDIUM, invocation.location(),
                         "'" + method.id().displayName() + "' creates a RestTemplate without an error handler. The default one turns"
                                 + " every 4xx/5xx into an exception, usually surfacing as a generic 500 with the downstream response"
                                 + " body lost.",

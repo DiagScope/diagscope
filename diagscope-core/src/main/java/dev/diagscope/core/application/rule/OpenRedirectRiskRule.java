@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
  * <p>A redirect is not reported when its argument is built only from literals and constants, or when the
  * method visibly validates the target ({@code startsWith}, {@code matches}, {@code contains}, an
  * {@code isAllowed}/{@code isValid}/{@code isSafe} check). Validation that happens in another method is not
- * seen, which is why confidence is MEDIUM.</p>
+ * seen. Confidence is HIGH when the target names a method parameter or the method reads the request object, MEDIUM
+ * otherwise.</p>
  */
 public final class OpenRedirectRiskRule implements ProjectRule {
 
@@ -50,8 +51,9 @@ public final class OpenRedirectRiskRule implements ProjectRule {
                 if (!redirect || invocation.arguments().isEmpty()) continue;
                 String target = invocation.arguments().get(0);
                 if (!RuleSupport.isDynamicExpression(target)) continue;
+                boolean requestData = RuleSupport.carriesRequestData(method, target);
                 findings.add(new Finding(
-                        ID, Severity.ERROR, Confidence.MEDIUM, invocation.location(),
+                        ID, Severity.ERROR, requestData ? Confidence.HIGH : Confidence.MEDIUM, invocation.location(),
                         "'" + method.id().displayName() + "' redirects to '" + target.strip() + "', which is not a constant."
                                 + " If any part comes from the request, an attacker can send users to an arbitrary site"
                                 + " through a link on your domain.",

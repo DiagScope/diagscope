@@ -22,7 +22,7 @@ import java.util.Set;
  * is informational.</p>
  *
  * <p>Constructors are not methods in the model, so the parsers surface the annotation as a synthetic class-level
- * marker; the finding is reported once per bean, on its first method.</p>
+ * marker that records its line; the finding is reported once per bean, at the {@code @Lazy} parameter.</p>
  */
 public final class LazyBeanCircularIndicatorRule implements ProjectRule {
 
@@ -41,7 +41,7 @@ public final class LazyBeanCircularIndicatorRule implements ProjectRule {
             if (!DiagnosticSignals.hasAnnotation(method, "LazyConstructorParameter") || !RuleSupport.isSpringBean(method)) continue;
             if (!reported.add(method.id().declaringType())) continue;
             findings.add(new Finding(
-                    ID, Severity.INFO, Confidence.MEDIUM, method.location(),
+                    ID, Severity.INFO, Confidence.MEDIUM, RuleSupport.markerLocation(method, "LazyConstructorParameter"),
                     "'" + RuleSupport.simpleName(method.id().declaringType()) + "' injects a constructor dependency with @Lazy. This"
                             + " almost always masks a circular dependency instead of removing it.",
                     "Break the cycle: move the shared logic into a third bean, invert one dependency with an event, or pass the"

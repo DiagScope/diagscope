@@ -218,7 +218,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         var types = new ArrayList<TypeInfo>();
         for (KtClassOrObject type : PsiTreeUtil.findChildrenOfType(ktFile, KtClassOrObject.class)) {
             if (type.isLocal()) continue;
-            types.add(typeInfo(type, kotlinSpringEnabled));
+            types.add(typeInfo(type, kotlinSpringEnabled, lines));
         }
 
         var methods = new ArrayList<RawMethod>();
@@ -263,6 +263,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         // Expose the 'suspend' modifier to rules (coroutine execution context) the same way.
         if (function.hasModifier(KtTokens.SUSPEND_KEYWORD)) {
             methodAnnotations.add(new AnnotationDescriptor(MethodModel.SUSPEND_ANNOTATION, Map.of()));
+        }
+        if (!function.getValueParameters().isEmpty()) {
+            methodAnnotations.add(new AnnotationDescriptor("ParameterNames", Map.of("names",
+                    function.getValueParameters().stream().map(KtParameter::getName)
+                            .filter(Objects::nonNull).collect(java.util.stream.Collectors.joining(",")))));
         }
         methodAnnotations = List.copyOf(methodAnnotations);
 
@@ -317,6 +322,18 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             KotlinMetricEvidenceExtractor.meter(callLocation, call, metricContext).ifPresent(metricNames::add);
             calls.add(new RawCall(callLocation, scope, receiverType, methodName, argumentCount(call),
                     inferArgumentTypes(call, variableTypes)));
+        }
+
+        // Kotlin's `member.isAccessible = true` is a property assignment; surface it as the call it compiles to.
+        for (KtBinaryExpression assignment : PsiTreeUtil.findChildrenOfType(function, KtBinaryExpression.class)) {
+            if (!belongsToFunction(assignment, function) || !"=".equals(assignment.getOperationReference().getText())) continue;
+            if (!(assignment.getLeft() instanceof KtQualifiedExpression target)
+                    || target.getSelectorExpression() == null
+                    || !"isAccessible".equals(target.getSelectorExpression().getText())) continue;
+            if (assignment.getRight() == null) continue;
+            invocations.add(new InvocationEvidence(location(root, file, lines, assignment),
+                    target.getReceiverExpression().getText(), "", "setAccessible",
+                    List.of(assignment.getRight().getText()), InvocationResultUsage.IGNORED));
         }
 
         int minimumArity = (int) function.getValueParameters().stream()
@@ -426,7 +443,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 invocationArguments(call),
                 resultUsage(call), false, resourceManaged(call), assignedVariable(call),
                 hasAncestor(call, KtFinallySection.class), hasAncestor(call, KtLoopExpression.class),
-                loggerReceiver, argumentTypes);
+                loggerReceiver, argumentTypes, isLambdaValue(call));
     }
 
     /**
@@ -564,6 +581,25 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             break;
         }
         return "";
+    }
+
+    /**
+     * Whether the call is the last expression of a lambda body (directly or as the tail of an if/when/try branch),
+     * so its value is what the lambda returns rather than a discarded statement.
+     */
+    private static boolean isLambdaValue(KtCallExpression call) {
+        PsiElement current = call;
+        while (current.getParent() != null) {
+            PsiElement parent = current.getParent();
+            if (parent instanceof org.jetbrains.kotlin.psi.KtFunctionLiteral) return true;
+            if (parent instanceof KtNamedFunction || parent instanceof KtClassOrObject) return false;
+            if (parent instanceof KtBlockExpression block) {
+                var statements = block.getStatements();
+                if (statements.isEmpty() || statements.get(statements.size() - 1) != current) return false;
+            }
+            current = parent;
+        }
+        return false;
     }
 
     private static boolean hasAncestor(PsiElement element, Class<? extends PsiElement> type) {
@@ -1270,7 +1306,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         }
     }
 
-    private static TypeInfo typeInfo(KtClassOrObject type, boolean kotlinSpringEnabled) {
+    private static TypeInfo typeInfo(KtClassOrObject type, boolean kotlinSpringEnabled, LineIndex lines) {
         String qualified = qualifiedTypeName(type.getContainingKtFile().getPackageFqName().asString(), type);
         List<AnnotationDescriptor> declaredAnnotations = new ArrayList<>(annotations(type));
         // Detect field injection: any non-local class property annotated with @Autowired, @Inject, or @Resource.
@@ -1285,6 +1321,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER), on properties or
         // on primary-constructor properties.
         var eagerFields = new ArrayList<String>();
+        int eagerLine = 0;
         var propertyLike = new ArrayList<KtAnnotated>();
         PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
                 .filter(prop -> !prop.isLocal() && containingType(prop) == type).forEach(propertyLike::add);
@@ -1295,18 +1332,21 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                             && a.attributes().getOrDefault("fetch", "").contains("EAGER"));
             if (eager && candidate instanceof KtNamedDeclaration named && named.getName() != null) {
                 eagerFields.add(named.getName());
+                if (eagerLine == 0) eagerLine = lines.lineOf(named.getTextRange().getStartOffset());
             }
         }
         if (!eagerFields.isEmpty()) {
             declaredAnnotations.add(new AnnotationDescriptor("EagerCollectionFetch",
-                    Map.of("fields", String.join(",", eagerFields))));
+                    Map.of("fields", String.join(",", eagerFields), "line", Integer.toString(eagerLine))));
         }
         // @Lazy on a constructor parameter (primary or secondary).
         var constructorParameters = new ArrayList<KtParameter>(type.getPrimaryConstructorParameters());
         type.getSecondaryConstructors().forEach(constructor -> constructorParameters.addAll(constructor.getValueParameters()));
-        if (constructorParameters.stream().anyMatch(parameter -> annotations(parameter).stream()
-                .anyMatch(a -> "Lazy".equals(a.name())))) {
-            declaredAnnotations.add(new AnnotationDescriptor("LazyConstructorParameter", Map.of()));
+        for (KtParameter parameter : constructorParameters) {
+            if (annotations(parameter).stream().noneMatch(a -> "Lazy".equals(a.name()))) continue;
+            declaredAnnotations.add(new AnnotationDescriptor("LazyConstructorParameter",
+                    Map.of("line", Integer.toString(lines.lineOf(parameter.getTextRange().getStartOffset())))));
+            break;
         }
         declaredAnnotations = List.copyOf(declaredAnnotations);
         boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)

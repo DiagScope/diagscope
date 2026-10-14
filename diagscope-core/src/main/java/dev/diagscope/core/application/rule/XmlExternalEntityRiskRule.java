@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
 /**
  * Reports XML parser factories created without disabling external entities.
  *
- * <p>{@code DocumentBuilderFactory}, {@code SAXParserFactory} and {@code XMLInputFactory} resolve DTDs and
+ * <p>{@code DocumentBuilderFactory}, {@code SAXParserFactory}, {@code XMLInputFactory}, {@code TransformerFactory}
+ * and {@code SchemaFactory} resolve DTDs and
  * external entities by default. A document that declares {@code <!ENTITY x SYSTEM "file:///etc/passwd">} then
  * reads local files or makes server-side requests (XXE).</p>
  *
@@ -32,12 +33,13 @@ public final class XmlExternalEntityRiskRule implements ProjectRule {
 
     public static final String ID = "XML_EXTERNAL_ENTITY_RISK";
 
-    private static final Set<String> FACTORIES = Set.of("DocumentBuilderFactory", "SAXParserFactory", "XMLInputFactory");
+    private static final Set<String> FACTORIES = Set.of(
+            "DocumentBuilderFactory", "SAXParserFactory", "XMLInputFactory", "TransformerFactory", "SchemaFactory");
     private static final Set<String> FACTORY_METHODS = Set.of("newInstance", "newFactory");
     private static final Set<String> CONFIGURATION_CALLS = Set.of("setFeature", "setAttribute", "setProperty");
     private static final Pattern HARDENING = Pattern.compile(
             "disallow-doctype-decl|external-general-entities|external-parameter-entities|load-external-dtd"
-                    + "|ACCESS_EXTERNAL_DTD|ACCESS_EXTERNAL_SCHEMA|SUPPORT_DTD|IS_SUPPORTING_EXTERNAL_ENTITIES");
+                    + "|ACCESS_EXTERNAL_DTD|ACCESS_EXTERNAL_SCHEMA|ACCESS_EXTERNAL_STYLESHEET|SUPPORT_DTD|IS_SUPPORTING_EXTERNAL_ENTITIES");
 
     @Override
     public String id() {

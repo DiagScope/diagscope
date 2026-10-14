@@ -1165,7 +1165,7 @@ outside `@Bean` factories; INFO inside (may be intentional for local/test profil
 
 ## Wave 11 — Implemented 2026-10-14
 
-Twenty-four rules for security, performance patterns, concurrency lifecycle and JPA/Spring pitfalls.
+Twenty-eight rules for security, performance patterns, concurrency lifecycle and JPA/Spring pitfalls.
 Rules marked *parser* needed the adapters to surface a fact the model did not carry: `@OneToMany(fetch =
 EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level markers (as
 `FieldInjectionPresent` already does), and Java `new X()` expressions now carry `insideLoop`.
@@ -1181,8 +1181,8 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | `SYSTEM_ENV_IN_BEAN` | WARNING | `System.getenv/getProperty` in a Spring bean; JVM-constant properties ignored |
 | `SENSITIVE_HEADER_LOGGED` | ERROR | only a header *read* inside a log argument, not a mention in the message |
 | `OPEN_REDIRECT_RISK` | ERROR | non-constant `sendRedirect`/`RedirectView` in a REST handler without visible validation |
-| `PATH_TRAVERSAL_RISK` | ERROR | non-constant `File`/`Paths.get`/`Path.of` in a REST handler without normalisation |
-| `TIMER_STARTED_NOT_STOPPED` | ERROR | Micrometer `Timer.start` sample never stopped |
+| `PATH_TRAVERSAL_RISK` | ERROR | non-constant `File`/`Paths.get`/`Path.of` in a REST handler without normalisation; HIGH when the argument names a parameter or the method reads the request |
+| `TIMER_STARTED_NOT_STOPPED` | INFO | Micrometer `Timer.start` sample never stopped (impact is a missing metric, not an outage) |
 | `OBJECT_INPUT_STREAM_RISK` | ERROR | no `ObjectInputFilter` in the method |
 | `XML_EXTERNAL_ENTITY_RISK` | ERROR | `FEATURE_SECURE_PROCESSING` alone is *not* accepted (it does not stop external entities); MEDIUM when it is the only hardening |
 | `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION` | ERROR | also `Throwable`, `RuntimeException` and Jakarta `dontRollbackOn` |
@@ -1190,12 +1190,16 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | `COUNT_DOWN_LATCH_NOT_IN_FINALLY` | WARNING | only when other work precedes the `countDown()` |
 | `VIRTUAL_THREAD_WITH_THREAD_LOCAL` | WARNING | `@RunOnVirtualThread` + `ThreadLocal.set` |
 | `REFLECTIVE_ACCESS_IN_PRODUCTION` | WARNING | `setAccessible(true)` outside test lifecycle methods |
-| `EAGER_COLLECTION_FETCH` | WARNING | *parser*; once per entity, on its first method |
-| `LAZY_BEAN_CIRCULAR_INDICATOR` | INFO | *parser*; `@Lazy` constructor parameter on a Spring bean |
-| `JPA_ENTITY_CONSTRUCTOR_IN_LOOP` | WARNING | *parser*; usually co-reported with `BULK_OPERATION_IN_LOOP` |
+| `EAGER_COLLECTION_FETCH` | WARNING | *parser*; once per entity, located at the first eager field |
+| `LAZY_BEAN_CIRCULAR_INDICATOR` | INFO | *parser*; located at the `@Lazy` constructor parameter |
 | `MISSING_BULKHEAD_ON_HTTP_CLIENT` | INFO | flow rule: whole path checked for `@Bulkhead`/`@CircuitBreaker` |
-| `HTTP_CLIENT_NO_ERROR_HANDLER` | WARNING | `new RestTemplate()` without `setErrorHandler` |
-| `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` | WARNING | LOW confidence: ack mode may be set by property or default factory |
+| `HTTP_CLIENT_NO_ERROR_HANDLER` | INFO | `new RestTemplate()` without `setErrorHandler`; the default handler is a valid choice, so it is a prompt only |
+| `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` | WARNING | LOW confidence; only listeners that actually call `acknowledge()`/`nack()` |
+| `CANCELLATION_EXCEPTION_SWALLOWED` | WARNING | Kotlin; broad `catch` or `runCatching` in a `suspend` function without rethrowing `CancellationException` |
+| `REACTIVE_RESULT_DISCARDED` | ERROR | lazy `Mono`/`Flux`/`Uni`/`Multi` created and dropped; Kotlin lambda tails are not discarded (new `lastInLambda` evidence) |
+| `BLOCKING_CALL_ON_COMMON_POOL` | WARNING | blocking inside `parallelStream()` or `supplyAsync` without an executor; uses the shared blocking-call catalog |
+| `UNBOUNDED_THREAD_POOL` | WARNING | `newCachedThreadPool`, `ThreadPoolExecutor` with capacity-less queue or `MAX_VALUE`, Spring pool setters |
+| `TIMER_TASK_EXCEPTION_KILLS_TIMER` | WARNING | `java.util.Timer` / `fixedRateTimer` |
 
 ### Proposed but not implemented (reasons)
 
@@ -1209,6 +1213,7 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | `LOG_EXCEPTION_MESSAGE_ONLY` | `LOG_WITHOUT_THROWABLE` already reports `log.error(e.getMessage())` in a catch. |
 | `MISSING_TRANSACTION_ANNOTATION_ON_WRITE` | Overlaps `MISSING_TRANSACTION_ANNOTATION`, which detects the write operations themselves. |
 | `MISSING_SCHEMA_VALIDATION` | Same condition as `MISSING_REQUEST_BODY_VALIDATION`. |
+| `JPA_ENTITY_CONSTRUCTOR_IN_LOOP` | Implemented and then removed before release: every case it reported is already reported by `BULK_OPERATION_IN_LOOP` on the same loop, so it only added noise. |
 | `PLACEHOLDER_IN_LOG_MESSAGE` | Premise is wrong: with `{}` placeholders `toString()` is only called when the level is enabled. |
 | `MISSING_TRANSACTION_TIMEOUT` | Either duplicates `TRANSACTION_WITH_HTTP_CALL` or fires on every `@Transactional`; needs a sharper definition. |
 | `KAFKA_LISTENER_MISSING_CONCURRENCY` | Depends on an unspecified list of "high-throughput" topic names. |
@@ -1228,6 +1233,6 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | Wave 8 | 2026-09-23 | +5 | 100 |
 | Wave 9 | 2026-10-14 | +7 | 107 |
 | Wave 10 | 2026-10-14 | +15 | 122 |
-| Wave 11 | 2026-10-14 | +24 | **146** |
+| Wave 11 | 2026-10-14 | +28 | **150** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

@@ -21,6 +21,9 @@ import java.util.Set;
  * ({@code AckMode.MANUAL}/{@code MANUAL_IMMEDIATE}); in the default {@code BATCH} mode the call is ignored and
  * offsets are committed regardless of what the handler did, so failed messages are lost without an error.</p>
  *
+ * <p>Only listeners that actually call {@code acknowledge()} or {@code nack()} are considered: a handler that never
+ * acknowledges is a different problem ({@code KAFKA_ACK_NOT_INVOKED}).</p>
+ *
  * <p>The ack mode can also be set through {@code spring.kafka.listener.ack-mode} or on the default container
  * factory, none of which is visible in source. The rule therefore reports with LOW confidence and is a prompt to
  * verify the mode, not a proof of a bug.</p>
@@ -41,7 +44,7 @@ public final class KafkaListenerManualAckWrongModeRule implements ProjectRule {
             if (!DiagnosticSignals.hasAnnotation(method, "KafkaListener") && !DiagnosticSignals.hasAnnotation(method, "KafkaHandler")) continue;
             boolean takesAck = method.id().parameterTypes().stream()
                     .map(ExecutionContexts::simpleTypeName).anyMatch("Acknowledgment"::equals);
-            if (!takesAck) continue;
+            if (!takesAck || !RuleSupport.calls(method, "acknowledge", "nack")) continue;
             if (method.annotationAttribute("KafkaListener", "containerFactory").isPresent()) continue;
             findings.add(new Finding(
                     ID, Severity.WARNING, Confidence.LOW, method.location(),

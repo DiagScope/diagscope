@@ -186,6 +186,22 @@ class Wave11RulesTest {
     }
 
     @Test
+    void request_data_raises_the_confidence_of_path_and_redirect_findings() {
+        var path = withParameters("download", Set.of("GetMapping"), "name", ctor(10, "File", "name"));
+        var configured = withParameters("config", Set.of("GetMapping"), "other", ctor(20, "File", "uploadDir"));
+        var redirect = withParameters("go", Set.of("GetMapping"), "returnUrl",
+                call(30, "response", "HttpServletResponse", "sendRedirect", "returnUrl"));
+
+        assertThat(new PathTraversalRiskRule().evaluate(project(path, configured)))
+                .extracting(f -> f.location().startLine(), Finding::confidence)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(10, Confidence.HIGH),
+                        org.assertj.core.groups.Tuple.tuple(20, Confidence.MEDIUM));
+        assertThat(new OpenRedirectRiskRule().evaluate(project(redirect)))
+                .singleElement().satisfies(finding -> assertThat(finding.confidence()).isEqualTo(Confidence.HIGH));
+    }
+
+    @Test
     void path_traversal_is_not_reported_when_the_method_normalises_or_is_not_an_endpoint() {
         var normalised = method("download", Set.of("GetMapping"),
                 ctor(10, "File", "name"), call(11, "path", "Path", "normalize"));
@@ -207,7 +223,7 @@ class Wave11RulesTest {
         assertThat(new TimerStartedNotStoppedRule().evaluate(project(leaking, stopped, returned)))
                 .singleElement().satisfies(finding -> {
                     assertThat(finding.location().startLine()).isEqualTo(10);
-                    assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(finding.severity()).isEqualTo(Severity.INFO);
                 });
     }
 
@@ -236,13 +252,19 @@ class Wave11RulesTest {
                 call(30, "DocumentBuilderFactory", "", "newInstance"),
                 call(31, "factory", "DocumentBuilderFactory", "setFeature", "XMLConstants.FEATURE_SECURE_PROCESSING", "true"));
         var stax = method("stream", Set.of(), call(40, "XMLInputFactory", "", "newFactory"));
+        var transform = method("transform", Set.of(), call(50, "TransformerFactory", "", "newInstance"));
+        var transformSafe = method("transformSafe", Set.of(),
+                call(60, "TransformerFactory", "", "newInstance"),
+                call(61, "factory", "TransformerFactory", "setAttribute", "XMLConstants.ACCESS_EXTERNAL_DTD", "\"\""));
 
-        assertThat(new XmlExternalEntityRiskRule().evaluate(project(unsafe, hardened, secureProcessingOnly, stax)))
+        assertThat(new XmlExternalEntityRiskRule().evaluate(
+                project(unsafe, hardened, secureProcessingOnly, stax, transform, transformSafe)))
                 .extracting(f -> f.location().startLine(), Finding::confidence)
                 .containsExactlyInAnyOrder(
                         org.assertj.core.groups.Tuple.tuple(10, Confidence.HIGH),
                         org.assertj.core.groups.Tuple.tuple(30, Confidence.MEDIUM),
-                        org.assertj.core.groups.Tuple.tuple(40, Confidence.HIGH));
+                        org.assertj.core.groups.Tuple.tuple(40, Confidence.HIGH),
+                        org.assertj.core.groups.Tuple.tuple(50, Confidence.HIGH));
     }
 
     // ── TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION ───────────────────────────────
@@ -335,40 +357,29 @@ class Wave11RulesTest {
     @Test
     void eager_collections_are_reported_once_per_entity_with_the_field_names() {
         var first = withAttributes("getItems", Set.of("Entity", "EagerCollectionFetch"),
-                Map.of("EagerCollectionFetch", Map.of("fields", "items,tags")));
+                Map.of("EagerCollectionFetch", Map.of("fields", "items,tags", "line", "42")));
         var second = withAttributes("getName", Set.of("Entity", "EagerCollectionFetch"),
-                Map.of("EagerCollectionFetch", Map.of("fields", "items,tags")));
+                Map.of("EagerCollectionFetch", Map.of("fields", "items,tags", "line", "42")));
         var lazy = typed("getOther", Set.of("Entity"), "String");
 
         assertThat(new EagerCollectionFetchRule().evaluate(project(first, second, lazy)))
-                .singleElement().satisfies(finding -> assertThat(finding.evidence()).containsEntry("fields", "items,tags"));
+                .singleElement().satisfies(finding -> {
+                    assertThat(finding.evidence()).containsEntry("fields", "items,tags");
+                    assertThat(finding.location().startLine()).isEqualTo(42);
+                });
     }
 
     @Test
     void lazy_constructor_parameters_are_reported_on_spring_beans_only() {
-        var bean = typed("find", Set.of("Service", "LazyConstructorParameter"), "String");
+        var bean = withAttributes("find", Set.of("Service", "LazyConstructorParameter"),
+                Map.of("LazyConstructorParameter", Map.of("line", "17")));
         var plain = typed("find2", Set.of("LazyConstructorParameter"), "String");
 
         assertThat(new LazyBeanCircularIndicatorRule().evaluate(project(bean, plain)))
-                .singleElement().satisfies(finding -> assertThat(finding.severity()).isEqualTo(Severity.INFO));
-    }
-
-    // ── JPA_ENTITY_CONSTRUCTOR_IN_LOOP ────────────────────────────────────────
-
-    @Test
-    void an_entity_created_and_saved_in_a_loop_is_reported() {
-        var entity = new MethodModel(new MethodId("example.Order", "getId", List.of()),
-                new SourceLocation(FILE, 1, 1), Set.of("Entity"), List.of(), List.of(), List.of(), List.of(), List.of());
-        var importer = method("importAll", Set.of(),
-                withLoop(ctor(10, "Order")),
-                withLoop(call(11, "orderRepository", "OrderRepository", "save", "order")));
-        var oneOff = method("importOne", Set.of(), ctor(20, "Order"), call(21, "orderRepository", "OrderRepository", "save", "o"));
-        var notEntity = method("importDtos", Set.of(),
-                withLoop(ctor(30, "OrderDto")),
-                withLoop(call(31, "orderRepository", "OrderRepository", "save", "o")));
-
-        assertThat(new JpaEntityConstructorInLoopRule().evaluate(project(entity, importer, oneOff, notEntity)))
-                .singleElement().satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
+                .singleElement().satisfies(finding -> {
+                    assertThat(finding.severity()).isEqualTo(Severity.INFO);
+                    assertThat(finding.location().startLine()).isEqualTo(17);
+                });
     }
 
     // ── CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID ───────────────────────────────
@@ -410,6 +421,14 @@ class Wave11RulesTest {
         assertThat(new MissingBulkheadOnHttpClientRule().evaluate(flow(method("e2", Set.of("GetMapping")), breaker))).isEmpty();
     }
 
+    @Test
+    void the_jdk_http_client_counts_as_an_outbound_http_call() {
+        var endpoint = method("endpoint", Set.of("GetMapping"));
+        var client = method("fetch", Set.of(), call(10, "client", "java.net.http.HttpClient", "send", "request", "handler"));
+
+        assertThat(new MissingBulkheadOnHttpClientRule().evaluate(flow(endpoint, client))).hasSize(1);
+    }
+
     // ── HTTP_CLIENT_NO_ERROR_HANDLER ──────────────────────────────────────────
 
     @Test
@@ -419,19 +438,24 @@ class Wave11RulesTest {
                 call(21, "template", "RestTemplate", "setErrorHandler", "handler"));
 
         assertThat(new HttpClientNoErrorHandlerRule().evaluate(project(unset, configured)))
-                .singleElement().satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(10));
+                .singleElement().satisfies(finding -> {
+                    assertThat(finding.location().startLine()).isEqualTo(10);
+                    assertThat(finding.severity()).isEqualTo(Severity.INFO);
+                });
     }
 
     // ── KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE ──────────────────────────────────
 
     @Test
     void an_acknowledgment_parameter_without_a_container_factory_is_reported_with_low_confidence() {
-        var listener = listener("onMessage", List.of("String", "org.springframework.kafka.support.Acknowledgment"), Map.of());
+        var ack = call(10, "acknowledgment", "Acknowledgment", "acknowledge");
+        var listener = listener("onMessage", List.of("String", "org.springframework.kafka.support.Acknowledgment"), Map.of(), ack);
         var configured = listener("onMessage2", List.of("String", "Acknowledgment"),
-                Map.of("KafkaListener", Map.of("containerFactory", "manualAckFactory")));
+                Map.of("KafkaListener", Map.of("containerFactory", "manualAckFactory")), ack);
         var noAck = listener("onMessage3", List.of("String"), Map.of());
+        var neverAcknowledges = listener("onMessage4", List.of("String", "Acknowledgment"), Map.of());
 
-        assertThat(new KafkaListenerManualAckWrongModeRule().evaluate(project(listener, configured, noAck)))
+        assertThat(new KafkaListenerManualAckWrongModeRule().evaluate(project(listener, configured, noAck, neverAcknowledges)))
                 .singleElement().satisfies(finding -> {
                     assertThat(finding.confidence()).isEqualTo(Confidence.LOW);
                     assertThat(finding.evidence()).containsEntry("method",
@@ -445,6 +469,14 @@ class Wave11RulesTest {
         return new MethodModel(new MethodId("example.Service", name, List.of()), new SourceLocation(FILE, 1, 1),
                 annotations, List.of(), Arrays.asList(invocations), List.of(), List.of(), List.of(),
                 ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0), "");
+    }
+
+    private static MethodModel withParameters(
+            String name, Set<String> annotations, String parameterNames, InvocationEvidence... invocations) {
+        return new MethodModel(new MethodId("example.Service", name, List.of("String")), new SourceLocation(FILE, 1, 1),
+                annotations, List.of(), Arrays.asList(invocations), List.of(), List.of(), List.of(),
+                ProxyProfile.unknown(), Map.of("ParameterNames", Map.of("names", parameterNames)),
+                CallableShape.fixed(1), "");
     }
 
     private static MethodModel typed(String name, Set<String> annotations, String returnType) {
@@ -461,9 +493,10 @@ class Wave11RulesTest {
     }
 
     private static MethodModel listener(
-            String name, List<String> parameters, Map<String, Map<String, String>> attributes) {
+            String name, List<String> parameters, Map<String, Map<String, String>> attributes,
+            InvocationEvidence... invocations) {
         return new MethodModel(new MethodId("example.Service", name, parameters), new SourceLocation(FILE, 1, 1),
-                Set.of("KafkaListener"), List.of(), List.of(), List.of(), List.of(), List.of(),
+                Set.of("KafkaListener"), List.of(), Arrays.asList(invocations), List.of(), List.of(), List.of(),
                 ProxyProfile.unknown(), attributes, CallableShape.fixed(parameters.size()), "void");
     }
 

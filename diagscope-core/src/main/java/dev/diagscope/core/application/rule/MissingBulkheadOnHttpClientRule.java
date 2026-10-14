@@ -32,10 +32,10 @@ public final class MissingBulkheadOnHttpClientRule implements DiagnosticRule {
 
     public static final String ID = "MISSING_BULKHEAD_ON_HTTP_CLIENT";
 
-    private static final Set<String> HTTP_CLIENTS = Set.of("RestTemplate", "WebClient", "RestClient");
+    private static final Set<String> HTTP_CLIENTS = Set.of("RestTemplate", "WebClient", "RestClient", "HttpClient");
     private static final Set<String> CLIENT_CALLS = Set.of(
             "getForObject", "getForEntity", "postForObject", "postForEntity", "postForLocation", "put", "delete",
-            "exchange", "execute", "patchForObject", "retrieve", "exchangeToMono", "exchangeToFlux");
+            "exchange", "execute", "patchForObject", "retrieve", "exchangeToMono", "exchangeToFlux", "send", "sendAsync");
     private static final Set<String> ISOLATION = Set.of("Bulkhead", "CircuitBreaker");
 
     @Override

@@ -20,8 +20,9 @@ import java.util.Set;
  * cartesian product that multiplies rows. It also cannot be turned off per query, so every code path that
  * loads the entity pays for it, including those that never touch the collection.</p>
  *
- * <p>The parsers surface eager collections as a synthetic class-level marker, so the finding is reported once
- * per entity, on its first method, and names the offending fields. An entity with no methods is not seen.</p>
+ * <p>The parsers surface eager collections as a synthetic class-level marker that records the line of the first
+ * offending field, so the finding is reported once per entity, at that field, and names every eager field. An
+ * entity with no methods is not seen.</p>
  */
 public final class EagerCollectionFetchRule implements ProjectRule {
 
@@ -41,7 +42,7 @@ public final class EagerCollectionFetchRule implements ProjectRule {
             if (!reported.add(method.id().declaringType())) continue;
             String fields = method.annotationAttribute("EagerCollectionFetch", "fields").orElse("");
             findings.add(new Finding(
-                    ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                    ID, Severity.WARNING, Confidence.HIGH, RuleSupport.markerLocation(method, "EagerCollectionFetch"),
                     "'" + RuleSupport.simpleName(method.id().declaringType()) + "' fetches collection(s) [" + fields + "] eagerly."
                             + " Every load of the entity also loads them: an extra query per parent, or a cartesian product when"
                             + " joined.",

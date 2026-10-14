@@ -91,6 +91,39 @@ final class RuleSupport {
         return false;
     }
 
+    private static final Set<String> REQUEST_ACCESSORS = Set.of(
+            "getParameter", "getParameterValues", "getHeader", "getPathInfo", "getQueryString", "getRequestURI",
+            "getRequestURL", "getAttribute", "getCookies", "getInputStream", "getReader");
+
+    /** Names of the method's parameters, as exposed by the parsers; empty when unknown or none. */
+    static Set<String> parameterNames(MethodModel method) {
+        String names = method.annotationAttribute("ParameterNames", "names").orElse("");
+        return names.isBlank() ? Set.of() : Set.of(names.split(","));
+    }
+
+    /**
+     * Whether an argument visibly carries caller-controlled data: it names a method parameter, or the method reads
+     * the value from the request object. Used to rank confidence, not to suppress.
+     */
+    static boolean carriesRequestData(MethodModel method, String expression) {
+        for (String name : parameterNames(method)) {
+            if (Pattern.compile("(?<![\\w.])" + Pattern.quote(name) + "(?!\\w)").matcher(expression).find()) return true;
+        }
+        return method.invocations().stream().anyMatch(call -> REQUEST_ACCESSORS.contains(call.methodName()));
+    }
+
+    /** Line recorded by a parser marker annotation, or the method's own line when absent. */
+    static dev.diagscope.core.domain.SourceLocation markerLocation(MethodModel method, String marker) {
+        int line = method.annotationAttribute(marker, "line").map(value -> {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException ignored) {
+                return method.location().startLine();
+            }
+        }).orElse(method.location().startLine());
+        return new dev.diagscope.core.domain.SourceLocation(method.location().file(), line, line);
+    }
+
     static String simpleName(String qualifiedName) {
         int dot = qualifiedName.lastIndexOf('.');
         return dot < 0 ? qualifiedName : qualifiedName.substring(dot + 1);

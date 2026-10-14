@@ -97,11 +97,15 @@ import dev.diagscope.core.application.rule.VirtualThreadWithThreadLocalRule;
 import dev.diagscope.core.application.rule.ReflectiveAccessInProductionRule;
 import dev.diagscope.core.application.rule.EagerCollectionFetchRule;
 import dev.diagscope.core.application.rule.LazyBeanCircularIndicatorRule;
-import dev.diagscope.core.application.rule.JpaEntityConstructorInLoopRule;
 import dev.diagscope.core.application.rule.CacheEvictWithoutAllEntriesOnVoidRule;
 import dev.diagscope.core.application.rule.MissingBulkheadOnHttpClientRule;
 import dev.diagscope.core.application.rule.HttpClientNoErrorHandlerRule;
 import dev.diagscope.core.application.rule.KafkaListenerManualAckWrongModeRule;
+import dev.diagscope.core.application.rule.CancellationExceptionSwallowedRule;
+import dev.diagscope.core.application.rule.ReactiveResultDiscardedRule;
+import dev.diagscope.core.application.rule.BlockingCallOnCommonPoolRule;
+import dev.diagscope.core.application.rule.UnboundedThreadPoolRule;
+import dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
@@ -356,10 +360,14 @@ public final class DiagScopeMain {
                 new ReflectiveAccessInProductionRule(),
                 new EagerCollectionFetchRule(),
                 new LazyBeanCircularIndicatorRule(),
-                new JpaEntityConstructorInLoopRule(),
                 new CacheEvictWithoutAllEntriesOnVoidRule(),
                 new HttpClientNoErrorHandlerRule(),
-                new KafkaListenerManualAckWrongModeRule()
+                new KafkaListenerManualAckWrongModeRule(),
+                new CancellationExceptionSwallowedRule(),
+                new ReactiveResultDiscardedRule(),
+                new BlockingCallOnCommonPoolRule(),
+                new UnboundedThreadPoolRule(),
+                new TimerTaskExceptionKillsTimerRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -557,11 +565,15 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.ReflectiveAccessInProductionRule.ID,
                 dev.diagscope.core.application.rule.EagerCollectionFetchRule.ID,
                 dev.diagscope.core.application.rule.LazyBeanCircularIndicatorRule.ID,
-                dev.diagscope.core.application.rule.JpaEntityConstructorInLoopRule.ID,
                 dev.diagscope.core.application.rule.CacheEvictWithoutAllEntriesOnVoidRule.ID,
                 dev.diagscope.core.application.rule.MissingBulkheadOnHttpClientRule.ID,
                 dev.diagscope.core.application.rule.HttpClientNoErrorHandlerRule.ID,
-                dev.diagscope.core.application.rule.KafkaListenerManualAckWrongModeRule.ID
+                dev.diagscope.core.application.rule.KafkaListenerManualAckWrongModeRule.ID,
+                dev.diagscope.core.application.rule.CancellationExceptionSwallowedRule.ID,
+                dev.diagscope.core.application.rule.ReactiveResultDiscardedRule.ID,
+                dev.diagscope.core.application.rule.BlockingCallOnCommonPoolRule.ID,
+                dev.diagscope.core.application.rule.UnboundedThreadPoolRule.ID,
+                dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule.ID
         );
     }
 

@@ -13,9 +13,10 @@ import java.util.concurrent.Semaphore
  * OPEN_REDIRECT_RISK, PATH_TRAVERSAL_RISK, TIMER_STARTED_NOT_STOPPED, OBJECT_INPUT_STREAM_RISK,
  * XML_EXTERNAL_ENTITY_RISK, TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION, SEMAPHORE_RELEASE_NOT_IN_FINALLY,
  * COUNT_DOWN_LATCH_NOT_IN_FINALLY, VIRTUAL_THREAD_WITH_THREAD_LOCAL, REFLECTIVE_ACCESS_IN_PRODUCTION,
- * EAGER_COLLECTION_FETCH, LAZY_BEAN_CIRCULAR_INDICATOR, JPA_ENTITY_CONSTRUCTOR_IN_LOOP,
+ * EAGER_COLLECTION_FETCH, LAZY_BEAN_CIRCULAR_INDICATOR,
  * CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID, MISSING_BULKHEAD_ON_HTTP_CLIENT, HTTP_CLIENT_NO_ERROR_HANDLER and
- * KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE.
+ * KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE, CANCELLATION_EXCEPTION_SWALLOWED, REACTIVE_RESULT_DISCARDED,
+ * BLOCKING_CALL_ON_COMMON_POOL, UNBOUNDED_THREAD_POOL and TIMER_TASK_EXCEPTION_KILLS_TIMER.
  */
 @Service
 open class KotlinWave11Service(private val orderRepository: KotlinWave11OrderRepository) {
@@ -112,6 +113,9 @@ open class KotlinWave11Service(private val orderRepository: KotlinWave11OrderRep
     /** XML_EXTERNAL_ENTITY_RISK. */
     open fun parseXml(): Any = DocumentBuilderFactory.newInstance()
 
+    /** XML_EXTERNAL_ENTITY_RISK: transformers resolve external entities too. */
+    open fun transformXml(): Any = TransformerFactory.newInstance()
+
     /** Safe: DTDs are disabled. */
     open fun parseXmlSafe(): Any {
         val factory = DocumentBuilderFactory.newInstance()
@@ -180,14 +184,9 @@ open class KotlinWave11Service(private val orderRepository: KotlinWave11OrderRep
         field.setAccessible(true)
     }
 
-    // ── JPA_ENTITY_CONSTRUCTOR_IN_LOOP ───────────────────────────────────────
-
-    /** JPA_ENTITY_CONSTRUCTOR_IN_LOOP: one INSERT per iteration. */
-    open fun importOrders(names: List<String>) {
-        for (name in names) {
-            val order = KotlinWave11Order()
-            orderRepository.save(order)
-        }
+    /** REFLECTIVE_ACCESS_IN_PRODUCTION: Kotlin's property syntax for the same call. */
+    open fun injectKotlinStyle(field: java.lang.reflect.Field) {
+        field.isAccessible = true
     }
 
     // ── HTTP_CLIENT_NO_ERROR_HANDLER ─────────────────────────────────────────
@@ -278,4 +277,86 @@ open class KotlinWave11Controller(private val restTemplate: RestTemplate) {
     @GetMapping("/wave11/proxy-safe")
     @Bulkhead(name = "downstream")
     open fun proxySafe(): Any? = restTemplate.getForObject("http://downstream.example/api", String::class.java)
+}
+
+// ── CANCELLATION_EXCEPTION_SWALLOWED ─────────────────────────────────────────
+
+@Service
+open class KotlinWave11CoroutineService {
+
+    /** CANCELLATION_EXCEPTION_SWALLOWED: a cancelled coroutine falls through to the fallback. */
+    open suspend fun load(): String {
+        try {
+            return fetch()
+        } catch (e: Exception) {
+            return "fallback"
+        }
+    }
+
+    /** Safe: cancellation is rethrown before the broad catch. */
+    open suspend fun loadSafe(): String {
+        try {
+            return fetch()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return "fallback"
+        }
+    }
+
+    /** CANCELLATION_EXCEPTION_SWALLOWED: runCatching also catches cancellation. */
+    open suspend fun loadOrNull(): String? = runCatching { fetch() }.getOrNull()
+
+    private suspend fun fetch(): String = "value"
+}
+
+// ── REACTIVE_RESULT_DISCARDED ────────────────────────────────────────────────
+
+@Service
+open class KotlinWave11ReactiveService {
+
+    open fun save(id: String): Mono<String> = Mono.just(id)
+
+    /** REACTIVE_RESULT_DISCARDED: the Mono is created and dropped, so nothing is saved. */
+    open fun fireAndForgetBug(id: String) {
+        save(id)
+    }
+
+    /** Safe: the pipeline is returned to the caller. */
+    open fun chained(id: String): Mono<String> = save(id)
+}
+
+// ── BLOCKING_CALL_ON_COMMON_POOL / UNBOUNDED_THREAD_POOL / TIMER_TASK_EXCEPTION_KILLS_TIMER
+
+@Service
+open class KotlinWave11PoolService {
+
+    /** BLOCKING_CALL_ON_COMMON_POOL: parallelStream blocks the shared pool. */
+    open fun parallelBlocking(ids: List<String>) {
+        ids.parallelStream().forEach {
+            LockSupport.parkNanos(1000)
+        }
+    }
+
+    /** Safe: a sequential stream does not use the common pool. */
+    open fun sequentialBlocking(ids: List<String>) {
+        ids.stream().forEach {
+            LockSupport.parkNanos(1000)
+        }
+    }
+
+    /** BLOCKING_CALL_ON_COMMON_POOL: supplyAsync without an executor. */
+    open fun asyncBlocking(): Any = CompletableFuture.supplyAsync {
+        LockSupport.parkNanos(1000)
+        "done"
+    }
+
+    /** UNBOUNDED_THREAD_POOL. */
+    open fun cachedPool(): Any = Executors.newCachedThreadPool()
+
+    /** Safe: a fixed pool. */
+    open fun fixedPool(): Any = Executors.newFixedThreadPool(4)
+
+    /** TIMER_TASK_EXCEPTION_KILLS_TIMER. */
+    open fun legacyTimer(): Any = Timer(true)
 }

@@ -14,9 +14,10 @@ import java.util.concurrent.Semaphore;
  * OPEN_REDIRECT_RISK, PATH_TRAVERSAL_RISK, TIMER_STARTED_NOT_STOPPED, OBJECT_INPUT_STREAM_RISK,
  * XML_EXTERNAL_ENTITY_RISK, TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION, SEMAPHORE_RELEASE_NOT_IN_FINALLY,
  * COUNT_DOWN_LATCH_NOT_IN_FINALLY, VIRTUAL_THREAD_WITH_THREAD_LOCAL, REFLECTIVE_ACCESS_IN_PRODUCTION,
- * EAGER_COLLECTION_FETCH, LAZY_BEAN_CIRCULAR_INDICATOR, JPA_ENTITY_CONSTRUCTOR_IN_LOOP,
+ * EAGER_COLLECTION_FETCH, LAZY_BEAN_CIRCULAR_INDICATOR,
  * CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID, MISSING_BULKHEAD_ON_HTTP_CLIENT, HTTP_CLIENT_NO_ERROR_HANDLER and
- * KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE.
+ * KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE, REACTIVE_RESULT_DISCARDED, BLOCKING_CALL_ON_COMMON_POOL,
+ * UNBOUNDED_THREAD_POOL and TIMER_TASK_EXCEPTION_KILLS_TIMER.
  */
 @Service
 class JavaWave11Service {
@@ -134,6 +135,11 @@ class JavaWave11Service {
         return DocumentBuilderFactory.newInstance();
     }
 
+    /** XML_EXTERNAL_ENTITY_RISK: transformers resolve external entities too. */
+    Object transformXml() throws Exception {
+        return TransformerFactory.newInstance();
+    }
+
     /** Safe: DTDs are disabled. */
     Object parseXmlSafe() throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -200,16 +206,6 @@ class JavaWave11Service {
     /** REFLECTIVE_ACCESS_IN_PRODUCTION. */
     void inject(java.lang.reflect.Field field) {
         field.setAccessible(true);
-    }
-
-    // ── JPA_ENTITY_CONSTRUCTOR_IN_LOOP ───────────────────────────────────────
-
-    /** JPA_ENTITY_CONSTRUCTOR_IN_LOOP: one INSERT per iteration. */
-    void importOrders(List<String> names) {
-        for (String name : names) {
-            JavaWave11Order order = new JavaWave11Order();
-            orderRepository.save(order);
-        }
     }
 
     // ── HTTP_CLIENT_NO_ERROR_HANDLER ─────────────────────────────────────────
@@ -325,5 +321,76 @@ class JavaWave11Controller {
     @Bulkhead(name = "downstream")
     Object proxySafe() {
         return restTemplate.getForObject("http://downstream.example/api", String.class);
+    }
+}
+
+// ── REACTIVE_RESULT_DISCARDED ────────────────────────────────────────────────
+
+@Service
+class JavaWave11ReactiveService {
+
+    Mono<String> save(String id) {
+        return Mono.just(id);
+    }
+
+    /** REACTIVE_RESULT_DISCARDED: the Mono is created and dropped, so nothing is saved. */
+    void fireAndForgetBug(String id) {
+        save(id);
+    }
+
+    /** Safe: the pipeline is returned to the caller. */
+    Mono<String> chained(String id) {
+        return save(id);
+    }
+}
+
+// ── BLOCKING_CALL_ON_COMMON_POOL / UNBOUNDED_THREAD_POOL / TIMER_TASK_EXCEPTION_KILLS_TIMER
+
+@Service
+class JavaWave11PoolService {
+
+    /** BLOCKING_CALL_ON_COMMON_POOL: parallelStream blocks the shared pool. */
+    void parallelBlocking(List<String> ids) {
+        ids.parallelStream().forEach(id -> {
+            LockSupport.parkNanos(1000);
+        });
+    }
+
+    /** Safe: a sequential stream does not use the common pool. */
+    void sequentialBlocking(List<String> ids) {
+        ids.stream().forEach(id -> {
+            LockSupport.parkNanos(1000);
+        });
+    }
+
+    /** BLOCKING_CALL_ON_COMMON_POOL: supplyAsync without an executor. */
+    Object asyncBlocking() {
+        return CompletableFuture.supplyAsync(() -> {
+            LockSupport.parkNanos(1000);
+            return "done";
+        });
+    }
+
+    /** Safe: a dedicated executor is given. */
+    Object asyncBlockingSafe(Executor ioExecutor) {
+        return CompletableFuture.supplyAsync(() -> {
+            LockSupport.parkNanos(1000);
+            return "done";
+        }, ioExecutor);
+    }
+
+    /** UNBOUNDED_THREAD_POOL. */
+    Object cachedPool() {
+        return Executors.newCachedThreadPool();
+    }
+
+    /** Safe: a fixed pool. */
+    Object fixedPool() {
+        return Executors.newFixedThreadPool(4);
+    }
+
+    /** TIMER_TASK_EXCEPTION_KILLS_TIMER. */
+    Object legacyTimer() {
+        return new Timer(true);
     }
 }

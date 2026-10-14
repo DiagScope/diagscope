@@ -289,25 +289,30 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 syntheticMarkers.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
             }
             // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER).
-            String eagerFields = type.getMembers().stream()
+            var eagerMembers = type.getMembers().stream()
                     .filter(BodyDeclaration::isFieldDeclaration)
                     .filter(member -> annotations(member.asFieldDeclaration().getAnnotations()).stream()
                             .anyMatch(a -> EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
                                     && a.attributes().getOrDefault("fetch", "").contains("EAGER")))
-                    .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
-                    .map(variable -> variable.getNameAsString())
-                    .collect(java.util.stream.Collectors.joining(","));
-            if (!eagerFields.isEmpty()) {
-                syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of("fields", eagerFields)));
+                    .toList();
+            if (!eagerMembers.isEmpty()) {
+                String eagerFields = eagerMembers.stream()
+                        .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
+                        .map(variable -> variable.getNameAsString())
+                        .collect(java.util.stream.Collectors.joining(","));
+                syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
+                        "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
             }
             // @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here.
-            boolean lazyConstructorParameter = type.getMembers().stream()
+            var lazyParameter = type.getMembers().stream()
                     .filter(BodyDeclaration::isConstructorDeclaration)
                     .flatMap(member -> member.asConstructorDeclaration().getParameters().stream())
-                    .anyMatch(parameter -> parameter.getAnnotations().stream()
-                            .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())));
-            if (lazyConstructorParameter) {
-                syntheticMarkers.add(new AnnotationDescriptor("LazyConstructorParameter", Map.of()));
+                    .filter(parameter -> parameter.getAnnotations().stream()
+                            .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())))
+                    .findFirst();
+            if (lazyParameter.isPresent()) {
+                syntheticMarkers.add(new AnnotationDescriptor("LazyConstructorParameter",
+                        Map.of("line", lineOf(lazyParameter.get()))));
             }
             if (!syntheticMarkers.isEmpty()) {
                 var augmented = new ArrayList<>(typeAnnotations);
@@ -381,6 +386,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         if (method.isFinal()) {
             var augmented = new ArrayList<>(methodAnnotations);
             augmented.add(new AnnotationDescriptor("Final", Map.of()));
+            methodAnnotations = List.copyOf(augmented);
+        }
+
+        // Expose parameter names so rules can tell whether an argument comes from the caller.
+        if (!method.getParameters().isEmpty()) {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()
+                    .map(parameter -> parameter.getNameAsString())
+                    .collect(java.util.stream.Collectors.joining(",")))));
             methodAnnotations = List.copyOf(augmented);
         }
 
@@ -495,6 +509,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             current = current.getParentNode().orElse(null);
         }
         return false;
+    }
+
+    /** First source line of a node, as text, for synthetic marker attributes. */
+    private static String lineOf(Node node) {
+        return Integer.toString(node.getBegin().map(position -> position.line).orElse(1));
     }
 
     private static boolean hasMethodAncestor(Node node) {
@@ -1361,23 +1380,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 "",             // receiverType
                 simpleName,
                 args,
-                InvocationResultUsage.IGNORED,
-                false,
-                false,
-                assignedConstructorVariable(call),
-                false,
-                insideLoop(call),
-                false,
-                List.of()
+                InvocationResultUsage.IGNORED
         );
-    }
-
-    /** Name of the variable a {@code new X()} expression is assigned to, or empty when it is not. */
-    private static String assignedConstructorVariable(ObjectCreationExpr call) {
-        return call.getParentNode()
-                .filter(parent -> parent instanceof com.github.javaparser.ast.body.VariableDeclarator)
-                .map(parent -> ((com.github.javaparser.ast.body.VariableDeclarator) parent).getNameAsString())
-                .orElse("");
     }
 
     /** Conservative source-only argument types used by the cross-language linker. */
@@ -1456,7 +1460,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     /** True when the call runs inside a for/while/do-while body, so it repeats per iteration. */
-    private static boolean insideLoop(Node call) {
+    private static boolean insideLoop(MethodCallExpr call) {
         Node current = call;
         while (current.getParentNode().isPresent()) {
             Node parent = current.getParentNode().orElseThrow();

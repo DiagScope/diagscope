@@ -47,7 +47,7 @@ public final class TimerStartedNotStoppedRule implements ProjectRule {
                         call.methodName().equals("stop") && call.scope().strip().equals(sample));
                 if (stopped) continue;
                 findings.add(new Finding(
-                        ID, Severity.ERROR, Confidence.MEDIUM, start.location(),
+                        ID, Severity.INFO, Confidence.MEDIUM, start.location(),
                         "'" + method.id().displayName() + "' starts a timer sample"
                                 + (sample.isBlank() ? " and discards it" : " '" + sample + "' that is never stopped")
                                 + ". An unstopped sample records no duration, so the metric misses the executions that matter.",

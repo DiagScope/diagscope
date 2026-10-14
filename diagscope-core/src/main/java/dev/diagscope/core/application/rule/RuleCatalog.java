@@ -2399,7 +2399,7 @@ public final class RuleCatalog {
 
         put(catalog, TimerStartedNotStoppedRule.ID,
                 "Micrometer timer sample started but never stopped",
-                "observability", Severity.ERROR, ALL_LANGUAGES,
+                "observability", Severity.INFO, ALL_LANGUAGES,
                 "Micrometer instrumented code",
                 "Timer.start(...) (or LongTaskTimer.start) creates a sample that the method never"
                         + " stops.",
@@ -2548,19 +2548,6 @@ public final class RuleCatalog {
                 "@Lazy on a field or a setter is not covered. The finding is located at the first"
                         + " method of the class rather than at the constructor.");
 
-        put(catalog, JpaEntityConstructorInLoopRule.ID,
-                "Entity created and saved inside the same loop",
-                "database", Severity.WARNING, ALL_LANGUAGES,
-                "JPA / Spring Data code that inserts many rows",
-                "An @Entity type is instantiated inside a loop that also calls save, persist or"
-                        + " saveAndFlush inside the loop.",
-                "One INSERT (and often one flush) is issued per row. Collecting the entities and"
-                        + " calling saveAll once lets the persistence layer batch the statements.",
-                "A constructor call to a project type annotated with Entity, flagged as inside a"
-                        + " loop, in a method that also has a save/persist call inside a loop.",
-                "Usually reported together with BULK_OPERATION_IN_LOOP on the same loop. An entity"
-                        + " with no methods is not recognised as an entity.");
-
         put(catalog, CacheEvictWithoutAllEntriesOnVoidRule.ID,
                 "@CacheEvict without allEntries on a method with no parameters",
                 "correctness", Severity.INFO, ALL_LANGUAGES,
@@ -2591,7 +2578,7 @@ public final class RuleCatalog {
 
         put(catalog, HttpClientNoErrorHandlerRule.ID,
                 "RestTemplate created without an error handler",
-                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications that create RestTemplate instances",
                 "A RestTemplate is constructed in a method that never sets an error handler.",
                 "The default handler turns every 4xx and 5xx into an exception, so an expected 404"
@@ -2618,6 +2605,99 @@ public final class RuleCatalog {
                 "spring.kafka.listener.ack-mode and the default container factory are not visible in"
                         + " source, so many correct listeners will be reported. Treat it as a prompt to verify"
                         + " the ack mode.");
+
+        put(catalog, CancellationExceptionSwallowedRule.ID,
+                "Coroutine cancellation swallowed by a broad catch",
+                "kotlin-coroutines", Severity.WARNING, Set.of("kotlin"),
+                "Kotlin applications using kotlinx.coroutines",
+                "A suspend function catches Exception, Throwable, RuntimeException,"
+                        + " IllegalStateException or CancellationException without rethrowing, or uses"
+                        + " runCatching.",
+                "Cancellation is delivered as a CancellationException thrown from the next suspension"
+                        + " point. Swallowing it tells the coroutine machinery that nothing happened, so the"
+                        + " coroutine keeps running after its scope was cancelled: work continues after a"
+                        + " request was abandoned, timeouts stop nothing, and shutdown hangs waiting for it.",
+                "In a function carrying the suspend modifier, a catch clause of one of those types"
+                        + " whose body does not throw, or a runCatching call. The function is accepted when it"
+                        + " also catches CancellationException and rethrows it, or calls ensureActive()."
+                        + " Confidence is HIGH when CancellationException itself is caught and MEDIUM for the"
+                        + " broad types.",
+                "The rule cannot see whether the try body contains a suspension point; a catch around"
+                        + " non-suspending code is reported although harmless. Only the suspend function's own"
+                        + " body is inspected.");
+
+        put(catalog, ReactiveResultDiscardedRule.ID,
+                "Reactive pipeline created and discarded, so it never runs",
+                "reactive", Severity.ERROR, ALL_LANGUAGES,
+                "Project Reactor, Mutiny and RxJava code",
+                "A call that returns a Mono, Flux, Uni, Multi or RxJava type is used as a statement"
+                        + " and its result is dropped.",
+                "Reactive types are lazy: the call only describes the work, and nothing is sent,"
+                        + " saved or called until something subscribes. The statement has no effect, with no"
+                        + " error and no log line, which is among the most common reactive bugs.",
+                "An invocation whose result is ignored and whose callee is a project method declared"
+                        + " to return a reactive type, or whose receiver is a typed Mono/Flux/Uni/Multi and the"
+                        + " call is not a terminal operator (subscribe, block, await), or whose receiver is a"
+                        + " Reactive* client. HIGH confidence for the first two, MEDIUM for the last. The last"
+                        + " expression of a Kotlin lambda is not a discarded statement and is skipped.",
+                "Callees outside the project are recognised only through a typed receiver, so a"
+                        + " discarded call on an untyped variable or the tail of a long call chain is missed."
+                        + " Fire-and-forget pipelines that are subscribed elsewhere are not distinguished.");
+
+        put(catalog, BlockingCallOnCommonPoolRule.ID,
+                "Blocking call on the shared ForkJoinPool common pool",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Code using parallel streams or CompletableFuture async stages without an executor",
+                "A blocking call (sleep, Future.get, JDBC, HTTP, file I/O) runs inside a"
+                        + " parallelStream() pipeline or inside supplyAsync/runAsync/thenXxxAsync called without"
+                        + " an Executor.",
+                "Both use ForkJoinPool.commonPool(), which has about one thread per CPU core and is"
+                        + " shared by the whole JVM. A few blocked tasks starve every other parallel stream and"
+                        + " async stage, including those in unrelated libraries, which looks like a service-wide"
+                        + " stall with healthy CPU.",
+                "A terminal operation of a parallelStream()/parallel() pipeline, or an async"
+                        + " CompletableFuture stage with no executor argument, whose source lines enclose a call"
+                        + " classified as blocking by the shared blocking-call catalog. Confidence is capped at"
+                        + " MEDIUM.",
+                "Enclosure is derived from source line ranges. A blocking call hidden in a helper"
+                        + " method called from the lambda is not followed. A custom common-pool parallelism"
+                        + " setting is not visible.");
+
+        put(catalog, UnboundedThreadPoolRule.ID,
+                "Thread pool with no bound on threads or queue",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any code that creates executors",
+                "A pool is created with Executors.newCachedThreadPool(), with a ThreadPoolExecutor"
+                        + " whose queue is an unbounded LinkedBlockingQueue or whose maximum size is"
+                        + " Integer.MAX_VALUE, or a Spring pool configured with"
+                        + " setMaxPoolSize/setQueueCapacity(Integer.MAX_VALUE).",
+                "A pool is the application's back-pressure. A cached pool starts a thread per task"
+                        + " that finds none idle, so a burst or a slow dependency becomes thousands of threads"
+                        + " and an OutOfMemoryError. An unbounded queue accepts unlimited work, so memory grows"
+                        + " and latency climbs with no rejection to signal it.",
+                "A call to newCachedThreadPool on Executors (HIGH confidence), a ThreadPoolExecutor"
+                        + " constructor whose arguments contain a capacity-less"
+                        + " LinkedBlockingQueue/LinkedBlockingDeque or Integer.MAX_VALUE, or a Spring pool"
+                        + " setter given Integer.MAX_VALUE (MEDIUM).",
+                "Pool configuration split across several statements or read from properties is not"
+                        + " combined. Executors.newFixedThreadPool also uses an unbounded queue but is common"
+                        + " and deliberate, so it is not reported.");
+
+        put(catalog, TimerTaskExceptionKillsTimerRule.ID,
+                "java.util.Timer: one failing task silently stops all the others",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any code that schedules recurring work",
+                "A java.util.Timer is created with new Timer(...), or Kotlin's fixedRateTimer is"
+                        + " used.",
+                "A Timer runs every task on one thread. If any TimerTask throws, that thread"
+                        + " terminates and the timer is cancelled: all other scheduled tasks silently never run"
+                        + " again, and scheduling another throws IllegalStateException. The original failure is"
+                        + " not logged unless the task catches it.",
+                "A constructor call to Timer (java.util.Timer; Micrometer's Timer is never"
+                        + " constructed with new) or a call to fixedRateTimer, outside test methods. Reported"
+                        + " where the timer is created.",
+                "The rule cannot see whether each task body catches its own exceptions, so a Timer"
+                        + " whose tasks are all guarded is still reported.");
 
         return Collections.unmodifiableMap(catalog);
     }

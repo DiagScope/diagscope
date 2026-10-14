@@ -21,10 +21,10 @@ import java.util.regex.Pattern;
  * <p>{@code new File(name)}, {@code Paths.get(base, name)} and {@code Path.of(name)} with request-derived input
  * let {@code ../../etc/passwd} escape the intended directory and read or overwrite arbitrary files.</p>
  *
- * <p>The rule cannot tell which method parameter feeds the argument, so any non-constant argument counts. It
- * stays silent when the method visibly neutralises the input ({@code normalize}, {@code toRealPath},
+ * <p>Any non-constant argument counts. Confidence is HIGH when the argument names a method parameter or the method
+ * reads the request object, and MEDIUM otherwise (for example a path taken from configuration). It stays silent when the method visibly neutralises the input ({@code normalize}, {@code toRealPath},
  * {@code getCanonicalPath}, {@code startsWith}, {@code getFileName}, {@code FilenameUtils.getName}); a check in
- * another method is not seen, hence MEDIUM confidence.</p>
+ * another method is not seen.</p>
  */
 public final class PathTraversalRiskRule implements ProjectRule {
 
@@ -48,8 +48,9 @@ public final class PathTraversalRiskRule implements ProjectRule {
             for (InvocationEvidence invocation : method.invocations()) {
                 String call = pathConstruction(invocation);
                 if (call == null || invocation.arguments().stream().noneMatch(RuleSupport::isDynamicExpression)) continue;
+                boolean requestData = invocation.arguments().stream().anyMatch(arg -> RuleSupport.carriesRequestData(method, arg));
                 findings.add(new Finding(
-                        ID, Severity.ERROR, Confidence.MEDIUM, invocation.location(),
+                        ID, Severity.ERROR, requestData ? Confidence.HIGH : Confidence.MEDIUM, invocation.location(),
                         "'" + method.id().displayName() + "' builds a file path with " + call + " from a non-constant"
                                 + " argument. If it comes from the request, '../' sequences can escape the intended directory.",
                         "Resolve the user-supplied name against a fixed base directory, call normalize() (or toRealPath())"
