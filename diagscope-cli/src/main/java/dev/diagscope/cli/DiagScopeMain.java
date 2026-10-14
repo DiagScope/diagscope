@@ -54,6 +54,13 @@ import dev.diagscope.core.application.rule.TransactionalAsyncCombinationRule;
 import dev.diagscope.core.application.rule.ThreadSleepInFlowRule;
 import dev.diagscope.core.application.rule.SequentialFutureJoinInLoopRule;
 import dev.diagscope.core.application.rule.TransactionWithHttpCallRule;
+import dev.diagscope.core.application.rule.VirtualThreadWithSynchronizedRule;
+import dev.diagscope.core.application.rule.CompletableFutureInReactiveContextRule;
+import dev.diagscope.core.application.rule.TransactionalEventListenerMissingPhaseRule;
+import dev.diagscope.core.application.rule.KafkaConsumerGroupHardcodedRule;
+import dev.diagscope.core.application.rule.ClockDependencyNotInjectedRule;
+import dev.diagscope.core.application.rule.UnguardedThreadCreationRule;
+import dev.diagscope.core.application.rule.DriverManagerDataSourceUsedRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
@@ -261,7 +268,15 @@ public final class DiagScopeMain {
                 new CacheNameMismatchRule(),
                 new ScheduledFixedRateTooAggressiveRule(),
                 // Wave 8
-                new TransactionalAsyncCombinationRule()
+                new TransactionalAsyncCombinationRule(),
+                // Wave 9
+                new VirtualThreadWithSynchronizedRule(),
+                new CompletableFutureInReactiveContextRule(),
+                new TransactionalEventListenerMissingPhaseRule(),
+                new KafkaConsumerGroupHardcodedRule(),
+                new ClockDependencyNotInjectedRule(),
+                new UnguardedThreadCreationRule(),
+                new DriverManagerDataSourceUsedRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -414,7 +429,15 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.StringFormatInLoopRule.ID,
                 dev.diagscope.core.application.rule.TransactionalAsyncCombinationRule.ID,
                 dev.diagscope.core.application.rule.ThreadSleepInFlowRule.ID,
-                dev.diagscope.core.application.rule.SequentialFutureJoinInLoopRule.ID
+                dev.diagscope.core.application.rule.SequentialFutureJoinInLoopRule.ID,
+                // Wave 9
+                dev.diagscope.core.application.rule.VirtualThreadWithSynchronizedRule.ID,
+                dev.diagscope.core.application.rule.CompletableFutureInReactiveContextRule.ID,
+                dev.diagscope.core.application.rule.TransactionalEventListenerMissingPhaseRule.ID,
+                dev.diagscope.core.application.rule.KafkaConsumerGroupHardcodedRule.ID,
+                dev.diagscope.core.application.rule.ClockDependencyNotInjectedRule.ID,
+                dev.diagscope.core.application.rule.UnguardedThreadCreationRule.ID,
+                dev.diagscope.core.application.rule.DriverManagerDataSourceUsedRule.ID
         );
     }
 
