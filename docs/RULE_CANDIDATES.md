@@ -1078,6 +1078,91 @@ Project-level scan: methods carrying `@Scheduled` with `fixedRate` attribute par
 | Transactions | | | | | | `TRANSACTION_ISOLATION_DANGEROUS`, `REQUIRES_NEW_IN_LOOP`, `READONLY_TRANSACTION_WRITE` | `PROPAGATION_SUPPORTS_WRITE_RISK` |
 | Correctness | | | | | | | `CACHE_NAME_MISMATCH` |
 
+## Wave 9 — Implemented 2026-10-14
+
+Seven new rules targeting virtual thread correctness, reactive context discipline, event-listener
+contracts, Kafka configuration hygiene, testability, and database connection pooling.
+
+---
+
+### VIRTUAL_THREAD_WITH_SYNCHRONIZED
+**Status:** `done`
+**Severity:** ERROR
+**Category:** Concurrency
+
+Detects `synchronized` methods (Java keyword / Kotlin `@Synchronized`) on methods also carrying
+`@RunOnVirtualThread` or `@StartVirtualThread`. Synchronized blocks pin the carrier thread,
+preventing the JVM from unmounting the virtual thread and defeating scalability under concurrency.
+
+---
+
+### COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Concurrency
+
+Detects `CompletableFuture.supplyAsync()` or `runAsync()` without an explicit executor inside
+methods with `Mono`, `Flux`, `Uni`, `Multi`, `Publisher` return types or `@NonBlocking`. Without
+an executor, ForkJoinPool.commonPool() is used, creating cross-pool interference with reactive
+schedulers.
+
+---
+
+### TRANSACTIONAL_EVENT_LISTENER_MISSING_PHASE
+**Status:** `done`
+**Severity:** WARNING / ERROR
+**Category:** Transactions
+
+Detects `@TransactionalEventListener` without an explicit `phase` attribute. Spring defaults to
+`AFTER_COMMIT` (session already closed when the listener runs). Elevated to ERROR when combined
+with `@Async`, which causes silent transaction bypass.
+
+---
+
+### KAFKA_CONSUMER_GROUP_HARDCODED
+**Status:** `done`
+**Severity:** INFO
+**Category:** Kafka
+
+Detects `@KafkaListener(groupId = "literal-string")` where groupId is a string literal instead of
+a `${...}` placeholder. Hardcoded group IDs cause cross-environment offset pollution. Complement to
+`KAFKA_TOPIC_HARDCODED`.
+
+---
+
+### CLOCK_DEPENDENCY_NOT_INJECTED
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Testability
+
+Detects `LocalDateTime.now()`, `Instant.now()`, `new Date()`, `ZonedDateTime.now()` etc. inside
+Spring-managed beans without an injected `Clock`. Makes time-sensitive business logic
+deterministically untestable.
+
+---
+
+### UNGUARDED_THREAD_CREATION
+**Status:** `done`
+**Severity:** WARNING
+**Category:** Concurrency
+
+Detects `new Thread(runnable)` in Spring-managed beans outside `@Bean` factory methods. Unmanaged
+threads have no pool bounds, no lifecycle, no exception handler, and cannot be stopped gracefully
+by Spring at shutdown.
+
+---
+
+### DRIVER_MANAGER_DATASOURCE_USED
+**Status:** `done`
+**Severity:** WARNING / INFO
+**Category:** Performance
+
+Detects `DriverManagerDataSource` constructor calls. This Spring helper opens a brand-new JDBC
+connection per `getConnection()` call — no pooling, no back-pressure, no connection reuse. WARNING
+outside `@Bean` factories; INFO inside (may be intentional for local/test profiles).
+
+---
+
 ### Current rule count by wave
 | Wave | Date | Rules added | Running total |
 |---|---|---|---|
@@ -1088,6 +1173,7 @@ Project-level scan: methods carrying `@Scheduled` with `fixedRate` attribute par
 | Wave 5 | 2026-08-27 | +5 | 82 |
 | Wave 6 | 2026-09-03 | +7 | 89 |
 | Wave 7 | 2026-09-23 | +6 | 95 |
-| Wave 8 | 2026-09-23 | +5 | **100** |
+| Wave 8 | 2026-09-23 | +5 | 100 |
+| Wave 9 | 2026-10-14 | +7 | **107** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.
