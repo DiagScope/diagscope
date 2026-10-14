@@ -6,6 +6,19 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Wave 11: 28 rules (122 → 150) covering security (`SENSITIVE_HEADER_LOGGED`, `OPEN_REDIRECT_RISK`,
+  `PATH_TRAVERSAL_RISK`, `OBJECT_INPUT_STREAM_RISK`, `XML_EXTERNAL_ENTITY_RISK`), concurrency lifecycle
+  (`SEMAPHORE_RELEASE_NOT_IN_FINALLY`, `COUNT_DOWN_LATCH_NOT_IN_FINALLY`, `VIRTUAL_THREAD_WITH_THREAD_LOCAL`,
+  `TIMER_STARTED_NOT_STOPPED`), JPA/Spring (`EAGER_COLLECTION_FETCH`,
+  `DELETE_ALL_WITHOUT_ID`, `LAZY_BEAN_CIRCULAR_INDICATOR`, `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION`), resource
+  reuse and others, plus `CANCELLATION_EXCEPTION_SWALLOWED`, `REACTIVE_RESULT_DISCARDED`,
+  `BLOCKING_CALL_ON_COMMON_POOL`, `UNBOUNDED_THREAD_POOL` and `TIMER_TASK_EXCEPTION_KILLS_TIMER`. See
+  `docs/RULE_CANDIDATES.md` for the full list and for proposals that were not implemented.
+- `InvocationEvidence.lastInLambda` marks the tail expression of a Kotlin lambda, whose value is returned rather than
+  discarded. Both adapters expose method parameter names (`ParameterNames` synthetic annotation) so security rules can tell
+  request data from configuration, and Kotlin `isAccessible = true` is surfaced as `setAccessible(true)`.
+- The Java and Kotlin adapters surface `@OneToMany/@ManyToMany(fetch = EAGER)` fields and `@Lazy` constructor
+  parameters as synthetic class-level markers that record their source line.
 - Shared execution-context model (`ExecutionContexts`): a method's thread is classified from annotations
   (`@NonBlocking`, `@Blocking`, `@RunOnVirtualThread`, ...), the Kotlin `suspend` modifier, and reactive
   return types, and the context is followed along the flow's call path.

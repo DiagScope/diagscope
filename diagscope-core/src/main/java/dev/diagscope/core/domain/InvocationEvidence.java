@@ -14,6 +14,9 @@ import java.util.Objects;
  * @param loggerReceiver whether built-in or project policy identifies the receiver as a logger
  * @param argumentTypes syntax-inferred argument types, empty or blank where source alone is
  *        insufficient; used only to disambiguate otherwise compatible source declarations
+ * @param lastInLambda whether the call is the last expression of a lambda body, whose value the lambda
+ *        returns even though the call looks like a statement (Kotlin); rules that care about discarded results
+ *        must not treat it as discarded
  */
 public record InvocationEvidence(
         SourceLocation location,
@@ -28,7 +31,8 @@ public record InvocationEvidence(
         boolean insideFinally,
         boolean insideLoop,
         boolean loggerReceiver,
-        List<String> argumentTypes
+        List<String> argumentTypes,
+        boolean lastInLambda
 ) {
     public InvocationEvidence {
         Objects.requireNonNull(location, "location");
@@ -39,6 +43,25 @@ public record InvocationEvidence(
         Objects.requireNonNull(resultUsage, "resultUsage");
         assignedTo = assignedTo == null ? "" : assignedTo;
         argumentTypes = List.copyOf(argumentTypes);
+    }
+
+    public InvocationEvidence(
+            SourceLocation location,
+            String scope,
+            String receiverType,
+            String methodName,
+            List<String> arguments,
+            InvocationResultUsage resultUsage,
+            boolean producerListenerVisible,
+            boolean resourceManaged,
+            String assignedTo,
+            boolean insideFinally,
+            boolean insideLoop,
+            boolean loggerReceiver,
+            List<String> argumentTypes
+    ) {
+        this(location, scope, receiverType, methodName, arguments, resultUsage, producerListenerVisible,
+                resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver, argumentTypes, false);
     }
 
     public InvocationEvidence(
@@ -135,7 +158,7 @@ public record InvocationEvidence(
         if (Objects.equals(receiverType, resolvedReceiverType)) return this;
         return new InvocationEvidence(location, scope, resolvedReceiverType, methodName, arguments, resultUsage,
                 producerListenerVisible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                argumentTypes);
+                argumentTypes, lastInLambda);
     }
 
     /** Returns a copy that records a syntax-visible {@code ProducerListener} in the same project. */
@@ -144,6 +167,6 @@ public record InvocationEvidence(
                 ? this
                 : new InvocationEvidence(location, scope, receiverType, methodName, arguments, resultUsage,
                         visible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                        argumentTypes);
+                        argumentTypes, lastInLambda);
     }
 }

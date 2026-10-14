@@ -1163,6 +1163,63 @@ outside `@Bean` factories; INFO inside (may be intentional for local/test profil
 
 ---
 
+## Wave 11 — Implemented 2026-10-14
+
+Twenty-eight rules for security, performance patterns, concurrency lifecycle and JPA/Spring pitfalls.
+Rules marked *parser* needed the adapters to surface a fact the model did not carry: `@OneToMany(fetch =
+EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level markers (as
+`FieldInjectionPresent` already does), and Java `new X()` expressions now carry `insideLoop`.
+
+| Rule | Severity | Notes |
+|---|---|---|
+| `BCRYPT_CREATED_PER_CALL` | WARNING | encoder built outside `@Bean`; hashing cost is in `encode()`, so the finding is about reuse/testability |
+| `SIMPLE_DATE_FORMAT_PER_CALL` | WARNING | HIGH confidence inside loops |
+| `RANDOM_PER_CALL` | WARNING | `new Random()` without a seed, any `new SecureRandom(...)` |
+| `DELETE_ALL_WITHOUT_ID` | WARNING | no-arg `deleteAll()` on a repository; reactive repositories skipped |
+| `CACHEABLE_ON_VOID_METHOD` | WARNING | Spring caches the `null`, so later calls can skip the method body |
+| `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID` | INFO | parameterless `@CacheEvict` without `allEntries`/`key` |
+| `SYSTEM_ENV_IN_BEAN` | WARNING | `System.getenv/getProperty` in a Spring bean; JVM-constant properties ignored |
+| `SENSITIVE_HEADER_LOGGED` | ERROR | only a header *read* inside a log argument, not a mention in the message |
+| `OPEN_REDIRECT_RISK` | ERROR | non-constant `sendRedirect`/`RedirectView` in a REST handler without visible validation |
+| `PATH_TRAVERSAL_RISK` | ERROR | non-constant `File`/`Paths.get`/`Path.of` in a REST handler without normalisation; HIGH when the argument names a parameter or the method reads the request |
+| `TIMER_STARTED_NOT_STOPPED` | INFO | Micrometer `Timer.start` sample never stopped (impact is a missing metric, not an outage) |
+| `OBJECT_INPUT_STREAM_RISK` | ERROR | no `ObjectInputFilter` in the method |
+| `XML_EXTERNAL_ENTITY_RISK` | ERROR | `FEATURE_SECURE_PROCESSING` alone is *not* accepted (it does not stop external entities); MEDIUM when it is the only hardening |
+| `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION` | ERROR | also `Throwable`, `RuntimeException` and Jakarta `dontRollbackOn` |
+| `SEMAPHORE_RELEASE_NOT_IN_FINALLY` | ERROR | HIGH when released outside `finally`, MEDIUM when never released in the method |
+| `COUNT_DOWN_LATCH_NOT_IN_FINALLY` | WARNING | only when other work precedes the `countDown()` |
+| `VIRTUAL_THREAD_WITH_THREAD_LOCAL` | WARNING | `@RunOnVirtualThread` + `ThreadLocal.set` |
+| `REFLECTIVE_ACCESS_IN_PRODUCTION` | WARNING | `setAccessible(true)` outside test lifecycle methods |
+| `EAGER_COLLECTION_FETCH` | WARNING | *parser*; once per entity, located at the first eager field |
+| `LAZY_BEAN_CIRCULAR_INDICATOR` | INFO | *parser*; located at the `@Lazy` constructor parameter |
+| `MISSING_BULKHEAD_ON_HTTP_CLIENT` | INFO | flow rule: whole path checked for `@Bulkhead`/`@CircuitBreaker` |
+| `HTTP_CLIENT_NO_ERROR_HANDLER` | INFO | `new RestTemplate()` without `setErrorHandler`; the default handler is a valid choice, so it is a prompt only |
+| `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` | WARNING | LOW confidence; only listeners that actually call `acknowledge()`/`nack()` |
+| `CANCELLATION_EXCEPTION_SWALLOWED` | WARNING | Kotlin; broad `catch` or `runCatching` in a `suspend` function without rethrowing `CancellationException` |
+| `REACTIVE_RESULT_DISCARDED` | ERROR | lazy `Mono`/`Flux`/`Uni`/`Multi` created and dropped; Kotlin lambda tails are not discarded (new `lastInLambda` evidence) |
+| `BLOCKING_CALL_ON_COMMON_POOL` | WARNING | blocking inside `parallelStream()` or `supplyAsync` without an executor; uses the shared blocking-call catalog |
+| `UNBOUNDED_THREAD_POOL` | WARNING | `newCachedThreadPool`, `ThreadPoolExecutor` with capacity-less queue or `MAX_VALUE`, Spring pool setters |
+| `TIMER_TASK_EXCEPTION_KILLS_TIMER` | WARNING | `java.util.Timer` / `fixedRateTimer` |
+
+### Proposed but not implemented (reasons)
+
+| Proposal | Why not |
+|---|---|
+| `TEST_USES_THREAD_SLEEP`, `TEST_WITHOUT_ASSERTION`, `SPRING_DIRTY_CONTEXT` | The analyzer only scans `src/main/java` and `src/main/kotlin`; test sources are never parsed, so these could not fire on a real project. Needs an opt-in test-source scan first. |
+| `ENTITY_MANAGER_CLEAR_IN_TRANSACTION` | Already implemented in wave 10. |
+| `POST_CONSTRUCT_CALLS_OVERRIDABLE` | Premise is wrong: `@PostConstruct` runs after construction, subclass included. The hazard exists for constructors, which are not mapped as methods. |
+| `AUTOWIRED_REQUIRED_FALSE_UNSAFE` | Needs null-check evidence, which the model does not carry. |
+| `MISSING_PAGEABLE_ON_FIND_ALL` / `MISSING_PAGEABLE_IN_QUERY_METHOD` | Strict subset of `MISSING_PAGINATION`. |
+| `LOG_EXCEPTION_MESSAGE_ONLY` | `LOG_WITHOUT_THROWABLE` already reports `log.error(e.getMessage())` in a catch. |
+| `MISSING_TRANSACTION_ANNOTATION_ON_WRITE` | Overlaps `MISSING_TRANSACTION_ANNOTATION`, which detects the write operations themselves. |
+| `MISSING_SCHEMA_VALIDATION` | Same condition as `MISSING_REQUEST_BODY_VALIDATION`. |
+| `JPA_ENTITY_CONSTRUCTOR_IN_LOOP` | Implemented and then removed before release: every case it reported is already reported by `BULK_OPERATION_IN_LOOP` on the same loop, so it only added noise. |
+| `PLACEHOLDER_IN_LOG_MESSAGE` | Premise is wrong: with `{}` placeholders `toString()` is only called when the level is enabled. |
+| `MISSING_TRANSACTION_TIMEOUT` | Either duplicates `TRANSACTION_WITH_HTTP_CALL` or fires on every `@Transactional`; needs a sharper definition. |
+| `KAFKA_LISTENER_MISSING_CONCURRENCY` | Depends on an unspecified list of "high-throughput" topic names. |
+
+---
+
 ### Current rule count by wave
 | Wave | Date | Rules added | Running total |
 |---|---|---|---|
@@ -1174,6 +1231,8 @@ outside `@Bean` factories; INFO inside (may be intentional for local/test profil
 | Wave 6 | 2026-09-03 | +7 | 89 |
 | Wave 7 | 2026-09-23 | +6 | 95 |
 | Wave 8 | 2026-09-23 | +5 | 100 |
-| Wave 9 | 2026-10-14 | +7 | **107** |
+| Wave 9 | 2026-10-14 | +7 | 107 |
+| Wave 10 | 2026-10-14 | +15 | 122 |
+| Wave 11 | 2026-10-14 | +28 | **150** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

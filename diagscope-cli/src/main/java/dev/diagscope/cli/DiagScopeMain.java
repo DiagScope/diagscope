@@ -77,6 +77,35 @@ import dev.diagscope.core.application.rule.CacheableOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.EventListenerOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.TimedOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.NativeQueryStringConcatRule;
+// Wave 11
+import dev.diagscope.core.application.rule.BCryptCreatedPerCallRule;
+import dev.diagscope.core.application.rule.SimpleDateFormatPerCallRule;
+import dev.diagscope.core.application.rule.RandomPerCallRule;
+import dev.diagscope.core.application.rule.DeleteAllWithoutIdRule;
+import dev.diagscope.core.application.rule.CacheableOnVoidMethodRule;
+import dev.diagscope.core.application.rule.SystemEnvInBeanRule;
+import dev.diagscope.core.application.rule.SensitiveHeaderLoggedRule;
+import dev.diagscope.core.application.rule.OpenRedirectRiskRule;
+import dev.diagscope.core.application.rule.PathTraversalRiskRule;
+import dev.diagscope.core.application.rule.TimerStartedNotStoppedRule;
+import dev.diagscope.core.application.rule.ObjectInputStreamRiskRule;
+import dev.diagscope.core.application.rule.XmlExternalEntityRiskRule;
+import dev.diagscope.core.application.rule.TransactionalNoRollbackForExceptionRule;
+import dev.diagscope.core.application.rule.SemaphoreReleaseNotInFinallyRule;
+import dev.diagscope.core.application.rule.CountDownLatchNotInFinallyRule;
+import dev.diagscope.core.application.rule.VirtualThreadWithThreadLocalRule;
+import dev.diagscope.core.application.rule.ReflectiveAccessInProductionRule;
+import dev.diagscope.core.application.rule.EagerCollectionFetchRule;
+import dev.diagscope.core.application.rule.LazyBeanCircularIndicatorRule;
+import dev.diagscope.core.application.rule.CacheEvictWithoutAllEntriesOnVoidRule;
+import dev.diagscope.core.application.rule.MissingBulkheadOnHttpClientRule;
+import dev.diagscope.core.application.rule.HttpClientNoErrorHandlerRule;
+import dev.diagscope.core.application.rule.KafkaListenerManualAckWrongModeRule;
+import dev.diagscope.core.application.rule.CancellationExceptionSwallowedRule;
+import dev.diagscope.core.application.rule.ReactiveResultDiscardedRule;
+import dev.diagscope.core.application.rule.BlockingCallOnCommonPoolRule;
+import dev.diagscope.core.application.rule.UnboundedThreadPoolRule;
+import dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
@@ -233,7 +262,9 @@ public final class DiagScopeMain {
                 new RegexCompiledInLoopRule(),
                 new StringFormatInLoopRule(),
                 new ThreadSleepInFlowRule(),
-                new SequentialFutureJoinInLoopRule()
+                new SequentialFutureJoinInLoopRule(),
+                // Wave 11
+                new MissingBulkheadOnHttpClientRule()
         );
         var fullEngine = new RuleEngine(flowRules, List.of(
                 new GodClassRule(),
@@ -308,7 +339,35 @@ public final class DiagScopeMain {
                 new CacheableOnPrivateMethodRule(),
                 new EventListenerOnPrivateMethodRule(),
                 new TimedOnPrivateMethodRule(),
-                new NativeQueryStringConcatRule()
+                new NativeQueryStringConcatRule(),
+                // Wave 11
+                new BCryptCreatedPerCallRule(),
+                new SimpleDateFormatPerCallRule(),
+                new RandomPerCallRule(),
+                new DeleteAllWithoutIdRule(),
+                new CacheableOnVoidMethodRule(),
+                new SystemEnvInBeanRule(),
+                new SensitiveHeaderLoggedRule(),
+                new OpenRedirectRiskRule(),
+                new PathTraversalRiskRule(),
+                new TimerStartedNotStoppedRule(),
+                new ObjectInputStreamRiskRule(),
+                new XmlExternalEntityRiskRule(),
+                new TransactionalNoRollbackForExceptionRule(),
+                new SemaphoreReleaseNotInFinallyRule(),
+                new CountDownLatchNotInFinallyRule(),
+                new VirtualThreadWithThreadLocalRule(),
+                new ReflectiveAccessInProductionRule(),
+                new EagerCollectionFetchRule(),
+                new LazyBeanCircularIndicatorRule(),
+                new CacheEvictWithoutAllEntriesOnVoidRule(),
+                new HttpClientNoErrorHandlerRule(),
+                new KafkaListenerManualAckWrongModeRule(),
+                new CancellationExceptionSwallowedRule(),
+                new ReactiveResultDiscardedRule(),
+                new BlockingCallOnCommonPoolRule(),
+                new UnboundedThreadPoolRule(),
+                new TimerTaskExceptionKillsTimerRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -485,7 +544,36 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.CacheableOnPrivateMethodRule.ID,
                 dev.diagscope.core.application.rule.EventListenerOnPrivateMethodRule.ID,
                 dev.diagscope.core.application.rule.TimedOnPrivateMethodRule.ID,
-                dev.diagscope.core.application.rule.NativeQueryStringConcatRule.ID
+                dev.diagscope.core.application.rule.NativeQueryStringConcatRule.ID,
+                // Wave 11
+                dev.diagscope.core.application.rule.BCryptCreatedPerCallRule.ID,
+                dev.diagscope.core.application.rule.SimpleDateFormatPerCallRule.ID,
+                dev.diagscope.core.application.rule.RandomPerCallRule.ID,
+                dev.diagscope.core.application.rule.DeleteAllWithoutIdRule.ID,
+                dev.diagscope.core.application.rule.CacheableOnVoidMethodRule.ID,
+                dev.diagscope.core.application.rule.SystemEnvInBeanRule.ID,
+                dev.diagscope.core.application.rule.SensitiveHeaderLoggedRule.ID,
+                dev.diagscope.core.application.rule.OpenRedirectRiskRule.ID,
+                dev.diagscope.core.application.rule.PathTraversalRiskRule.ID,
+                dev.diagscope.core.application.rule.TimerStartedNotStoppedRule.ID,
+                dev.diagscope.core.application.rule.ObjectInputStreamRiskRule.ID,
+                dev.diagscope.core.application.rule.XmlExternalEntityRiskRule.ID,
+                dev.diagscope.core.application.rule.TransactionalNoRollbackForExceptionRule.ID,
+                dev.diagscope.core.application.rule.SemaphoreReleaseNotInFinallyRule.ID,
+                dev.diagscope.core.application.rule.CountDownLatchNotInFinallyRule.ID,
+                dev.diagscope.core.application.rule.VirtualThreadWithThreadLocalRule.ID,
+                dev.diagscope.core.application.rule.ReflectiveAccessInProductionRule.ID,
+                dev.diagscope.core.application.rule.EagerCollectionFetchRule.ID,
+                dev.diagscope.core.application.rule.LazyBeanCircularIndicatorRule.ID,
+                dev.diagscope.core.application.rule.CacheEvictWithoutAllEntriesOnVoidRule.ID,
+                dev.diagscope.core.application.rule.MissingBulkheadOnHttpClientRule.ID,
+                dev.diagscope.core.application.rule.HttpClientNoErrorHandlerRule.ID,
+                dev.diagscope.core.application.rule.KafkaListenerManualAckWrongModeRule.ID,
+                dev.diagscope.core.application.rule.CancellationExceptionSwallowedRule.ID,
+                dev.diagscope.core.application.rule.ReactiveResultDiscardedRule.ID,
+                dev.diagscope.core.application.rule.BlockingCallOnCommonPoolRule.ID,
+                dev.diagscope.core.application.rule.UnboundedThreadPoolRule.ID,
+                dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule.ID
         );
     }
 

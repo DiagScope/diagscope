@@ -142,6 +142,69 @@ class KotlinRuleParityTest {
                 .noneMatch(method -> method.contains("lookupInBackground"));
     }
 
+    @Test
+    void reports_wave_11_rules_and_keeps_the_safe_variants_silent() {
+        assertThat(ruleIds()).contains(
+                "BCRYPT_CREATED_PER_CALL",
+                "SIMPLE_DATE_FORMAT_PER_CALL",
+                "RANDOM_PER_CALL",
+                "DELETE_ALL_WITHOUT_ID",
+                "CACHEABLE_ON_VOID_METHOD",
+                "SYSTEM_ENV_IN_BEAN",
+                "SENSITIVE_HEADER_LOGGED",
+                "OPEN_REDIRECT_RISK",
+                "PATH_TRAVERSAL_RISK",
+                "TIMER_STARTED_NOT_STOPPED",
+                "OBJECT_INPUT_STREAM_RISK",
+                "XML_EXTERNAL_ENTITY_RISK",
+                "TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION",
+                "SEMAPHORE_RELEASE_NOT_IN_FINALLY",
+                "COUNT_DOWN_LATCH_NOT_IN_FINALLY",
+                "VIRTUAL_THREAD_WITH_THREAD_LOCAL",
+                "REFLECTIVE_ACCESS_IN_PRODUCTION",
+                "EAGER_COLLECTION_FETCH",
+                "LAZY_BEAN_CIRCULAR_INDICATOR",
+                "CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID",
+                "MISSING_BULKHEAD_ON_HTTP_CLIENT",
+                "HTTP_CLIENT_NO_ERROR_HANDLER",
+                "KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE",
+                "REACTIVE_RESULT_DISCARDED",
+                "BLOCKING_CALL_ON_COMMON_POOL",
+                "UNBOUNDED_THREAD_POOL",
+                "TIMER_TASK_EXCEPTION_KILLS_TIMER",
+                "CANCELLATION_EXCEPTION_SWALLOWED");
+        assertThat(methodsFor("BCRYPT_CREATED_PER_CALL")).noneMatch(method -> method.contains("passwordEncoder"));
+        assertThat(methodsFor("DELETE_ALL_WITHOUT_ID")).noneMatch(method -> method.contains("resetOrdersInBatch"));
+        assertThat(methodsFor("CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID")).noneMatch(method -> method.contains("clearAllOrders"));
+        assertThat(methodsFor("SENSITIVE_HEADER_LOGGED")).noneMatch(method -> method.contains("traceMissing"));
+        assertThat(methodsFor("TIMER_STARTED_NOT_STOPPED")).noneMatch(method -> method.contains("timedWorkSafe"));
+        assertThat(methodsFor("XML_EXTERNAL_ENTITY_RISK")).noneMatch(method -> method.contains("parseXmlSafe"));
+        assertThat(evidenceValues("TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION", "attribute")).hasSize(1);
+        assertThat(methodsFor("SEMAPHORE_RELEASE_NOT_IN_FINALLY")).noneMatch(method -> method.contains("limitedSafe"));
+        assertThat(methodsFor("COUNT_DOWN_LATCH_NOT_IN_FINALLY")).noneMatch(method -> method.contains("taskSafe"));
+        assertThat(methodsFor("HTTP_CLIENT_NO_ERROR_HANDLER")).noneMatch(method -> method.contains("restTemplateSafe"));
+        assertThat(methodsFor("KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE")).noneMatch(method -> method.contains("Wave11Service.onOrderSafe("));
+        assertThat(methodsFor("OPEN_REDIRECT_RISK")).noneMatch(method -> method.contains("home"));
+        assertThat(methodsFor("MISSING_BULKHEAD_ON_HTTP_CLIENT")).noneMatch(method -> method.contains("proxySafe"));
+        assertThat(methodsFor("REACTIVE_RESULT_DISCARDED"))
+                .anyMatch(method -> method.contains("fireAndForgetBug"))
+                .noneMatch(method -> method.contains("chained"));
+        assertThat(evidenceValues("BLOCKING_CALL_ON_COMMON_POOL", "pool"))
+                .contains("a parallel stream", "supplyAsync without an executor");
+        assertThat(methodsFor("BLOCKING_CALL_ON_COMMON_POOL"))
+                .noneMatch(method -> method.contains("sequentialBlocking"))
+                .noneMatch(method -> method.contains("asyncBlockingSafe"));
+        assertThat(methodsFor("UNBOUNDED_THREAD_POOL"))
+                .anyMatch(method -> method.contains("cachedPool"))
+                .noneMatch(method -> method.contains("fixedPool"));
+        assertThat(methodsFor("XML_EXTERNAL_ENTITY_RISK")).anyMatch(method -> method.contains("transformXml"));
+        assertThat(methodsFor("CANCELLATION_EXCEPTION_SWALLOWED"))
+                .anyMatch(method -> method.contains("KotlinWave11CoroutineService.load()"))
+                .anyMatch(method -> method.contains("loadOrNull"))
+                .noneMatch(method -> method.contains("loadSafe"));
+        assertThat(methodsFor("REFLECTIVE_ACCESS_IN_PRODUCTION")).anyMatch(method -> method.contains("injectKotlinStyle"));
+    }
+
     private Set<String> ruleIds() {
         return ruleIds(result);
     }

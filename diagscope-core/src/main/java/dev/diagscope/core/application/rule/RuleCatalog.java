@@ -2258,6 +2258,447 @@ public final class RuleCatalog {
                         + " is safe but will still be flagged. Suppress with diagscope:ignore for"
                         + " verified constant-only concatenation.");
 
+        // Wave 11
+        put(catalog, BCryptCreatedPerCallRule.ID,
+                "BCryptPasswordEncoder created on every call instead of shared",
+                "security", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Security applications that hash passwords",
+                "A BCryptPasswordEncoder is constructed inside an ordinary method rather than"
+                        + " declared once as a bean.",
+                "The encoder is stateless and thread-safe. Building it per call scatters the"
+                        + " work-factor setting across call sites, so raising the strength misses some of them,"
+                        + " and it prevents replacing the encoder in tests. The hashing cost itself is paid in"
+                        + " encode() and matches(), not in the constructor.",
+                "A constructor call to BCryptPasswordEncoder in a method that is not a @Bean,"
+                        + " @PostConstruct or test method.",
+                "Only BCryptPasswordEncoder is recognised; other encoders (Argon2, SCrypt, Pbkdf2)"
+                        + " are not. A constructor invoked in a field initializer is not a method and is not"
+                        + " seen.");
+
+        put(catalog, SimpleDateFormatPerCallRule.ID,
+                "SimpleDateFormat created on every call",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin code that formats or parses dates with java.text.SimpleDateFormat",
+                "A SimpleDateFormat is constructed inside an ordinary method.",
+                "Each construction re-parses the pattern. The common workaround of sharing one"
+                        + " instance is unsafe because SimpleDateFormat is not thread-safe and returns corrupted"
+                        + " dates under concurrency. DateTimeFormatter is immutable, thread-safe and can be a"
+                        + " constant.",
+                "A constructor call to SimpleDateFormat in a method that is not a @Bean,"
+                        + " @PostConstruct or test method. Confidence is HIGH inside a loop, MEDIUM otherwise.",
+                "A SimpleDateFormat kept in a static or instance field is not flagged by this rule,"
+                        + " although sharing it is a thread-safety bug in its own right.");
+
+        put(catalog, RandomPerCallRule.ID,
+                "Random or SecureRandom created on every call",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin code that draws random numbers",
+                "A java.util.Random (with no seed) or a SecureRandom is constructed inside an"
+                        + " ordinary method.",
+                "SecureRandom seeds itself from the operating system entropy source, which is slow"
+                        + " and can block on some hosts, and creating one per call repeats that cost. Both"
+                        + " classes are thread-safe, so one shared instance is correct, and a per-call generator"
+                        + " cannot be replaced by a seeded one in tests.",
+                "A constructor call to SecureRandom, or to Random with no arguments, outside @Bean,"
+                        + " @PostConstruct and test methods. Confidence is HIGH for SecureRandom and MEDIUM for"
+                        + " Random.",
+                "new Random(seed) is treated as deliberate and is not reported."
+                        + " SecureRandom.getInstance(...) factory calls are not detected.");
+
+        put(catalog, DeleteAllWithoutIdRule.ID,
+                "repository.deleteAll() loads every entity before deleting",
+                "database", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Data JPA repositories",
+                "A repository's no-argument deleteAll() is called.",
+                "Spring Data JPA implements deleteAll() by loading every entity and deleting them one"
+                        + " at a time. It grows with the table, so a large one means an OutOfMemoryError or a"
+                        + " very long transaction, and one DELETE statement per row.",
+                "An invocation of deleteAll() with no arguments on a receiver typed as *Repository or"
+                        + " *Dao, or named like one. Reactive repositories are skipped. Confidence is HIGH when"
+                        + " the receiver type is known, MEDIUM from the name.",
+                "Repositories whose deleteAll() is overridden to run a bulk statement, and non-JPA"
+                        + " stores where deleteAll() is already a single command, will be false positives."
+                        + " Suppress with diagscope:ignore.");
+
+        put(catalog, CacheableOnVoidMethodRule.ID,
+                "@Cacheable on a method that returns nothing",
+                "correctness", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Cache applications",
+                "A method annotated with @Cacheable declares a void or Unit return type.",
+                "There is no value to cache. Spring stores the null result under the key, so with"
+                        + " default settings a later call with the same arguments is a cache hit and the method"
+                        + " body is skipped entirely, which silently drops the side effect the method exists"
+                        + " for.",
+                "The Cacheable annotation on a method whose declared return type is exactly void or"
+                        + " Unit.",
+                "A Kotlin function with an inferred return type has no declared type in the syntax"
+                        + " and is not reported.");
+
+        put(catalog, SystemEnvInBeanRule.ID,
+                "System.getenv/getProperty read directly inside a Spring bean",
+                "testability", Severity.WARNING, ALL_LANGUAGES,
+                "Spring beans (@Component, @Service, @Repository, @Controller, @Configuration)",
+                "A Spring-managed class calls System.getenv(...) or System.getProperty(...).",
+                "Reading the process environment ties the bean to global state that a unit test"
+                        + " cannot replace without mutating the JVM, and it bypasses Spring property sources"
+                        + " (profiles, config files, secret stores). @Value, @ConfigurationProperties and"
+                        + " Environment are injectable and overridable.",
+                "An invocation of getenv or getProperty on System inside a method of a class with a"
+                        + " Spring stereotype. Reads of JVM-constant properties such as line.separator,"
+                        + " java.io.tmpdir or user.dir are ignored.",
+                "Only classes that carry a Spring stereotype are checked; beans declared through"
+                        + " @Bean methods in a class without one are reached only when that class is a"
+                        + " @Configuration.");
+
+        put(catalog, SensitiveHeaderLoggedRule.ID,
+                "Credential header value written to the log",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Servlet, WebFlux and JAX-RS applications that log requests",
+                "A logger call has an argument that reads the Authorization, Cookie, Set-Cookie,"
+                        + " X-API-Key, X-Auth-Token or similar header.",
+                "Bearer tokens, session ids and API keys end up in log files, backups and third-party"
+                        + " aggregators with a much wider audience and longer retention than the credential was"
+                        + " meant to have.",
+                "A logger invocation whose argument text contains a header read such as"
+                        + " getHeader(\"Authorization\"), headers.get(\"Cookie\") or headers[\"X-API-Key\"]. A"
+                        + " message that only mentions the header name is not reported.",
+                "Logging a whole header map or request object is not detected, and neither is a"
+                        + " header name held in a variable.");
+
+        put(catalog, OpenRedirectRiskRule.ID,
+                "Redirect to a non-constant location in a REST handler",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Spring MVC and servlet REST handlers",
+                "A handler method calls response.sendRedirect(...) or builds a RedirectView with an"
+                        + " argument that is not a literal or a constant.",
+                "If any part of the target comes from the request, an attacker can craft a link on"
+                        + " your own domain that sends the victim to a phishing site, and the user trusts it"
+                        + " because it starts with your host.",
+                "A sendRedirect call or RedirectView constructor with a non-constant first argument,"
+                        + " in a method with a REST mapping annotation, where the method makes no visible"
+                        + " validation call (startsWith, matches, contains, isAllowed, isValid, isSafe)."
+                        + " Confidence MEDIUM.",
+                "The rule cannot see which parameter feeds the argument, and validation performed in"
+                        + " another method is not seen. Redirects returned as a 'redirect:' view name are not"
+                        + " detected.");
+
+        put(catalog, PathTraversalRiskRule.ID,
+                "File path built from a non-constant argument in a REST handler",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Spring MVC and JAX-RS handlers that read or write files",
+                "A REST handler builds a File, Paths.get or Path.of path from an argument that is not"
+                        + " a literal or a constant.",
+                "If the argument comes from the request, '../' sequences escape the intended"
+                        + " directory, letting a caller read or overwrite arbitrary files the process can reach.",
+                "A new File(...), Paths.get(...) or Path.of(...) call with a non-constant argument in"
+                        + " a method with a REST mapping annotation, where the method calls none of normalize,"
+                        + " toRealPath, getCanonicalPath, startsWith, getFileName or FilenameUtils.getName."
+                        + " Confidence MEDIUM.",
+                "The rule cannot see which parameter feeds the argument, so configuration-derived"
+                        + " paths are flagged too. Sanitisation done in another method is not seen.");
+
+        put(catalog, TimerStartedNotStoppedRule.ID,
+                "Micrometer timer sample started but never stopped",
+                "observability", Severity.INFO, ALL_LANGUAGES,
+                "Micrometer instrumented code",
+                "Timer.start(...) (or LongTaskTimer.start) creates a sample that the method never"
+                        + " stops.",
+                "A sample only records a duration when stop() runs. A dropped sample records nothing,"
+                        + " so the metric silently under-reports exactly the executions that mattered, and for a"
+                        + " LongTaskTimer the active-task gauge stays incremented.",
+                "A start call on Timer or LongTaskTimer whose result is assigned to a variable that"
+                        + " has no stop call in the same method, or whose result is discarded. A sample that is"
+                        + " returned or passed on is not reported.",
+                "A sample stored in a field and stopped by another method is reported, as is one"
+                        + " stopped by a helper that receives it through a wrapper object.");
+
+        put(catalog, ObjectInputStreamRiskRule.ID,
+                "ObjectInputStream without an ObjectInputFilter",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Any code that reads Java-serialized data",
+                "An ObjectInputStream is constructed and no ObjectInputFilter is set in the same"
+                        + " method.",
+                "Java deserialization instantiates whatever class the byte stream names and runs its"
+                        + " readObject logic. With a gadget class on the classpath, untrusted input becomes"
+                        + " remote code execution.",
+                "A constructor call to ObjectInputStream in a method that calls none of"
+                        + " setObjectInputFilter, createFilter or setSerialFilter.",
+                "A JVM-wide filter (-Djdk.serialFilter or ObjectInputFilter.Config.setSerialFilter at"
+                        + " startup) or one installed by a helper is not visible, so those programs are false"
+                        + " positives.");
+
+        put(catalog, XmlExternalEntityRiskRule.ID,
+                "XML parser factory without external entity protection (XXE)",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "Code that parses XML with JAXP (DocumentBuilderFactory, SAXParserFactory,"
+                        + " XMLInputFactory)",
+                "An XML parser factory is created and the method does not disable DTDs or external"
+                        + " entities.",
+                "These factories resolve DTDs and external entities by default. A crafted document"
+                        + " can read local files or reach internal services (XXE). FEATURE_SECURE_PROCESSING"
+                        + " alone limits entity expansion but still resolves external entities.",
+                "A newInstance/newFactory call on one of those factories with no setFeature,"
+                        + " setAttribute or setProperty call in the same method that mentions"
+                        + " disallow-doctype-decl, external-general-entities, external-parameter-entities,"
+                        + " ACCESS_EXTERNAL_DTD, ACCESS_EXTERNAL_SCHEMA, SUPPORT_DTD or"
+                        + " IS_SUPPORTING_EXTERNAL_ENTITIES. Confidence is MEDIUM when only"
+                        + " FEATURE_SECURE_PROCESSING is set.",
+                "A factory hardened in another method (a shared builder or utility) is reported."
+                        + " TransformerFactory and SchemaFactory are not covered.");
+
+        put(catalog, TransactionalNoRollbackForExceptionRule.ID,
+                "@Transactional that refuses rollback for Exception or Throwable",
+                "transactions", Severity.ERROR, ALL_LANGUAGES,
+                "Spring and Jakarta transactional services",
+                "@Transactional names Exception, Throwable or RuntimeException in noRollbackFor (or"
+                        + " dontRollbackOn).",
+                "noRollbackFor lists exceptions that must not roll the transaction back. Naming one"
+                        + " of these covers practically every failure, so a database error or a bug midway"
+                        + " through still commits the writes made so far, leaving partial data that no log line"
+                        + " explains.",
+                "The noRollbackFor, noRollbackForClassName or dontRollbackOn attribute of a"
+                        + " Transactional annotation containing Exception, Throwable or RuntimeException."
+                        + " Reported once per declaring type and value when the annotation is on the class.",
+                "Names that are only visible through a constant or a custom exception base class are"
+                        + " not resolved.");
+
+        put(catalog, SemaphoreReleaseNotInFinallyRule.ID,
+                "Semaphore permit not released in a finally block",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Code that limits concurrency with java.util.concurrent.Semaphore",
+                "A method acquires a Semaphore permit but does not release it in a finally block.",
+                "If anything between acquire() and release() throws, the permit is leaked. A"
+                        + " semaphore with N permits tolerates N such failures and then every caller blocks"
+                        + " forever, a starvation that looks like a hang and leaves no error behind.",
+                "An acquire or acquireUninterruptibly call on a Semaphore (by type, or by a"
+                        + " 'semaphore' name hint) with no release call inside a finally block of the same"
+                        + " method. Confidence is HIGH when the method releases outside a finally, MEDIUM when"
+                        + " it never releases.",
+                "A permit released by a different method (a custom lock class) is reported with"
+                        + " MEDIUM confidence. tryAcquire is not covered.");
+
+        put(catalog, CountDownLatchNotInFinallyRule.ID,
+                "CountDownLatch.countDown() not in a finally block",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Code that coordinates threads with java.util.concurrent.CountDownLatch",
+                "countDown() is called outside a finally block in a method where other work runs"
+                        + " before it.",
+                "If the work before countDown() throws, the latch never reaches zero and every thread"
+                        + " blocked in await() stays blocked for good.",
+                "A countDown call on a CountDownLatch (by type or a 'latch' name hint) with no"
+                        + " countDown inside a finally block of the same method and at least one non-logging"
+                        + " call earlier in the method.",
+                "A callback that only counts down cannot fail first and is not reported. Work that"
+                        + " happens in a different method than the countDown is not seen.");
+
+        put(catalog, VirtualThreadWithThreadLocalRule.ID,
+                "ThreadLocal.set() in a method running on a virtual thread",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Quarkus and Java 21+ code using @RunOnVirtualThread",
+                "A method annotated with @RunOnVirtualThread stores a value in a ThreadLocal.",
+                "Virtual threads are created per task and can number in the millions. Each keeps its"
+                        + " own copy of every ThreadLocal it touches, turning per-thread storage into"
+                        + " per-request heap for the garbage collector to scan. ScopedValue or explicit"
+                        + " parameters carry request context without a per-thread map.",
+                "A set call on a ThreadLocal receiver (by type, or by a 'threadlocal' name hint)"
+                        + " inside a method with RunOnVirtualThread in its effective annotations.",
+                "Only the annotated method itself is inspected; a helper it calls that sets a"
+                        + " ThreadLocal is not followed. Virtual threads started with Thread.ofVirtual() are not"
+                        + " recognised.");
+
+        put(catalog, ReflectiveAccessInProductionRule.ID,
+                "setAccessible(true) in production code",
+                "maintainability", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin production code",
+                "Production code calls setAccessible(true) on a reflected member.",
+                "It bypasses encapsulation, fails with InaccessibleObjectException on Java 17+ unless"
+                        + " the package is opened, and ties the code to another library's internals, which then"
+                        + " break on upgrade.",
+                "An invocation of setAccessible with the literal argument true outside test lifecycle"
+                        + " methods.",
+                "Kotlin's isAccessible = true is a property assignment and is not seen. Code that is"
+                        + " intentionally reflective (a serializer, an injector) will be reported.");
+
+        put(catalog, EagerCollectionFetchRule.ID,
+                "JPA collection fetched eagerly",
+                "database", Severity.WARNING, ALL_LANGUAGES,
+                "JPA / Hibernate entities",
+                "An entity declares @OneToMany or @ManyToMany with fetch = FetchType.EAGER.",
+                "The collection is loaded with every parent: one extra query per parent (N+1) or,"
+                        + " when joined, a cartesian product that multiplies rows. It cannot be switched off per"
+                        + " query, so every code path that loads the entity pays for it, including those that"
+                        + " never read the collection.",
+                "The parsers detect a field annotated with OneToMany or ManyToMany whose fetch"
+                        + " attribute contains EAGER and mark the class. The finding is reported once per"
+                        + " entity, on its first method, and lists the fields.",
+                "An entity with no methods (a bare Kotlin data class) is not seen. The finding is"
+                        + " located at the first method of the class rather than at the field.");
+
+        put(catalog, LazyBeanCircularIndicatorRule.ID,
+                "@Lazy constructor parameter masking a circular dependency",
+                "spring", Severity.INFO, ALL_LANGUAGES,
+                "Spring beans with constructor injection",
+                "A Spring bean's constructor has a parameter annotated with @Lazy.",
+                "@Lazy injects a proxy that resolves the real bean on first use. The usual reason is"
+                        + " a circular dependency: the cycle is hidden rather than removed, and it returns as a"
+                        + " runtime failure or an unexpected proxy. It is also used on purpose to defer an"
+                        + " expensive bean, so this is informational.",
+                "The parsers detect @Lazy on a constructor parameter and mark the class; the rule"
+                        + " reports Spring-stereotyped classes with that marker, once per bean.",
+                "@Lazy on a field or a setter is not covered. The finding is located at the first"
+                        + " method of the class rather than at the constructor.");
+
+        put(catalog, CacheEvictWithoutAllEntriesOnVoidRule.ID,
+                "@CacheEvict without allEntries on a method with no parameters",
+                "correctness", Severity.INFO, ALL_LANGUAGES,
+                "Spring Cache applications",
+                "A parameterless method annotated with @CacheEvict sets neither allEntries = true nor"
+                        + " an explicit key.",
+                "With no arguments Spring derives an empty key, so the call evicts one entry that was"
+                        + " almost certainly never written, and the rest of the cache stays stale.",
+                "A CacheEvict annotation on a method with no parameters, a void/Unit (or undeclared)"
+                        + " return type, and neither an allEntries = true nor a key/keyGenerator attribute.",
+                "A deliberate eviction of the single empty-key entry (a cached no-argument lookup) is"
+                        + " reported; suppress with diagscope:ignore.");
+
+        put(catalog, MissingBulkheadOnHttpClientRule.ID,
+                "Outbound HTTP call with no bulkhead or circuit breaker on its path",
+                "resilience", Severity.INFO, ALL_LANGUAGES,
+                "Services calling downstream HTTP APIs with RestTemplate, WebClient or RestClient",
+                "A method makes an outbound HTTP call and no method on the path from the entrypoint"
+                        + " carries @Bulkhead or @CircuitBreaker.",
+                "Without isolation one slow downstream holds a request thread per in-flight call"
+                        + " until the pool is exhausted, and every endpoint of the service stops answering,"
+                        + " including unrelated ones.",
+                "A call on a RestTemplate, WebClient or RestClient receiver, evaluated along the"
+                        + " flow: every method from the entrypoint to the call is checked for a Bulkhead or"
+                        + " CircuitBreaker annotation. Confidence is capped at MEDIUM and by the path.",
+                "Isolation applied outside the application (gateway, service mesh, HTTP client pool"
+                        + " limits) is invisible. Feign clients and java.net.http.HttpClient are not covered.");
+
+        put(catalog, HttpClientNoErrorHandlerRule.ID,
+                "RestTemplate created without an error handler",
+                "resilience", Severity.INFO, ALL_LANGUAGES,
+                "Spring applications that create RestTemplate instances",
+                "A RestTemplate is constructed in a method that never sets an error handler.",
+                "The default handler turns every 4xx and 5xx into an exception, so an expected 404"
+                        + " becomes a failure, and unhandled ones surface as generic 500s with the downstream"
+                        + " response body lost.",
+                "A constructor call to RestTemplate in a method with no setErrorHandler or"
+                        + " errorHandler call.",
+                "Only a RestTemplate constructed in the method is seen; an injected one is not."
+                        + " Accepting the default behaviour deliberately is reasonable, in which case suppress"
+                        + " with diagscope:ignore.");
+
+        put(catalog, KafkaListenerManualAckWrongModeRule.ID,
+                "Acknowledgment parameter without a manual-ack container factory",
+                "kafka", Severity.WARNING, ALL_LANGUAGES,
+                "Spring Kafka listeners",
+                "A @KafkaListener method declares an Acknowledgment parameter but names no"
+                        + " containerFactory.",
+                "acknowledge() only commits the offset when the container runs in a manual ack mode."
+                        + " In the default BATCH mode the call is ignored and offsets are committed regardless"
+                        + " of what the handler did, so failed messages are lost without an error.",
+                "A KafkaListener or KafkaHandler method with a parameter of type Acknowledgment and"
+                        + " no containerFactory attribute. Confidence is LOW because the mode may be set"
+                        + " elsewhere.",
+                "spring.kafka.listener.ack-mode and the default container factory are not visible in"
+                        + " source, so many correct listeners will be reported. Treat it as a prompt to verify"
+                        + " the ack mode.");
+
+        put(catalog, CancellationExceptionSwallowedRule.ID,
+                "Coroutine cancellation swallowed by a broad catch",
+                "kotlin-coroutines", Severity.WARNING, Set.of("kotlin"),
+                "Kotlin applications using kotlinx.coroutines",
+                "A suspend function catches Exception, Throwable, RuntimeException,"
+                        + " IllegalStateException or CancellationException without rethrowing, or uses"
+                        + " runCatching.",
+                "Cancellation is delivered as a CancellationException thrown from the next suspension"
+                        + " point. Swallowing it tells the coroutine machinery that nothing happened, so the"
+                        + " coroutine keeps running after its scope was cancelled: work continues after a"
+                        + " request was abandoned, timeouts stop nothing, and shutdown hangs waiting for it.",
+                "In a function carrying the suspend modifier, a catch clause of one of those types"
+                        + " whose body does not throw, or a runCatching call. The function is accepted when it"
+                        + " also catches CancellationException and rethrows it, or calls ensureActive()."
+                        + " Confidence is HIGH when CancellationException itself is caught and MEDIUM for the"
+                        + " broad types.",
+                "The rule cannot see whether the try body contains a suspension point; a catch around"
+                        + " non-suspending code is reported although harmless. Only the suspend function's own"
+                        + " body is inspected.");
+
+        put(catalog, ReactiveResultDiscardedRule.ID,
+                "Reactive pipeline created and discarded, so it never runs",
+                "reactive", Severity.ERROR, ALL_LANGUAGES,
+                "Project Reactor, Mutiny and RxJava code",
+                "A call that returns a Mono, Flux, Uni, Multi or RxJava type is used as a statement"
+                        + " and its result is dropped.",
+                "Reactive types are lazy: the call only describes the work, and nothing is sent,"
+                        + " saved or called until something subscribes. The statement has no effect, with no"
+                        + " error and no log line, which is among the most common reactive bugs.",
+                "An invocation whose result is ignored and whose callee is a project method declared"
+                        + " to return a reactive type, or whose receiver is a typed Mono/Flux/Uni/Multi and the"
+                        + " call is not a terminal operator (subscribe, block, await), or whose receiver is a"
+                        + " Reactive* client. HIGH confidence for the first two, MEDIUM for the last. The last"
+                        + " expression of a Kotlin lambda is not a discarded statement and is skipped.",
+                "Callees outside the project are recognised only through a typed receiver, so a"
+                        + " discarded call on an untyped variable or the tail of a long call chain is missed."
+                        + " Fire-and-forget pipelines that are subscribed elsewhere are not distinguished.");
+
+        put(catalog, BlockingCallOnCommonPoolRule.ID,
+                "Blocking call on the shared ForkJoinPool common pool",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Code using parallel streams or CompletableFuture async stages without an executor",
+                "A blocking call (sleep, Future.get, JDBC, HTTP, file I/O) runs inside a"
+                        + " parallelStream() pipeline or inside supplyAsync/runAsync/thenXxxAsync called without"
+                        + " an Executor.",
+                "Both use ForkJoinPool.commonPool(), which has about one thread per CPU core and is"
+                        + " shared by the whole JVM. A few blocked tasks starve every other parallel stream and"
+                        + " async stage, including those in unrelated libraries, which looks like a service-wide"
+                        + " stall with healthy CPU.",
+                "A terminal operation of a parallelStream()/parallel() pipeline, or an async"
+                        + " CompletableFuture stage with no executor argument, whose source lines enclose a call"
+                        + " classified as blocking by the shared blocking-call catalog. Confidence is capped at"
+                        + " MEDIUM.",
+                "Enclosure is derived from source line ranges. A blocking call hidden in a helper"
+                        + " method called from the lambda is not followed. A custom common-pool parallelism"
+                        + " setting is not visible.");
+
+        put(catalog, UnboundedThreadPoolRule.ID,
+                "Thread pool with no bound on threads or queue",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any code that creates executors",
+                "A pool is created with Executors.newCachedThreadPool(), with a ThreadPoolExecutor"
+                        + " whose queue is an unbounded LinkedBlockingQueue or whose maximum size is"
+                        + " Integer.MAX_VALUE, or a Spring pool configured with"
+                        + " setMaxPoolSize/setQueueCapacity(Integer.MAX_VALUE).",
+                "A pool is the application's back-pressure. A cached pool starts a thread per task"
+                        + " that finds none idle, so a burst or a slow dependency becomes thousands of threads"
+                        + " and an OutOfMemoryError. An unbounded queue accepts unlimited work, so memory grows"
+                        + " and latency climbs with no rejection to signal it.",
+                "A call to newCachedThreadPool on Executors (HIGH confidence), a ThreadPoolExecutor"
+                        + " constructor whose arguments contain a capacity-less"
+                        + " LinkedBlockingQueue/LinkedBlockingDeque or Integer.MAX_VALUE, or a Spring pool"
+                        + " setter given Integer.MAX_VALUE (MEDIUM).",
+                "Pool configuration split across several statements or read from properties is not"
+                        + " combined. Executors.newFixedThreadPool also uses an unbounded queue but is common"
+                        + " and deliberate, so it is not reported.");
+
+        put(catalog, TimerTaskExceptionKillsTimerRule.ID,
+                "java.util.Timer: one failing task silently stops all the others",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Any code that schedules recurring work",
+                "A java.util.Timer is created with new Timer(...), or Kotlin's fixedRateTimer is"
+                        + " used.",
+                "A Timer runs every task on one thread. If any TimerTask throws, that thread"
+                        + " terminates and the timer is cancelled: all other scheduled tasks silently never run"
+                        + " again, and scheduling another throws IllegalStateException. The original failure is"
+                        + " not logged unless the task catches it.",
+                "A constructor call to Timer (java.util.Timer; Micrometer's Timer is never"
+                        + " constructed with new) or a call to fixedRateTimer, outside test methods. Reported"
+                        + " where the timer is created.",
+                "The rule cannot see whether each task body catches its own exceptions, so a Timer"
+                        + " whose tasks are all guarded is still reported.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

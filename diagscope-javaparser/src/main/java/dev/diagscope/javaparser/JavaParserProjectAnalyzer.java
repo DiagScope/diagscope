@@ -109,6 +109,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     );
     /** DI annotations that, when placed on a field, indicate field injection rather than constructor injection. */
     private static final Set<String> FIELD_INJECTION_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
+    private static final Set<String> EAGER_COLLECTION_ANNOTATIONS = Set.of("OneToMany", "ManyToMany");
     private static final Set<String> LOGGER_METHODS = Set.of("trace", "debug", "info", "warn", "error", "log");
     private static final Set<String> OBSERVING_COMPLETION_METHODS = Set.of(
             "get", "join", "whenComplete", "handle", "exceptionally", "thenAccept", "thenRun"
@@ -283,9 +284,39 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                     .anyMatch(field -> field.asFieldDeclaration().getAnnotations().stream()
                             .map(a -> a.getName().getIdentifier())
                             .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+            var syntheticMarkers = new ArrayList<AnnotationDescriptor>();
             if (hasFieldInjection) {
+                syntheticMarkers.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+            }
+            // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER).
+            var eagerMembers = type.getMembers().stream()
+                    .filter(BodyDeclaration::isFieldDeclaration)
+                    .filter(member -> annotations(member.asFieldDeclaration().getAnnotations()).stream()
+                            .anyMatch(a -> EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
+                                    && a.attributes().getOrDefault("fetch", "").contains("EAGER")))
+                    .toList();
+            if (!eagerMembers.isEmpty()) {
+                String eagerFields = eagerMembers.stream()
+                        .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
+                        .map(variable -> variable.getNameAsString())
+                        .collect(java.util.stream.Collectors.joining(","));
+                syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
+                        "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
+            }
+            // @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here.
+            var lazyParameter = type.getMembers().stream()
+                    .filter(BodyDeclaration::isConstructorDeclaration)
+                    .flatMap(member -> member.asConstructorDeclaration().getParameters().stream())
+                    .filter(parameter -> parameter.getAnnotations().stream()
+                            .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())))
+                    .findFirst();
+            if (lazyParameter.isPresent()) {
+                syntheticMarkers.add(new AnnotationDescriptor("LazyConstructorParameter",
+                        Map.of("line", lineOf(lazyParameter.get()))));
+            }
+            if (!syntheticMarkers.isEmpty()) {
                 var augmented = new ArrayList<>(typeAnnotations);
-                augmented.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
+                augmented.addAll(syntheticMarkers);
                 typeAnnotations = List.copyOf(augmented);
             }
             types.add(typeInfo(qualifiedName, type, typeAnnotations));
@@ -355,6 +386,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         if (method.isFinal()) {
             var augmented = new ArrayList<>(methodAnnotations);
             augmented.add(new AnnotationDescriptor("Final", Map.of()));
+            methodAnnotations = List.copyOf(augmented);
+        }
+
+        // Expose parameter names so rules can tell whether an argument comes from the caller.
+        if (!method.getParameters().isEmpty()) {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()
+                    .map(parameter -> parameter.getNameAsString())
+                    .collect(java.util.stream.Collectors.joining(",")))));
             methodAnnotations = List.copyOf(augmented);
         }
 
@@ -469,6 +509,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             current = current.getParentNode().orElse(null);
         }
         return false;
+    }
+
+    /** First source line of a node, as text, for synthetic marker attributes. */
+    private static String lineOf(Node node) {
+        return Integer.toString(node.getBegin().map(position -> position.line).orElse(1));
     }
 
     private static boolean hasMethodAncestor(Node node) {
