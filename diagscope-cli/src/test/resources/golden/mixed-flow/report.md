@@ -1,13 +1,13 @@
 # DiagScope Report
 
-`mixed-flow` — 9 finding(s) across 3 flow(s).
+`mixed-flow` — 10 finding(s) across 3 flow(s).
 
 | Metric | Value |
 | --- | --- |
 | Build system | Maven |
-| Findings | 9 |
+| Findings | 10 |
 | Errors | 3 |
-| Warnings | 5 |
+| Warnings | 6 |
 | Info | 1 |
 | Flows | 3 |
 | Source files | 6 |
@@ -33,7 +33,7 @@
 
 ## Executive summary
 
-9 finding(s): 3 error(s), 5 warning(s), 1 info. 6 are high confidence and worth triaging first.
+10 finding(s): 3 error(s), 6 warning(s), 1 info. 6 are high confidence and worth triaging first.
 
 ### Findings by rule
 
@@ -44,6 +44,7 @@
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_TOPIC_HARDCODED` | Kafka listener topic name is a hardcoded string literal | 1 | `INFO` | 1 | 0 | 0 |
+| `MISSING_REQUEST_BODY_VALIDATION` | Write endpoint on controller without @Validated — request body constraints ignored | 1 | `WARNING` | 0 | 1 | 0 |
 | `SCHEDULED_EXCEPTION_NOT_HANDLED` | @Scheduled method has no exception boundary | 1 | `WARNING` | 0 | 1 | 0 |
 | `SILENT_CATCH` | Exception caught and ignored | 1 | `ERROR` | 1 | 0 | 0 |
 | `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
@@ -54,7 +55,7 @@
 | Confidence | Findings | What it means |
 | --- | --- | --- |
 | `HIGH` | 6 | HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding. |
-| `MEDIUM` | 3 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
+| `MEDIUM` | 4 | MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting. |
 | `LOW` | 0 | LOW — the situation is plausible but depends on runtime behaviour DiagScope cannot observe (dynamic targets, global handlers, or deep or ambiguous call edges). Use it as a hint, not as a defect. |
 
 ## Diagnostic coverage by flow
@@ -75,6 +76,7 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 
 ### Findings grouped by file
 
+- `src/main/java/example/PaymentController.java`: `MISSING_REQUEST_BODY_VALIDATION` (line 8)
 - `src/main/java/example/PaymentListener.java`: `KAFKA_DEAD_LETTER_NOT_CONFIGURED` (line 4), `KAFKA_TOPIC_HARDCODED` (line 4), `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (line 6), `SILENT_CATCH` (line 6)
 - `src/main/java/example/PaymentMetrics.java`: `HIGH_CARDINALITY_METRIC_TAG` (line 7)
 - `src/main/java/example/PaymentPublisher.java`: `KAFKA_SEND_RESULT_IGNORED` (line 6)
@@ -82,6 +84,30 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 - `src/main/java/example/ReconciliationJob.java`: `SCHEDULED_EXCEPTION_NOT_HANDLED` (line 4), `SYSTEM_OUTPUT` (line 5)
 
 ## Findings
+
+### ⚠️ MISSING_REQUEST_BODY_VALIDATION — `src/main/java/example/PaymentController.java:8`
+
+'example.PaymentController.capture(String)' is a write endpoint on a controller without @Validated. @Valid/@Constraint annotations on @RequestBody parameters are silently ignored — invalid input passes to the service layer unchecked.
+
+**What this means:** A controller method handling a write operation (POST/PUT/PATCH) has parameters but the controller class does not carry @Validated. Any @Valid or field-level constraint annotations on @RequestBody parameters are silently ignored by Spring MVC.
+
+**Why it matters:** Invalid input — nulls, out-of-range values, malformed strings — passes to the service layer unchecked. Validation failures that should be 400 Bad Request instead surface as NullPointerException, DataIntegrityViolationException, or silent data corruption, typically as a generic 500 with no user-facing feedback.
+
+**How it was detected:** Controller types with @RestController or @Controller that lack @Validated in any method's effective annotation set, containing at least one method with @PostMapping, @PutMapping, or @PatchMapping and non-empty parameterTypes. Confidence MEDIUM — parameter-level @Valid is not visible in the method annotation set.
+
+**Suggested action:** Annotate the controller class with @Validated: @RestController @Validated public class PaymentController. Then annotate each @RequestBody parameter with @Valid to activate field-level constraint validation, returning 400 Bad Request automatically on constraint violations.
+
+- Severity: `WARNING` · Confidence: `MEDIUM`
+- Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
+- Affected flows: none
+- Fingerprint: `sha256:2c69be804376e4892eb3e404b7465e49ff947ba4d65b4ca0fa819a4667055d7d`
+
+<details><summary>Evidence</summary>
+
+- `declaringType`: `example.PaymentController`
+- `method`: `example.PaymentController.capture(String)`
+
+</details>
 
 ### ⚠️ KAFKA_DEAD_LETTER_NOT_CONFIGURED — `src/main/java/example/PaymentListener.java:4`
 

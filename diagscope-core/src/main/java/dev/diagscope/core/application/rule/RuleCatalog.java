@@ -1979,6 +1979,285 @@ public final class RuleCatalog {
                         + " test fixtures that do not run under load; those sites are suppressed"
                         + " when @TestConfiguration or @DataJpaTest is present.");
 
+        // Wave 10
+        put(catalog, MissingRequestBodyValidationRule.ID,
+                "Write endpoint on controller without @Validated — request body constraints ignored",
+                "rest", Severity.WARNING, ALL_LANGUAGES,
+                "@RestController or @Controller classes with POST/PUT/PATCH methods",
+                "A controller method handling a write operation (POST/PUT/PATCH) has parameters"
+                        + " but the controller class does not carry @Validated. Any @Valid or"
+                        + " field-level constraint annotations on @RequestBody parameters are"
+                        + " silently ignored by Spring MVC.",
+                "Invalid input — nulls, out-of-range values, malformed strings — passes to the"
+                        + " service layer unchecked. Validation failures that should be 400 Bad"
+                        + " Request instead surface as NullPointerException,"
+                        + " DataIntegrityViolationException, or silent data corruption, typically"
+                        + " as a generic 500 with no user-facing feedback.",
+                "Controller types with @RestController or @Controller that lack @Validated in"
+                        + " any method's effective annotation set, containing at least one method"
+                        + " with @PostMapping, @PutMapping, or @PatchMapping and non-empty"
+                        + " parameterTypes. Confidence MEDIUM — parameter-level @Valid is not"
+                        + " visible in the method annotation set.",
+                "Controllers that validate inputs programmatically (e.g., manual null checks or"
+                        + " a Validator injected field) will be false positives. Methods without"
+                        + " a @RequestBody parameter (e.g., path-variable-only endpoints) may"
+                        + " also be flagged; suppress with diagscope:ignore.");
+
+        put(catalog, TransactionalOnRestControllerRule.ID,
+                "@Transactional on @RestController — database connection held for full HTTP cycle",
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "Spring MVC controllers annotated with @RestController or @Controller",
+                "A method on a @RestController or @Controller class is also annotated with"
+                        + " @Transactional, placing a transaction boundary on the HTTP entry point"
+                        + " rather than the service layer.",
+                "The database connection is held open for the entire HTTP request cycle, including"
+                        + " serialization, content negotiation, and view rendering. Under concurrency,"
+                        + " this inflates connection hold time and reduces pool availability."
+                        + " If serialization throws after the HTTP status is committed, the rollback"
+                        + " is invisible to the client — a 200 OK with no committed data.",
+                "Methods carrying both @Transactional and @RestController or @Controller in their"
+                        + " effective annotation set. Class-level annotations are merged, so a"
+                        + " class-level @Transactional on a controller is also detected."
+                        + " Confidence HIGH.",
+                "Intentional use of @Transactional at the controller level for simple CRUD"
+                        + " endpoints with no service layer will produce false positives."
+                        + " Suppress with diagscope:ignore when this is intentional.");
+
+        put(catalog, ApplicationContextLocatorRule.ID,
+                "applicationContext.getBean() in Spring bean — Service Locator anti-pattern",
+                "spring", Severity.WARNING, ALL_LANGUAGES,
+                "Spring beans (@Component, @Service, @Repository, etc.) that call getBean()",
+                "A Spring-managed bean calls applicationContext.getBean(Type.class) or"
+                        + " applicationContext.getBean(\"beanName\") to retrieve a dependency at"
+                        + " runtime instead of declaring it as a constructor parameter.",
+                "The dependency obtained via getBean() is invisible to the framework: Spring"
+                        + " cannot detect circular dependencies at startup, the dependency cannot"
+                        + " be mocked in unit tests without mocking the entire ApplicationContext,"
+                        + " and the class cannot be instantiated outside a Spring context at all."
+                        + " Scoped beans (request-scoped, session-scoped) may behave unexpectedly"
+                        + " when looked up outside their natural lifecycle.",
+                "Methods on Spring stereotype-annotated classes containing an invocation with"
+                        + " methodName == 'getBean', outside @Bean factory methods and test"
+                        + " lifecycle methods. Confidence HIGH.",
+                "Legitimate uses inside @Bean factory methods (producing prototype beans) are"
+                        + " suppressed. ObjectProvider<T> injection is the preferred alternative"
+                        + " to getBean() for lazily resolved or prototype-scoped dependencies.");
+
+        put(catalog, AsyncVoidReturnRule.ID,
+                "@Async method returns void — exceptions silently discarded",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "@Async methods on Spring-managed beans",
+                "An @Async method has a void return type. Exceptions thrown inside the method"
+                        + " are passed to AsyncUncaughtExceptionHandler (default: logs once and"
+                        + " discards). The caller receives no failure signal.",
+                "Every exception thrown by every @Async void method is silently swallowed after"
+                        + " a log line that is easy to miss. Failures are invisible to callers,"
+                        + " cannot be surfaced in monitoring as errors, and cannot be retried"
+                        + " programmatically. Teams typically discover this only after a production"
+                        + " incident where background work silently stopped happening.",
+                "Methods carrying @Async whose returnType is void, Void, or Unit. Confidence HIGH.",
+                "Methods intentionally fire-and-forget with a configured custom"
+                        + " AsyncUncaughtExceptionHandler that alerts/records are false positives."
+                        + " Suppress with diagscope:ignore when a custom handler is in place.");
+
+        put(catalog, ConfigurationPropertiesNotValidatedRule.ID,
+                "@ConfigurationProperties without @Validated — constraint annotations silently ignored",
+                "configuration", Severity.WARNING, ALL_LANGUAGES,
+                "@ConfigurationProperties classes with field-level constraint annotations",
+                "A class annotated with @ConfigurationProperties does not also carry @Validated."
+                        + " Bean Validation annotations on its fields (@NotNull, @Min, @Pattern, etc.)"
+                        + " are silently ignored at startup.",
+                "Invalid configuration — a missing required property, a port number out of range,"
+                        + " a malformed URL — only surfaces as a runtime error deep in the application,"
+                        + " often under load or on first use of the affected bean, rather than as a"
+                        + " startup failure with a clear, actionable error message naming the"
+                        + " invalid field.",
+                "Configuration property classes (methods carrying ConfigurationProperties in their"
+                        + " effective annotation set) where no method in the same declaring type"
+                        + " also carries Validated. One finding per type. Confidence HIGH.",
+                "Types that validate programmatically via @PostConstruct or a custom Validator bean"
+                        + " will be false positives. @ConstructorBinding-style classes are detected"
+                        + " if the constructor method carries the annotation.");
+
+        put(catalog, CircuitBreakerWithoutFallbackRule.ID,
+                "@CircuitBreaker without fallbackMethod — open circuit throws uncaught exception",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Resilience4j @CircuitBreaker annotations",
+                "A method annotated with @CircuitBreaker does not specify a fallbackMethod."
+                        + " When the circuit opens, Resilience4j throws CallNotPermittedException"
+                        + " directly to the caller — no graceful degradation.",
+                "Without a fallback, a circuit breaker is just a switch: it isolates downstream"
+                        + " failures but provides no user-facing degradation. The exception propagates"
+                        + " as-is, typically becoming a 500 Internal Server Error visible to end"
+                        + " users. The pattern provides only thread isolation, not graceful"
+                        + " degradation.",
+                "Methods carrying @CircuitBreaker in their effective annotation set where the"
+                        + " annotationAttributes map for CircuitBreaker contains no 'fallbackMethod'"
+                        + " key or an empty value. Confidence HIGH.",
+                "Teams that handle CallNotPermittedException via a global @ControllerAdvice"
+                        + " exception handler will be false positives at the method level."
+                        + " Suppress with diagscope:ignore when global handling is in place.");
+
+        put(catalog, BulkheadWithoutFallbackRule.ID,
+                "@Bulkhead without fallbackMethod — full bulkhead throws uncaught exception",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Resilience4j @Bulkhead annotations",
+                "A method annotated with @Bulkhead does not specify a fallbackMethod."
+                        + " When all bulkhead slots are occupied, BulkheadFullException"
+                        + " propagates to the caller as-is.",
+                "A bulkhead without graceful degradation limits concurrency but provides no"
+                        + " user-facing response. BulkheadFullException typically appears as an"
+                        + " unhandled 500 Internal Server Error instead of a 'service busy,"
+                        + " try again' response with appropriate retry guidance.",
+                "Methods carrying @Bulkhead in their effective annotation set where the"
+                        + " annotationAttributes map for Bulkhead contains no 'fallbackMethod'"
+                        + " key or an empty value. Confidence HIGH.",
+                "Global exception handlers covering BulkheadFullException are false positives."
+                        + " Suppress with diagscope:ignore when global handling is in place.");
+
+        put(catalog, RateLimiterWithoutFallbackRule.ID,
+                "@RateLimiter without fallbackMethod — exceeded limit throws uncaught exception",
+                "resilience", Severity.INFO, ALL_LANGUAGES,
+                "Resilience4j @RateLimiter annotations",
+                "A method annotated with @RateLimiter does not specify a fallbackMethod."
+                        + " When the rate limit is exceeded, RequestNotPermitted propagates"
+                        + " to callers as an unhandled exception.",
+                "Without a fallback, a rate limiter exceedance is not returned as 429 Too Many"
+                        + " Requests but as an uncaught exception — not the correct HTTP semantics"
+                        + " and not a useful user experience. The response gives the client no"
+                        + " Retry-After hint or actionable message.",
+                "Methods carrying @RateLimiter in their effective annotation set where the"
+                        + " annotationAttributes map for RateLimiter contains no 'fallbackMethod'"
+                        + " key or an empty value. Severity INFO (less severe than circuit breaker"
+                        + " / bulkhead). Confidence HIGH.",
+                "Global exception handlers returning 429 are false positives at the method level.");
+
+        put(catalog, ThreadLocalNotRemovedRule.ID,
+                "ThreadLocal.set() without ThreadLocal.remove() — per-request data leak in thread pool",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Methods that set a ThreadLocal value in a thread-pool context",
+                "A method calls ThreadLocal.set() without a visible ThreadLocal.remove() in the"
+                        + " same method body.",
+                "In a thread pool (servlet container, Spring async executor, virtual-thread pool),"
+                        + " threads are reused across requests. Without remove(), the stored value"
+                        + " survives into the next request on the same thread — user A's data may"
+                        + " be readable by user B's request. The failure is intermittent,"
+                        + " non-reproducible under low concurrency, and catastrophic in production.",
+                "Methods containing a 'set' invocation on a ThreadLocal-looking receiver (scope"
+                        + " or receiverType contains 'threadlocal') with no 'remove' invocation on"
+                        + " any ThreadLocal receiver in the same method. Confidence MEDIUM — the"
+                        + " receiver heuristic may miss renamed variables.",
+                "A remove() in a different method (e.g., a filter's doFilter that calls set() in"
+                        + " pre-processing and remove() in post-processing as separate calls) will"
+                        + " be a false positive. Suppress with diagscope:ignore at those call sites.");
+
+        put(catalog, RunBlockingInSuspendRule.ID,
+                "runBlocking inside suspend function — blocks dispatcher thread, risk of deadlock",
+                "kotlin", Severity.ERROR, Set.of("kotlin"),
+                "Kotlin suspend functions",
+                "A Kotlin suspend function calls runBlocking { }.",
+                "runBlocking creates a new event loop and blocks the current thread until the"
+                        + " coroutine body completes. Inside a suspend function, the current thread"
+                        + " is a dispatcher thread. Blocking it starves other coroutines on that"
+                        + " dispatcher and defeats structured concurrency. On single-threaded"
+                        + " dispatchers (Dispatchers.Main, test dispatchers), this causes a"
+                        + " deadlock: the new event loop waits for the outer one to yield — and it"
+                        + " never does.",
+                "Suspend functions with the synthetic SUSPEND annotation containing a 'runBlocking'"
+                        + " invocation in their body. Confidence HIGH.",
+                "runBlocking used at the top-level entry point (e.g., main function) to bridge"
+                        + " into coroutines is not flagged because entry-point functions are not"
+                        + " suspend. Only suspend functions are inspected.");
+
+        put(catalog, EntityManagerClearInTransactionRule.ID,
+                "EntityManager.clear() inside @Transactional — detaches entities, writes silently lost",
+                "database", Severity.WARNING, ALL_LANGUAGES,
+                "@Transactional methods that access the EntityManager",
+                "A @Transactional method calls EntityManager.clear() outside a loop, detaching"
+                        + " all managed entities mid-transaction.",
+                "After clear(), any entity reference obtained earlier is detached. Calling a"
+                        + " setter on it, navigating a Hibernate proxy, or triggering a cascaded"
+                        + " write silently has no effect — Hibernate's dirty-checking no longer"
+                        + " tracks it. The transaction commits without error and the data is simply"
+                        + " not persisted. This is one of the hardest JPA bugs to diagnose.",
+                "Methods carrying @Transactional containing a 'clear' invocation on an"
+                        + " EntityManager receiver (scope contains 'em' or 'entitymanager',"
+                        + " or receiverType contains 'EntityManager'), where insideLoop is false."
+                        + " Confidence MEDIUM.",
+                "The intentional batch pattern (persist → flush → clear → repeat inside a loop)"
+                        + " is suppressed because insideLoop is true. False positives may occur if"
+                        + " a non-EntityManager object named 'em' has a clear() method.");
+
+        put(catalog, CacheableOnPrivateMethodRule.ID,
+                "@Cacheable/@CacheEvict/@CachePut on non-interceptable method — cache never activated",
+                "aop", Severity.ERROR, ALL_LANGUAGES,
+                "Spring beans with @Cacheable, @CacheEvict, or @CachePut annotations",
+                "A Spring caching annotation (@Cacheable, @CacheEvict, @CachePut) is placed on"
+                        + " a method that the Spring CGLIB proxy cannot intercept — private, static,"
+                        + " or final.",
+                "The annotation is silently ignored. Every call reaches the real method; the cache"
+                        + " is never populated, cache evictions never fire, and no error or warning"
+                        + " is raised at startup or runtime. The failure only surfaces in profiling"
+                        + " or when developers notice 'why is the cache always empty?'",
+                "Methods carrying Cacheable, CacheEvict, CachePut, or Caching where"
+                        + " proxy().interceptable() returns false. Confidence HIGH.",
+                "AspectJ compile-time or load-time weaving can advise private/final/static"
+                        + " methods; those configurations are false positives. Suppress with"
+                        + " diagscope:ignore when AspectJ weaving is configured.");
+
+        put(catalog, EventListenerOnPrivateMethodRule.ID,
+                "@EventListener on non-interceptable method — event never dispatched to listener",
+                "aop", Severity.ERROR, ALL_LANGUAGES,
+                "Spring beans with @EventListener or @TransactionalEventListener",
+                "An @EventListener or @TransactionalEventListener method is private, static,"
+                        + " or final — the Spring proxy cannot dispatch events to it.",
+                "The listener is registered at startup without error but is silently never invoked."
+                        + " Events are published, the publisher receives no error, and the listener's"
+                        + " work is simply never done. Teams typically discover this only when"
+                        + " business logic dependent on the event stops executing.",
+                "Methods carrying @EventListener or @TransactionalEventListener where"
+                        + " proxy().interceptable() returns false. Confidence HIGH.",
+                "Subclasses inheriting a private @EventListener method via super — the event"
+                        + " dispatching still fails. AspectJ weaving configurations may not trigger"
+                        + " this problem; suppress with diagscope:ignore in those setups.");
+
+        put(catalog, TimedOnPrivateMethodRule.ID,
+                "@Timed/@Counted/@Observed on non-interceptable method — metrics never recorded",
+                "observability", Severity.WARNING, ALL_LANGUAGES,
+                "Spring beans with Micrometer instrumentation annotations",
+                "A Micrometer instrumentation annotation (@Timed, @Counted, @Observed) is"
+                        + " placed on a method that the Spring AOP proxy cannot intercept —"
+                        + " private, static, or final.",
+                "No timing, count, or span is recorded for this method. Grafana dashboards show"
+                        + " zero for the operation, alerting thresholds never fire, and the SLO"
+                        + " measurement is silently incomplete. Developers often notice only during"
+                        + " an incident review that the metric was never recorded.",
+                "Methods carrying @Timed, @Counted, @Observed, or @MeterTag where"
+                        + " proxy().interceptable() returns false. Confidence HIGH.",
+                "The Micrometer programmatic API (MeterRegistry.timer(...).record(() -> ...)) is"
+                        + " a proxy-free alternative that does not require interception; methods"
+                        + " using it alongside the annotation for IDE navigation are false positives."
+                        + " Suppress with diagscope:ignore.");
+
+        put(catalog, NativeQueryStringConcatRule.ID,
+                "Native query built with string concatenation — SQL injection risk",
+                "security", Severity.ERROR, ALL_LANGUAGES,
+                "JPA/JDBC query-creation methods receiving concatenated SQL strings",
+                "A native SQL or JPQL query is constructed with string concatenation (+ operator)"
+                        + " passed to createNativeQuery(), createQuery(), or a JdbcTemplate method.",
+                "A query built by string concatenation is structurally vulnerable to SQL injection."
+                        + " An attacker who controls any concatenated fragment can alter the query"
+                        + " structure: extract data from other tables, bypass authentication checks,"
+                        + " or modify or delete rows. Native queries bypass the ORM's parameterization"
+                        + " safety because the final SQL string is sent directly to the JDBC driver.",
+                "Invocations of createNativeQuery, createQuery, createNamedQuery, query,"
+                        + " batchUpdate, queryForObject, queryForList, or queryForMap where the"
+                        + " first argument text representation contains ' + '. Confidence MEDIUM —"
+                        + " the argument text may not always be fully resolved in the AST snapshot.",
+                "Concatenation of compile-time constants (only string literals, no runtime values)"
+                        + " is safe but will still be flagged. Suppress with diagscope:ignore for"
+                        + " verified constant-only concatenation.");
+
         return Collections.unmodifiableMap(catalog);
     }
 

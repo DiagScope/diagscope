@@ -43,18 +43,24 @@
     "AOP_ADVICE_ON_PRIVATE_METHOD" : "1.0.0",
     "AOP_SELF_INVOCATION" : "1.0.0",
     "AOP_UNMANAGED_ADVICE_TARGET" : "1.0.0",
+    "APPLICATION_CONTEXT_LOCATOR" : "1.0.0",
     "ASYNC_DEFAULT_EXECUTOR" : "1.0.0",
     "ASYNC_ON_PRIVATE_METHOD" : "1.0.0",
     "ASYNC_RESULT_UNOBSERVED" : "1.0.0",
+    "ASYNC_VOID_RETURN" : "1.0.0",
     "BLOCKING_CALL_IN_COROUTINE" : "2.0.0",
     "BLOCKING_CALL_IN_REACTIVE_CONTEXT" : "1.1.0",
+    "BULKHEAD_WITHOUT_FALLBACK" : "1.0.0",
     "BULK_OPERATION_IN_LOOP" : "1.0.0",
+    "CACHEABLE_ON_PRIVATE_METHOD" : "1.0.0",
     "CACHE_EVICT_MISSING" : "1.0.0",
     "CACHE_NAME_MISMATCH" : "1.0.0",
     "CHECK_THEN_ACT_ON_MAP" : "1.0.0",
+    "CIRCUIT_BREAKER_WITHOUT_FALLBACK" : "1.0.0",
     "CLOCK_DEPENDENCY_NOT_INJECTED" : "1.0.0",
     "COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT" : "1.0.0",
+    "CONFIGURATION_PROPERTIES_NOT_VALIDATED" : "1.0.0",
     "COROUTINE_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "CORS_WILDCARD_ORIGIN" : "1.0.0",
     "DB_RESOURCE_CLOSE_NOT_GUARDED" : "1.0.0",
@@ -62,7 +68,9 @@
     "DUPLICATE_DIAGNOSTIC_SIGNAL" : "1.0.0",
     "DYNAMIC_METRIC_NAME" : "1.0.0",
     "ENTITY_EXPOSED_IN_REST_RESPONSE" : "1.0.0",
+    "ENTITY_MANAGER_CLEAR_IN_TRANSACTION" : "1.0.0",
     "ENTITY_MANAGER_FIND_DEREFERENCE" : "1.0.0",
+    "EVENT_LISTENER_ON_PRIVATE_METHOD" : "1.0.0",
     "EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE" : "1.0.0",
     "EXCEPTION_SUPPRESSED_IN_FINALLY" : "1.0.0",
     "EXCESSIVE_METHOD_PARAMETERS" : "1.0.0",
@@ -99,11 +107,13 @@
     "MDC_CONTEXT_LOST" : "1.0.0",
     "METRIC_CREATED_IN_LOOP" : "1.0.0",
     "MISSING_PAGINATION" : "1.0.0",
+    "MISSING_REQUEST_BODY_VALIDATION" : "1.0.0",
     "MISSING_RESPONSE_STATUS" : "1.0.0",
     "MISSING_TRANSACTION_ANNOTATION" : "1.0.0",
     "MULTIPLE_SCHEDULED_NO_THREAD_POOL" : "1.0.0",
     "MUTINY_FAILURE_RECOVERED_SILENTLY" : "1.1.0",
     "MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED" : "1.0.1",
+    "NATIVE_QUERY_STRING_CONCAT" : "1.0.0",
     "N_PLUS_ONE_QUERY_RISK" : "1.0.0",
     "OBJECT_MAPPER_CREATED_PER_REQUEST" : "1.0.0",
     "OPTIONAL_GET_WITHOUT_CHECK" : "1.0.0",
@@ -111,12 +121,14 @@
     "OUTBOX_PATTERN_MISSING" : "1.0.0",
     "PRINT_STACK_TRACE" : "1.0.0",
     "PROPAGATION_SUPPORTS_WRITE_RISK" : "1.0.0",
+    "RATE_LIMITER_WITHOUT_FALLBACK" : "1.0.0",
     "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED" : "1.0.0",
     "READONLY_TRANSACTION_WRITE" : "1.0.0",
     "REGEX_COMPILED_IN_LOOP" : "1.0.0",
     "REQUIRES_NEW_IN_LOOP" : "1.0.0",
     "RETRY_ON_ALL_EXCEPTIONS" : "1.0.0",
     "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
+    "RUNBLOCKING_IN_SUSPEND" : "1.0.0",
     "SCHEDULED_EXCEPTION_NOT_HANDLED" : "1.0.0",
     "SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE" : "1.0.0",
     "SCHEDULED_NON_VOID_RETURN" : "1.0.0",
@@ -133,11 +145,14 @@
     "SYNCHRONIZED_ON_SPRING_BEAN" : "1.0.0",
     "SYSTEM_OUTPUT" : "1.0.0",
     "THREAD_LOCAL_LEAK" : "1.0.0",
+    "THREAD_LOCAL_NOT_REMOVED" : "1.0.0",
     "THREAD_SLEEP_IN_FLOW" : "1.0.0",
+    "TIMED_ON_PRIVATE_METHOD" : "1.0.0",
     "TRANSACTIONAL_ASYNC_COMBINATION" : "1.0.0",
     "TRANSACTIONAL_EVENT_LISTENER_MISSING_PHASE" : "1.0.0",
     "TRANSACTIONAL_ON_FINAL_METHOD" : "1.0.0",
     "TRANSACTIONAL_ON_INTERFACE" : "1.0.0",
+    "TRANSACTIONAL_ON_REST_CONTROLLER" : "1.0.0",
     "TRANSACTIONAL_READONLY_MISSING" : "1.0.0",
     "TRANSACTION_ISOLATION_DANGEROUS" : "1.0.0",
     "TRANSACTION_WITH_HTTP_CALL" : "1.0.0",
@@ -171,7 +186,7 @@
     "parsedMethods" : 7,
     "entrypoints" : 3,
     "flows" : 3,
-    "findings" : 9,
+    "findings" : 10,
     "parseFailures" : 0,
     "projectAnalysisNanos" : 0,
     "flowConstructionNanos" : 0,
@@ -179,15 +194,15 @@
     "totalNanos" : 0
   },
   "summary" : {
-    "totalFindings" : 9,
+    "totalFindings" : 10,
     "bySeverity" : {
       "ERROR" : 3,
-      "WARNING" : 5,
+      "WARNING" : 6,
       "INFO" : 1
     },
     "byConfidence" : {
       "HIGH" : 6,
-      "MEDIUM" : 3,
+      "MEDIUM" : 4,
       "LOW" : 0
     },
     "byRule" : [ {
@@ -238,6 +253,16 @@
       "byConfidence" : {
         "HIGH" : 1,
         "MEDIUM" : 0,
+        "LOW" : 0
+      }
+    }, {
+      "ruleId" : "MISSING_REQUEST_BODY_VALIDATION",
+      "title" : "Write endpoint on controller without @Validated — request body constraints ignored",
+      "count" : 1,
+      "highestSeverity" : "WARNING",
+      "byConfidence" : {
+        "HIGH" : 0,
+        "MEDIUM" : 1,
         "LOW" : 0
       }
     }, {
@@ -327,6 +352,10 @@
       "findings" : [ "sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3", "sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483" ]
     } ],
     "byFile" : [ {
+      "file" : "src/main/java/example/PaymentController.java",
+      "findingCount" : 1,
+      "findings" : [ "sha256:2c69be804376e4892eb3e404b7465e49ff947ba4d65b4ca0fa819a4667055d7d" ]
+    }, {
       "file" : "src/main/java/example/PaymentListener.java",
       "findingCount" : 4,
       "findings" : [ "sha256:9645adcf1a145325382e54a44363f8727ab42b5e36ade40bd589ff7c24ef7852", "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f", "sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd", "sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f" ]
@@ -683,6 +712,32 @@
     } ]
   } ],
   "findings" : [ {
+    "fingerprint" : "sha256:2c69be804376e4892eb3e404b7465e49ff947ba4d65b4ca0fa819a4667055d7d",
+    "fingerprintVersion" : 1,
+    "ruleId" : "MISSING_REQUEST_BODY_VALIDATION",
+    "severity" : "WARNING",
+    "confidence" : "MEDIUM",
+    "location" : {
+      "file" : "src/main/java/example/PaymentController.java",
+      "startLine" : 8,
+      "endLine" : 9
+    },
+    "message" : "'example.PaymentController.capture(String)' is a write endpoint on a controller without @Validated. @Valid/@Constraint annotations on @RequestBody parameters are silently ignored — invalid input passes to the service layer unchecked.",
+    "recommendation" : "Annotate the controller class with @Validated: @RestController @Validated public class PaymentController. Then annotate each @RequestBody parameter with @Valid to activate field-level constraint validation, returning 400 Bad Request automatically on constraint violations.",
+    "explanation" : {
+      "title" : "Write endpoint on controller without @Validated — request body constraints ignored",
+      "whatItMeans" : "A controller method handling a write operation (POST/PUT/PATCH) has parameters but the controller class does not carry @Validated. Any @Valid or field-level constraint annotations on @RequestBody parameters are silently ignored by Spring MVC.",
+      "whyItMatters" : "Invalid input — nulls, out-of-range values, malformed strings — passes to the service layer unchecked. Validation failures that should be 400 Bad Request instead surface as NullPointerException, DataIntegrityViolationException, or silent data corruption, typically as a generic 500 with no user-facing feedback.",
+      "howDetected" : "Controller types with @RestController or @Controller that lack @Validated in any method's effective annotation set, containing at least one method with @PostMapping, @PutMapping, or @PatchMapping and non-empty parameterTypes. Confidence MEDIUM — parameter-level @Valid is not visible in the method annotation set."
+    },
+    "confidenceRationale" : "MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.",
+    "relatedFlows" : [ ],
+    "affectedMethods" : [ ],
+    "evidence" : {
+      "declaringType" : "example.PaymentController",
+      "method" : "example.PaymentController.capture(String)"
+    }
+  }, {
     "fingerprint" : "sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f",
     "fingerprintVersion" : 1,
     "ruleId" : "KAFKA_DEAD_LETTER_NOT_CONFIGURED",

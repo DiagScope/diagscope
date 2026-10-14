@@ -61,6 +61,22 @@ import dev.diagscope.core.application.rule.KafkaConsumerGroupHardcodedRule;
 import dev.diagscope.core.application.rule.ClockDependencyNotInjectedRule;
 import dev.diagscope.core.application.rule.UnguardedThreadCreationRule;
 import dev.diagscope.core.application.rule.DriverManagerDataSourceUsedRule;
+// Wave 10
+import dev.diagscope.core.application.rule.MissingRequestBodyValidationRule;
+import dev.diagscope.core.application.rule.TransactionalOnRestControllerRule;
+import dev.diagscope.core.application.rule.ApplicationContextLocatorRule;
+import dev.diagscope.core.application.rule.AsyncVoidReturnRule;
+import dev.diagscope.core.application.rule.ConfigurationPropertiesNotValidatedRule;
+import dev.diagscope.core.application.rule.CircuitBreakerWithoutFallbackRule;
+import dev.diagscope.core.application.rule.BulkheadWithoutFallbackRule;
+import dev.diagscope.core.application.rule.RateLimiterWithoutFallbackRule;
+import dev.diagscope.core.application.rule.ThreadLocalNotRemovedRule;
+import dev.diagscope.core.application.rule.RunBlockingInSuspendRule;
+import dev.diagscope.core.application.rule.EntityManagerClearInTransactionRule;
+import dev.diagscope.core.application.rule.CacheableOnPrivateMethodRule;
+import dev.diagscope.core.application.rule.EventListenerOnPrivateMethodRule;
+import dev.diagscope.core.application.rule.TimedOnPrivateMethodRule;
+import dev.diagscope.core.application.rule.NativeQueryStringConcatRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
@@ -276,7 +292,23 @@ public final class DiagScopeMain {
                 new KafkaConsumerGroupHardcodedRule(),
                 new ClockDependencyNotInjectedRule(),
                 new UnguardedThreadCreationRule(),
-                new DriverManagerDataSourceUsedRule()
+                new DriverManagerDataSourceUsedRule(),
+                // Wave 10
+                new MissingRequestBodyValidationRule(),
+                new TransactionalOnRestControllerRule(),
+                new ApplicationContextLocatorRule(),
+                new AsyncVoidReturnRule(),
+                new ConfigurationPropertiesNotValidatedRule(),
+                new CircuitBreakerWithoutFallbackRule(),
+                new BulkheadWithoutFallbackRule(),
+                new RateLimiterWithoutFallbackRule(),
+                new ThreadLocalNotRemovedRule(),
+                new RunBlockingInSuspendRule(),
+                new EntityManagerClearInTransactionRule(),
+                new CacheableOnPrivateMethodRule(),
+                new EventListenerOnPrivateMethodRule(),
+                new TimedOnPrivateMethodRule(),
+                new NativeQueryStringConcatRule()
         ));
         return new DiagnosticCoverageService(
                 new CompositeProjectAnalyzer(List.of(
@@ -437,7 +469,23 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.KafkaConsumerGroupHardcodedRule.ID,
                 dev.diagscope.core.application.rule.ClockDependencyNotInjectedRule.ID,
                 dev.diagscope.core.application.rule.UnguardedThreadCreationRule.ID,
-                dev.diagscope.core.application.rule.DriverManagerDataSourceUsedRule.ID
+                dev.diagscope.core.application.rule.DriverManagerDataSourceUsedRule.ID,
+                // Wave 10
+                dev.diagscope.core.application.rule.MissingRequestBodyValidationRule.ID,
+                dev.diagscope.core.application.rule.TransactionalOnRestControllerRule.ID,
+                dev.diagscope.core.application.rule.ApplicationContextLocatorRule.ID,
+                dev.diagscope.core.application.rule.AsyncVoidReturnRule.ID,
+                dev.diagscope.core.application.rule.ConfigurationPropertiesNotValidatedRule.ID,
+                dev.diagscope.core.application.rule.CircuitBreakerWithoutFallbackRule.ID,
+                dev.diagscope.core.application.rule.BulkheadWithoutFallbackRule.ID,
+                dev.diagscope.core.application.rule.RateLimiterWithoutFallbackRule.ID,
+                dev.diagscope.core.application.rule.ThreadLocalNotRemovedRule.ID,
+                dev.diagscope.core.application.rule.RunBlockingInSuspendRule.ID,
+                dev.diagscope.core.application.rule.EntityManagerClearInTransactionRule.ID,
+                dev.diagscope.core.application.rule.CacheableOnPrivateMethodRule.ID,
+                dev.diagscope.core.application.rule.EventListenerOnPrivateMethodRule.ID,
+                dev.diagscope.core.application.rule.TimedOnPrivateMethodRule.ID,
+                dev.diagscope.core.application.rule.NativeQueryStringConcatRule.ID
         );
     }
 
