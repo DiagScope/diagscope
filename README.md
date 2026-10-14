@@ -3,152 +3,272 @@
 **Will this code explain itself when it fails in production?**
 
 DiagScope is a static analyzer for Java and Kotlin/JVM projects. It follows real call flows — REST
-endpoints, Kafka consumers, scheduled jobs, reactive handlers, and plain public methods — and reports
-code that silently destroys diagnostic evidence: swallowed exceptions, ignored async results, leaking
-locks, blocking calls in reactive loops, N+1 queries, and more.
+endpoints, Kafka consumers, scheduled jobs, reactive handlers, plain public methods — and reports code
+that silently destroys diagnostic evidence: swallowed exceptions, ignored async results, leaking locks,
+blocking calls on event loops, N+1 queries, and more. It reads source files only; it never compiles or
+runs the project it analyzes.
 
-It does not style-check your code. Every finding is anchored to a specific entrypoint → method chain
-so you see *which production path* goes blind when something breaks.
+This repository is the analyzer itself. It is under active development (alpha).
 
-150 rules. Java and Kotlin. Spring, Quarkus, Micronaut, and framework-free projects.
+| If you want to… | Go to |
+|---|---|
+| **Use** DiagScope on a project | [Homebrew tap](https://github.com/DiagScope/homebrew-tap) — install, scan, collect reports |
+| See what it looks like | <https://diagscope.github.io> |
+| **Work on** DiagScope | keep reading |
 
-## Install
+## Contents
 
-**Homebrew (recommended):**
+- [Requirements](#requirements)
+- [Repository map](#repository-map)
+- [How it works](#how-it-works)
+- [Build](#build)
+- [Run locally](#run-locally)
+- [Test](#test)
+- [Add a rule](#add-a-rule)
+- [Teach a parser a new fact](#teach-a-parser-a-new-fact)
+- [Conventions that are enforced](#conventions-that-are-enforced)
+- [Performance and profiling](#performance-and-profiling)
+- [CI and releases](#ci-and-releases)
+- [Documentation map](#documentation-map)
+
+## Requirements
+
+- **JDK 25** (the build enforces it; see [ADR-0002](docs/decisions/ADR-0002-java-25.md))
+- **Maven 3.9+**
+- Git
+
 ```bash
-brew tap DiagScope/tap
-brew install diagscope
+java -version    # must report 25
+mvn -version     # must report 3.9.x
 ```
 
-**Manual:** download the fat JAR from [Releases](https://github.com/DiagScope/diagscope/releases) — requires Java 25+.
-```bash
-java -jar diagscope-<version>.jar scan --help
+## Repository map
+
+```text
+diagscope-core            parser-neutral domain, ports, flow builder, rule engine and all rules
+diagscope-jvmanalysis     layout detection (Maven/Gradle), analyzer composition, Java↔Kotlin call relinking
+diagscope-javaparser      JavaParser adapter: Java source → core domain
+diagscope-kotlinparser    Kotlin compiler PSI adapter: Kotlin source → core domain
+diagscope-cli             Picocli commands, composition root, reporters (Markdown/JSON/HTML/SARIF)
+diagscope-test-fixtures   small sample projects used by integration tests (resources only)
+docs/                     architecture, CLI, configuration, rule lifecycle, ADRs, roadmap
+scripts/                  run-fixture, benchmark, JFR profiling, corpus validation, CI action helpers
+action.yml                GitHub composite action that runs a scan in CI
 ```
 
-## Build from source
+Dependencies point inward:
 
-Requirements: JDK 25 · Maven 3.9+
-
-```bash
-mvn clean verify
+```text
+diagscope-jvmanalysis ─► diagscope-core
+diagscope-javaparser ──► diagscope-core, diagscope-jvmanalysis
+diagscope-kotlinparser ► diagscope-core, diagscope-jvmanalysis
+diagscope-cli ─────────► all of the above
 ```
 
-Produces `diagscope-cli/target/diagscope.jar`.
-
-## Usage
-
-```bash
-# Spring / Quarkus project
-java -jar diagscope.jar scan --project /path/to/project
-
-# Plain Java or Kotlin (no framework annotations)
-java -jar diagscope.jar scan --project /path/to/project --entrypoint PUBLIC_METHOD
-
-# Fail CI on errors, only for files changed since the base branch
-java -jar diagscope.jar scan --project . --changed-since origin/main --fail-on ERROR
-
-# Explore the rule catalog
-java -jar diagscope.jar rules
-java -jar diagscope.jar explain SILENT_CATCH
-```
-
-Default output goes to `build/diagscope/` (Gradle) or `target/diagscope/` (Maven):
-
-```
-build/diagscope/
-├── report.md    ← human review and pull requests
-├── report.html  ← interactive, self-contained, no network
-└── result.json  ← machine-readable for automation
-```
-
-Full CLI reference: [docs/CLI.md](docs/CLI.md).
+`diagscope-core` compiles with the JDK alone. It must never import JavaParser, Kotlin PSI, Picocli,
+Jackson, Spring, Kafka or Micrometer types: parsers translate source into core records at their
+boundary, and rules only ever see those records. An architectural test enforces it. Background:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## How it works
 
-DiagScope analyzes source code — it never compiles or runs your project.
+```text
+source files ─► parser adapters ─► AnalyzedProject ─► flows from entrypoints ─► rules ─► findings ─► reporters
+```
 
-1. **Parse** — reads all `.java` and `.kt` files and extracts the structural facts that rules need
-   (method calls, catch blocks, annotations, etc.) into a parser-neutral model.
-2. **Build flows** — for every entrypoint (REST handler, Kafka listener, `@Scheduled` method, or any
-   public method when `--entrypoint PUBLIC_METHOD` is used) it follows the call graph up to
-   `--max-depth` levels and collects all reachable methods into a *flow*.
-3. **Run rules** — each rule inspects every method in every flow, and the whole project for
-   project-level rules (like class complexity). A finding always names the entrypoint that reaches it
-   so you know the operational context.
+1. **Parse.** `JavaParserProjectAnalyzer` and `KotlinParserProjectAnalyzer` turn each method into a
+   `MethodModel`: annotations (plus their attributes), invocations, catch blocks, resolved calls, return
+   type. `CompositeProjectAnalyzer` merges both languages and relinks calls across them.
+2. **Find entrypoints.** REST handlers, Kafka listeners, reactive messaging handlers and scheduled methods
+   (and, on request, every public method).
+3. **Build flows.** `LocalFlowBuilder` walks the call graph from each entrypoint to a depth limit. Every
+   reached method carries the path that led there and a *confidence* — a finding is never more confident
+   than its path. Unresolved, ambiguous, external or too-deep calls become explicit *flow boundaries*
+   instead of guesses.
+4. **Run rules.** `RuleEngine` runs `DiagnosticRule`s per flow and `ProjectRule`s over the whole project,
+   then deduplicates findings by fingerprint and merges their related flows.
+5. **Report.** Reporters write `report.md`, `report.html`, `result.json` and SARIF.
 
-Findings are never more confident than the path that reaches them. Ambiguous resolution, unresolved
-calls, and depth truncation are reported as *flow boundaries* — explicit markers of what was not
-analyzed.
+Key types, all in `diagscope-core`: `MethodModel`, `InvocationEvidence`, `CatchEvidence`, `Flow`,
+`FlowMethod`, `Finding`, `Confidence`, `RuleEngine`, `RuleCatalog`.
 
-## Rules (150)
+## Build
 
-| Category | Rules |
+```bash
+mvn clean verify                       # everything: compile, all tests, package
+mvn -DskipTests package                # just produce the jar (faster)
+```
+
+The runnable jar is `diagscope-cli/target/diagscope.jar` (shaded, self-contained).
+
+## Run locally
+
+Build the jar first (`mvn -DskipTests package`); the scripts below run it.
+
+```bash
+# scan the bundled sample project and write reports to target/fixture-report/
+./scripts/run-fixture.sh
+
+# scan any project
+./bin/diagscope scan --project /path/to/project --output /tmp/diagscope-out
+# …which is the same as
+java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/project
+
+# useful while developing
+./bin/diagscope doctor --project /path/to/project     # what DiagScope understands about it
+./bin/diagscope rules                                 # the rule catalog with versions
+./bin/diagscope explain SILENT_CATCH                  # one rule's documentation
+```
+
+Open `/tmp/diagscope-out/report.html` to see the result; `result.json` is the machine-readable form
+(schema in [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md)). All CLI options are in
+[docs/CLI.md](docs/CLI.md); the project policy file (`diagscope.yml`) is in
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+To try a change on a snippet, copy a sample from
+`diagscope-test-fixtures/src/main/resources/fixtures/` somewhere, edit it, rebuild the jar and scan it.
+
+## Test
+
+Tests live next to the module they cover; the layers are described in
+[docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md).
+
+| Layer | Where | What it pins down |
+|---|---|---|
+| Rule unit tests | `diagscope-core/src/test/.../application/rule` | One rule against hand-built `MethodModel`s and flows: positive, negative, boundary |
+| Domain and flow tests | `diagscope-core`, `diagscope-javaparser` | Confidence, paths, cycles, depth, fingerprints |
+| Parser tests | `diagscope-javaparser`, `diagscope-kotlinparser` | Source snippets → the facts the parsers must extract |
+| Fixture / parity tests | `diagscope-cli` (`JavaRuleParityTest`, `KotlinRuleParityTest`) | Every registered rule fires on real Java and Kotlin source, and its safe variants stay silent |
+| Contract tests | `diagscope-cli` (`RuleDocumentationContractTest`, `ResultSchemaCompatibilityTest`) | Catalog ↔ registration ↔ versions consistency, `result.json` compatibility |
+| Golden reports | `diagscope-cli` (`GoldenReportTest`) | The exact Markdown/JSON of the `mixed-flow` sample |
+
+```bash
+mvn clean verify                                              # everything
+
+mvn -pl diagscope-core test                                   # one module
+mvn -pl diagscope-core test -Dtest=BlockingCallsTest          # one class
+
+# CLI tests need the modules they depend on built in the same run
+mvn -pl diagscope-cli -am test -Dtest=KotlinRuleParityTest -Dsurefire.failIfNoSpecifiedTests=false
+
+# an intentional report change: regenerate the goldens, then review the diff
+mvn -pl diagscope-cli -am test -Dtest=GoldenReportTest -Dsurefire.failIfNoSpecifiedTests=false \
+    -Ddiagscope.golden.update=true
+git diff diagscope-cli/src/test/resources/golden
+```
+
+## Add a rule
+
+A rule is a class in `diagscope-core/src/main/java/dev/diagscope/core/application/rule/` plus its
+registration, documentation and tests. The checklist below is what the contract tests enforce.
+
+**1. Pick the kind.**
+
+| Implement | When |
 |---|---|
-| Exception handling | `SILENT_CATCH` `SILENT_FAILURE_CONVERSION` `DUPLICATE_DIAGNOSTIC_SIGNAL` `INTERRUPTED_EXCEPTION_SWALLOWED` `EXCEPTION_SUPPRESSED_IN_FINALLY` `EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE` `GENERIC_EXCEPTION_MESSAGE` |
-| Logging and output | `LOG_WITHOUT_THROWABLE` `LOG_MESSAGE_STRING_CONCAT` `SENSITIVE_PAYLOAD_LOGGED` `MDC_CONTEXT_LOST` `PRINT_STACK_TRACE` `SYSTEM_OUTPUT` |
-| Observability | `HIGH_CARDINALITY_METRIC_TAG` `DYNAMIC_METRIC_NAME` `METRIC_CREATED_IN_LOOP` `SPAN_NOT_CLOSED` `MISSING_RESPONSE_STATUS` `TIMED_ON_PRIVATE_METHOD` `TIMER_STARTED_NOT_STOPPED` |
-| Concurrency and threads | `LOCK_NOT_RELEASED` `THREAD_LOCAL_LEAK` `FUTURE_GET_WITHOUT_TIMEOUT` `COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED` `EXECUTOR_NOT_SHUTDOWN` `CHECK_THEN_ACT_ON_MAP` `SYNCHRONIZED_ON_SPRING_BEAN` `THREAD_SLEEP_IN_FLOW` `SEQUENTIAL_FUTURE_JOIN_IN_LOOP` `ASYNC_RESULT_UNOBSERVED` `ASYNC_DEFAULT_EXECUTOR` `ASYNC_ON_PRIVATE_METHOD` `TRANSACTIONAL_ASYNC_COMBINATION` `VIRTUAL_THREAD_WITH_SYNCHRONIZED` `COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT` `UNGUARDED_THREAD_CREATION` `THREAD_LOCAL_NOT_REMOVED` `ASYNC_VOID_RETURN` `SEMAPHORE_RELEASE_NOT_IN_FINALLY` `COUNT_DOWN_LATCH_NOT_IN_FINALLY` `VIRTUAL_THREAD_WITH_THREAD_LOCAL` `BLOCKING_CALL_ON_COMMON_POOL` `UNBOUNDED_THREAD_POOL` `TIMER_TASK_EXCEPTION_KILLS_TIMER` |
-| Reactive (Reactor, Mutiny, Vert.x) | `BLOCKING_CALL_IN_REACTIVE_CONTEXT` `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` `MUTINY_FAILURE_RECOVERED_SILENTLY` `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED` `REACTIVE_RESULT_DISCARDED` |
-| Kotlin coroutines | `BLOCKING_CALL_IN_COROUTINE` `COROUTINE_EXCEPTION_NOT_HANDLED` `FLOW_EXCEPTION_NOT_CAUGHT` `RUNBLOCKING_IN_SUSPEND` `CANCELLATION_EXCEPTION_SWALLOWED` |
-| Kafka | `KAFKA_SEND_RESULT_IGNORED` `KAFKA_ACK_NOT_INVOKED` `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` `KAFKA_DEAD_LETTER_NOT_CONFIGURED` `KAFKA_RETRY_WITHOUT_BACKOFF` `KAFKA_TOPIC_HARDCODED` `KAFKA_CONSUMER_GROUP_HARDCODED` `OUTBOX_PATTERN_MISSING` `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` |
-| Resilience | `HTTP_CLIENT_ERROR_DISCARDED` `HTTP_TIMEOUT_NOT_SET` `RETRY_WITHOUT_DIAGNOSTICS` `RETRY_ON_ALL_EXCEPTIONS` `FALLBACK_HIDES_FAILURE` `FEIGN_CLIENT_NO_FALLBACK` `CIRCUIT_BREAKER_WITHOUT_FALLBACK` `BULKHEAD_WITHOUT_FALLBACK` `RATE_LIMITER_WITHOUT_FALLBACK` `HTTP_CLIENT_NO_ERROR_HANDLER` `MISSING_BULKHEAD_ON_HTTP_CLIENT` |
-| Scheduling | `SCHEDULED_TASK_SWALLOWS_FAILURE` `SCHEDULED_EXCEPTION_NOT_HANDLED` `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` `SCHEDULED_NO_INITIAL_DELAY` `SCHEDULED_NON_VOID_RETURN` `MULTIPLE_SCHEDULED_NO_THREAD_POOL` |
-| Transactions | `TX_ROLLBACK_SUPPRESSED` `TX_PROPAGATION_MISMATCH` `MISSING_TRANSACTION_ANNOTATION` `READONLY_TRANSACTION_WRITE` `TRANSACTION_ISOLATION_DANGEROUS` `REQUIRES_NEW_IN_LOOP` `PROPAGATION_SUPPORTS_WRITE_RISK` `TRANSACTIONAL_READONLY_MISSING` `TRANSACTION_WITH_HTTP_CALL` `TRANSACTIONAL_EVENT_LISTENER_MISSING_PHASE` `TRANSACTIONAL_ON_REST_CONTROLLER` `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION` |
-| Database and persistence | `JDBC_RESOURCE_NOT_CLOSED` `DB_RESOURCE_CLOSE_NOT_GUARDED` `JPA_ENTITY_MANAGER_NOT_CLOSED` `JDBC_TEMPLATE_CONNECTION_ESCAPE` `STREAM_IO_NOT_CLOSED` `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR` `N_PLUS_ONE_QUERY_RISK` `BULK_OPERATION_IN_LOOP` `MISSING_PAGINATION` `DRIVER_MANAGER_DATASOURCE_USED` `ENTITY_MANAGER_CLEAR_IN_TRANSACTION` `NATIVE_QUERY_STRING_CONCAT` `DELETE_ALL_WITHOUT_ID` `EAGER_COLLECTION_FETCH` |
-| Caching and resource reuse | `CACHE_EVICT_MISSING` `CACHE_NAME_MISMATCH` `HTTP_CLIENT_CREATED_PER_REQUEST` `OBJECT_MAPPER_CREATED_PER_REQUEST` `REGEX_COMPILED_IN_LOOP` `STRING_FORMAT_IN_LOOP` `CACHEABLE_ON_VOID_METHOD` `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID` `BCRYPT_CREATED_PER_CALL` `SIMPLE_DATE_FORMAT_PER_CALL` `RANDOM_PER_CALL` |
-| Null safety | `OPTIONAL_GET_WITHOUT_CHECK` `OPTIONAL_OR_ELSE_NULL` `MAP_GET_DEREFERENCED_WITHOUT_CHECK` `ENTITY_MANAGER_FIND_DEREFERENCE` |
-| AOP and proxies | `AOP_SELF_INVOCATION` `AOP_ADVICE_NOT_APPLIED` `AOP_UNMANAGED_ADVICE_TARGET` `AOP_ADVICE_ON_PRIVATE_METHOD` `TRANSACTIONAL_ON_INTERFACE` `TRANSACTIONAL_ON_FINAL_METHOD` `CACHEABLE_ON_PRIVATE_METHOD` `EVENT_LISTENER_ON_PRIVATE_METHOD` |
-| Configuration and Spring | `VALUE_WITHOUT_DEFAULT` `FIELD_INJECTION_USED` `CONFIGURATION_PROPERTIES_NOT_VALIDATED` `APPLICATION_CONTEXT_LOCATOR` `LAZY_BEAN_CIRCULAR_INDICATOR` |
-| REST | `MISSING_REQUEST_BODY_VALIDATION` |
-| Security | `SECRET_IN_STRING_LITERAL` `MASS_ASSIGNMENT_RISK` `ENTITY_EXPOSED_IN_REST_RESPONSE` `CORS_WILDCARD_ORIGIN` `SENSITIVE_HEADER_LOGGED` `OPEN_REDIRECT_RISK` `PATH_TRAVERSAL_RISK` `OBJECT_INPUT_STREAM_RISK` `XML_EXTERNAL_ENTITY_RISK` |
-| Testability | `CLOCK_DEPENDENCY_NOT_INJECTED` `SYSTEM_ENV_IN_BEAN` |
-| Maintainability | `EXCESSIVE_METHOD_PARAMETERS` `HIGH_METHOD_COMPLEXITY` `GOD_CLASS_DETECTED` `REFLECTIVE_ACCESS_IN_PRODUCTION` |
+| `DiagnosticRule` (`evaluate(Flow)`) | The finding depends on how code is reached: it should carry the entrypoint → method path, be capped by path confidence, or look at callers (for example a missing `@Bulkhead` anywhere on the path). Only code reachable from an entrypoint is evaluated. |
+| `ProjectRule` (`evaluate(AnalyzedProject)`) | The finding is local to a method or type, or needs a whole-project view. It also covers code no entrypoint reaches. |
 
-`diagscope explain <RULE_ID>` prints what each rule means, why it matters, and how it detects the
-pattern. `diagscope rules` lists all rules with severity and contract version.
+**2. Write the rule.** Use the evidence the parsers already provide on `MethodModel` — `annotations()`,
+`annotationAttribute(...)`, `invocations()`, `catches()`, `calls()`, `returnType()`, `id().parameterTypes()` —
+and the shared helpers instead of new string heuristics:
 
-Full reference: [docs/RULES.md](docs/RULES.md).
+- `RuleSupport` — Spring-bean/REST/test checks, constructor and receiver matching, dynamic-expression check;
+- `DiagnosticSignals` — logging, throwables, metrics, MDC;
+- `BlockingCalls` and `ExecutionContexts` — what blocks, and which thread a method runs on.
 
-## Suppress a finding
+Every `Finding` needs a stable rule id, severity, confidence, source location, message, recommendation and an
+**evidence map**. Rules prefer to stay silent over guessing: when in doubt, lower the confidence.
 
-Add an explicit comment with a reason — vague comments and plain `TODO` lines are ignored:
+**3. Register it.** In `diagscope-cli/.../DiagScopeMain.java`, add the rule to the right list
+(`flowRules` for a `DiagnosticRule`, the project-rule list otherwise) **and** to `registeredRuleIds()`.
 
-```java
-catch (CleanupException ignored) {
-    // diagscope:ignore SILENT_CATCH -- best-effort cleanup after the response was committed
-}
-```
+**4. Document it.** Add a `put(catalog, MyRule.ID, …)` entry to `RuleCatalog`: title, category, default severity,
+supported languages (`ALL_LANGUAGES` or `Set.of("kotlin")`), what it means, why it matters, how it is detected,
+known limitations. `diagscope explain` prints this, and `RuleDocumentationContractTest` fails if a registered rule
+has no entry. Bump `RuleVersions` only when you change what an existing rule reports.
 
-For bulk suppression of pre-existing findings, use a baseline:
+**5. Test it.**
+
+- A unit test next to the others: build `MethodModel`s and `InvocationEvidence` by hand and assert on the findings
+  (`Wave11RulesTest` is a compact example). Cover a positive, a negative and a boundary case.
+- Add the positive **and a safe variant** to the Java and Kotlin parity fixtures
+  (`diagscope-test-fixtures/src/main/resources/fixtures/{java,kotlin}-rule-parity/…`), then assert in
+  `JavaRuleParityTest` / `KotlinRuleParityTest` that the rule fires and the safe variant does not. A rule that
+  declares Kotlin support must fire on Kotlin source.
+- Regenerate the goldens (command above) and check the diff only adds the new rule version.
+
+**6. Update the docs and changelog.** `CHANGELOG.md`, and `docs/RULES.md` when the rule deserves a longer
+explanation than the catalog entry.
+
+## Teach a parser a new fact
+
+If a rule needs something `MethodModel` does not carry, extend **both** parsers so Java and Kotlin stay in step.
+Two established patterns, in order of preference:
+
+1. **Synthetic annotation.** The adapter adds a marker annotation, optionally with attributes, to the method or
+   class: `Final`, `Synchronized`, `Suspend`, `FieldInjectionPresent`, `EagerCollectionFetch` (with the fields and
+   line), `ParameterNames`. Rules read it with `hasAnnotation` / `annotationAttribute`. No domain change needed.
+   See `JavaParserProjectAnalyzer.mapMethod`/`mapUnit` and `KotlinParserProjectAnalyzer.mapFunction`/`typeInfo`.
+2. **New field on the evidence record**, when the fact belongs to one call (`InvocationEvidence.lastInLambda`).
+   Keep the previous constructor overload so existing callers still compile.
+
+Add a parser test that feeds a source snippet and asserts the fact, then a parity fixture that exercises it end to
+end. Parsers do not read `src/test`; only `src/main/java` and `src/main/kotlin` are analyzed.
+
+## Conventions that are enforced
+
+- **Dependency direction** — see [Repository map](#repository-map). JavaParser/PSI types never reach `diagscope-core`.
+- **Every finding has evidence, location, severity and confidence.** Confidence is capped by the flow path.
+- **Fingerprints are part of the public contract.** A finding's identity is built from the rule id, the file and the
+  rule's *evidence map* (not line numbers). Do not add, remove or rename evidence keys of an existing rule; changing
+  identity needs a `Finding.FINGERPRINT_VERSION` bump and a migration
+  ([docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md)).
+- **Deterministic output.** The same sources and configuration must produce byte-identical reports.
+- **No default-level logging** inside AST, method or file loops.
+- **Prefer a conservative result over a guess.** Unresolved calls are boundaries, not targets.
+- **Performance changes need evidence** — a benchmark or JFR profile
+  ([docs/PERFORMANCE.md](docs/PERFORMANCE.md)).
+- **Rules are retired, not deleted**, once released ([docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md)).
+
+## Performance and profiling
 
 ```bash
-java -jar diagscope.jar scan --project . --update-baseline   # record current state
-java -jar diagscope.jar scan --project . --baseline --fail-on ERROR  # gate only new findings
+./scripts/benchmark.sh /path/to/project 5          # repeated scans, timings per phase
+./scripts/profile-jfr.sh /path/to/project          # JFR recording of a scan
+./scripts/validate-corpus.sh /path/to/project ID   # record results on a fixed corpus
 ```
 
-## Releasing
+## CI and releases
 
-Releases are published automatically to GitHub Releases as a self-contained fat JAR when a version
-tag is pushed. The POM is the source of truth for the version.
+`.github/workflows/build.yml` runs `mvn clean verify` on JDK 25 for every push to `main` and every pull request.
+`action.yml` is the composite GitHub Action other repositories use to run DiagScope
+([docs/CI.md](docs/CI.md)).
+
+Releases are built by `.github/workflows/release.yml` when a version tag is pushed. The POM is the source of
+truth for the version.
 
 ```bash
-# 1. Bump the version in all modules
-mvn versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false
-
-# 2. Commit the bump
-git add -A && git commit -m "chore: release 0.2.0"
-
-# 3. Tag and push — the release workflow picks it up automatically
-git tag v0.2.0
-git push && git push --tags
+mvn versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false   # 1. bump every module
+git add -A && git commit -m "chore: release 0.2.0"               # 2. commit
+git tag v0.2.0 && git push && git push --tags                    # 3. tag; the workflow does the rest
 ```
 
-The workflow validates that the POM version matches the tag before building, so it fails fast with a
-clear error if you forget step 1. Pre-release markers (`alpha`, `beta`, `rc`) are detected
-automatically and the GitHub Release is flagged accordingly.
+The workflow fails fast if the POM version does not match the tag. `alpha`, `beta` and `rc` versions are
+published as pre-releases. The Homebrew formula lives in
+[DiagScope/homebrew-tap](https://github.com/DiagScope/homebrew-tap).
 
-## Documentation
+## Documentation map
 
-[CLI reference](docs/CLI.md) · [All rules](docs/RULES.md) · [Configuration](docs/CONFIGURATION.md) ·
-[Architecture](docs/ARCHITECTURE.md) · [Development guide](docs/DEVELOPMENT_GUIDE.md) ·
-[Roadmap](docs/ROADMAP.md)
+| Topic | Document |
+|---|---|
+| Architecture and module responsibilities | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/decisions/](docs/decisions) |
+| Writing and testing code here | [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/CODE_GUIDELINES.md](docs/CODE_GUIDELINES.md), [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) |
+| CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md) |
+| Rules: reference, backlog, lifecycle | [docs/RULES.md](docs/RULES.md), [docs/RULE_CANDIDATES.md](docs/RULE_CANDIDATES.md), [docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md) |
+| Output contracts | [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md), [docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md) |
+| What can and cannot be analyzed | [docs/CAPABILITY_MODEL.md](docs/CAPABILITY_MODEL.md), [docs/GLOSSARY.md](docs/GLOSSARY.md) |
+| Performance, roadmap | [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
+
+Contributing rules and the pull-request checklist: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports:
+[SECURITY.md](SECURITY.md). License: [Apache-2.0](LICENSE).
