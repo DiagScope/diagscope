@@ -1833,6 +1833,152 @@ public final class RuleCatalog {
                 "Does not distinguish intentional sequential ordering (where future-2 depends on"
                         + " future-1's result) from accidental serialisation.");
 
+        // ── Wave 9: virtual threads, reactive context, events, Kafka, testability ────
+
+        put(catalog, VirtualThreadWithSynchronizedRule.ID,
+                "synchronized method on a virtual-thread-executed bean",
+                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "Quarkus or Spring applications using Java 21+ virtual threads (@RunOnVirtualThread)",
+                "A method executed on a virtual thread uses the synchronized keyword or"
+                        + " @Synchronized. Synchronized blocks pin the carrier thread for the"
+                        + " entire duration of the critical section.",
+                "Virtual threads achieve scalability by unmounting from the carrier thread"
+                        + " whenever they block. Synchronized prevents unmounting — the carrier"
+                        + " thread is fully occupied. Under concurrency, if all virtual threads"
+                        + " pin their carriers simultaneously, the effective thread pool degrades"
+                        + " to the carrier pool size (typically CPU count), defeating the purpose"
+                        + " of virtual threads entirely.",
+                "The method's effective annotation set contains 'RunOnVirtualThread' or"
+                        + " 'StartVirtualThread' AND the synthetic 'Synchronized' signal."
+                        + " Confidence HIGH — both are read directly from the AST.",
+                "Carrier pinning can also occur inside synchronized blocks in helper methods"
+                        + " called from a virtual-thread context; those are not reported here"
+                        + " because the synchronized modifier is on the helper, not the"
+                        + " virtual-thread-annotated method.");
+
+        put(catalog, CompletableFutureInReactiveContextRule.ID,
+                "CompletableFuture.supplyAsync() without executor in reactive method",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Spring WebFlux, Quarkus Mutiny, or any Project Reactor / Mutiny application",
+                "A method with a reactive return type (Mono, Flux, Uni, Multi) or a non-blocking"
+                        + " annotation calls CompletableFuture.supplyAsync() or runAsync() without"
+                        + " an explicit Executor argument.",
+                "Without an explicit executor, supplyAsync() dispatches to ForkJoinPool.commonPool()."
+                        + " This pool is shared across all parallel streams in the JVM. A burst of"
+                        + " parallel stream work anywhere in the application can starve the reactive"
+                        + " async dispatch. Additionally, commonPool threads are platform threads"
+                        + " that may block, undermining back-pressure and making the execution"
+                        + " context unpredictable for reactive operators that assume non-blocking"
+                        + " execution.",
+                "Methods whose return type contains a reactive hint (Mono, Flux, Uni, Multi,"
+                        + " Publisher) or whose annotations include @NonBlocking, @Incoming,"
+                        + " @Outgoing, etc., with a supplyAsync/runAsync call having exactly one"
+                        + " argument (no executor). Confidence HIGH for annotation-based contexts,"
+                        + " MEDIUM for return-type inference.",
+                "supplyAsync() with a custom executor and a chain of downstream operators that"
+                        + " themselves switch context (publishOn, subscribeOn) is still reported;"
+                        + " suppress with diagscope:ignore if the context switch is intentional.");
+
+        put(catalog, TransactionalEventListenerMissingPhaseRule.ID,
+                "@TransactionalEventListener without explicit phase",
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using ApplicationEventPublisher with @TransactionalEventListener",
+                "A @TransactionalEventListener method does not declare an explicit phase"
+                        + " attribute. Spring defaults to AFTER_COMMIT, which means the"
+                        + " originating transaction has already committed and its session is closed"
+                        + " when the listener runs.",
+                "Code that accesses lazy-loaded associations or writes to the database inside the"
+                        + " listener fails with LazyInitializationException or a closed-session error."
+                        + " When combined with @Async, the listener runs on a new thread with no"
+                        + " transaction context at all — writes land in auto-commit mode and cannot"
+                        + " be rolled back. This combination is one of the most common silent"
+                        + " data-consistency defects in event-driven Spring applications.",
+                "Methods carrying @TransactionalEventListener whose annotationAttributes map"
+                        + " contains no 'phase' key. Severity is elevated to ERROR when the"
+                        + " method also carries @Async. Confidence HIGH.",
+                "A phase declared via a meta-annotation or @AliasFor is not resolved without"
+                        + " symbol resolution and will not suppress the finding.");
+
+        put(catalog, KafkaConsumerGroupHardcodedRule.ID,
+                "Kafka listener consumer group ID is a hardcoded string literal",
+                "kafka", Severity.INFO, ALL_LANGUAGES,
+                "Spring Kafka applications using @KafkaListener with groupId",
+                "A @KafkaListener groupId attribute contains a plain string literal instead of"
+                        + " a property placeholder (${kafka.consumer.group-id}).",
+                "Consumer group IDs determine partition assignment and offset tracking in the"
+                        + " Kafka broker. A hardcoded group ID bakes the environment identity into"
+                        + " the compiled artifact. In a multi-environment deployment, a staging"
+                        + " consumer silently joins the production consumer group, consumes and"
+                        + " commits production offsets, and may cause messages to be skipped."
+                        + " The failure is invisible until business metrics show missing data.",
+                "Methods carrying @KafkaListener whose annotationAttributes 'groupId' value is"
+                        + " present, non-blank, and does not contain a ${...} placeholder."
+                        + " Confidence HIGH. Complement to KAFKA_TOPIC_HARDCODED.",
+                "Group IDs that are intentionally identical across all environments (single-env"
+                        + " deployments) will produce false positives; suppress with diagscope:ignore.");
+
+        put(catalog, ClockDependencyNotInjectedRule.ID,
+                "System clock called directly in Spring bean — not injectable in tests",
+                "testability", Severity.WARNING, ALL_LANGUAGES,
+                "Spring services, components, or repositories with time-sensitive business logic",
+                "A Spring-managed bean calls LocalDateTime.now(), Instant.now(), new Date(),"
+                        + " ZonedDateTime.now(), or System.currentTimeMillis() directly, without"
+                        + " passing an injected Clock.",
+                "Code that reads the system clock directly cannot be deterministically tested."
+                        + " Time-sensitive business logic — expiry checks, scheduling windows,"
+                        + " audit timestamps, SLA calculations — must be tested at specific instants"
+                        + " to be reliable. Without an injectable Clock, tests must use Thread.sleep"
+                        + " (slow, flaky) or accept tolerances (imprecise). A single bean with a"
+                        + " hardcoded clock call propagates the untestability to every caller.",
+                "Invocations of now() with no arguments on a date/time type (LocalDateTime,"
+                        + " Instant, ZonedDateTime, etc.), new Date() with no arguments, or"
+                        + " System.currentTimeMillis(), inside a Spring-managed bean method"
+                        + " that is not a @Bean factory or test lifecycle method. Confidence MEDIUM.",
+                "now(ZoneId) without a Clock argument is also flagged; passing a Clock is"
+                        + " the strictly testable form. Callers that only need the current"
+                        + " timestamp for logging (not for business decisions) may be false positives.");
+
+        put(catalog, UnguardedThreadCreationRule.ID,
+                "Raw Thread created in Spring bean without managed executor",
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications using @Component, @Service, or any Spring-managed bean",
+                "A Spring-managed bean constructs a raw Thread directly (new Thread(runnable))"
+                        + " outside a @Bean factory method.",
+                "Manually created threads in Spring beans have no pool bounds, no lifecycle"
+                        + " management, no exception handler, and no shutdown hook. Spring cannot"
+                        + " stop or wait for them when ApplicationContext.close() is called."
+                        + " Under load, each call creates a new thread, exhausting the JVM file-"
+                        + " descriptor limit (OutOfMemoryError: unable to create native thread)."
+                        + " The application cannot shut down cleanly if background threads are"
+                        + " still running.",
+                "Constructor invocations where methodName is 'Thread' in a method whose"
+                        + " declaring type carries a Spring stereotype annotation, outside @Bean"
+                        + " factory or test lifecycle methods. Confidence HIGH.",
+                "Thread.ofVirtual().start(...) calls are not currently detected; only the"
+                        + " new Thread(...) constructor form is inspected.");
+
+        put(catalog, DriverManagerDataSourceUsedRule.ID,
+                "DriverManagerDataSource used — no connection pooling",
+                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "Spring JDBC or Spring Data applications using DataSource beans",
+                "A DriverManagerDataSource is constructed. This Spring helper wraps"
+                        + " DriverManager.getConnection() directly, opening a brand-new database"
+                        + " connection on every call.",
+                "Every getConnection() call performs a full TCP handshake, SSL negotiation,"
+                        + " and database authentication round-trip (typically 10–200 ms each)."
+                        + " Database servers cap concurrent connections (often to a few hundred)."
+                        + " Under any meaningful load, a burst of requests creates a burst of new"
+                        + " connections with no queue or rejection policy, exhausting the server"
+                        + " connection limit and causing connection-refused errors for unrelated"
+                        + " services sharing the same database.",
+                "Constructor invocations where methodName is 'DriverManagerDataSource'."
+                        + " Severity WARNING outside @Bean factory methods (definitely wrong),"
+                        + " INFO inside @Bean methods (may be intentional for local/test profiles)."
+                        + " Test configuration annotations suppress the finding entirely.",
+                "DriverManagerDataSource is occasionally used intentionally in embedded database"
+                        + " test fixtures that do not run under load; those sites are suppressed"
+                        + " when @TestConfiguration or @DataJpaTest is present.");
+
         return Collections.unmodifiableMap(catalog);
     }
 
