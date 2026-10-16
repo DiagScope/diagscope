@@ -138,7 +138,6 @@ import dev.diagscope.core.application.rule.OptionalGetWithoutCheckRule;
 import dev.diagscope.core.application.rule.RetryWithoutDiagnosticsRule;
 import dev.diagscope.core.application.rule.ScheduledExceptionNotHandledRule;
 import dev.diagscope.core.application.rule.ScheduledTaskSwallowsFailureRule;
-import dev.diagscope.core.application.rule.ThreadLocalLeakRule;
 import dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule;
 import dev.diagscope.core.application.rule.MdcContextLostRule;
 import dev.diagscope.core.application.rule.MutinyFailureRecoveredSilentlyRule;
@@ -219,7 +218,6 @@ public final class DiagScopeMain {
                 new TransactionalPropagationMismatchRule(),
                 // Concurrency & threads
                 new LockNotReleasedRule(),
-                new ThreadLocalLeakRule(),
                 new FutureGetWithoutTimeoutRule(),
                 new BlockingCallInReactiveContextRule(),
                 // Performance
@@ -432,7 +430,6 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.DuplicateDiagnosticSignalRule.ID,
                 dev.diagscope.core.application.rule.TransactionalPropagationMismatchRule.ID,
                 dev.diagscope.core.application.rule.LockNotReleasedRule.ID,
-                dev.diagscope.core.application.rule.ThreadLocalLeakRule.ID,
                 dev.diagscope.core.application.rule.FutureGetWithoutTimeoutRule.ID,
                 dev.diagscope.core.application.rule.BlockingCallInReactiveContextRule.ID,
                 dev.diagscope.core.application.rule.NPlusOneQueryRiskRule.ID,

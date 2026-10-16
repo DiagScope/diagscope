@@ -109,15 +109,25 @@ class JavaWave8RetryController {
 @RestController
 class JavaWave8FutureService {
 
-    /** SEQUENTIAL_FUTURE_JOIN_IN_LOOP: join() inside a loop — serialises parallel tasks. */
+    /** SEQUENTIAL_FUTURE_JOIN_IN_LOOP: each task is started and joined before the next one starts. */
     @GetMapping("/wave8/futures")
     List<String> fetchAll(List<String> ids) {
+        var results = new java.util.ArrayList<String>();
+        for (String id : ids) {
+            results.add(CompletableFuture.supplyAsync(() -> "result-" + id).join()); // → SEQUENTIAL_FUTURE_JOIN_IN_LOOP
+        }
+        return results;
+    }
+
+    /** Safe: start every task first, then join in a second loop — the tasks run concurrently. */
+    @GetMapping("/wave8/futures/two-phase")
+    List<String> fetchAllTwoPhase(List<String> ids) {
         var futures = ids.stream()
                 .map(id -> CompletableFuture.supplyAsync(() -> "result-" + id))
                 .toList();
         var results = new java.util.ArrayList<String>();
         for (CompletableFuture<String> future : futures) {
-            results.add(future.join()); // → SEQUENTIAL_FUTURE_JOIN_IN_LOOP
+            results.add(future.join());
         }
         return results;
     }

@@ -247,6 +247,58 @@ class CalibrationRulesTest {
         assertThat(new JdbcTemplateConnectionEscapeRule().evaluate(flow(viaTemplate))).hasSize(1);
     }
 
+    // ── second audit pass ────────────────────────────────────────────────────
+
+    @Test
+    void joinInLoop_isReportedOnlyWhenTheTaskIsStartedInTheSameIteration() {
+        var chained = new InvocationEvidence(location(10), "CompletableFuture.supplyAsync(() -> work())", "",
+                "join", List.of(), InvocationResultUsage.USED_AS_ARGUMENT, false, false, "", false, true, false,
+                List.of());
+        var started = new InvocationEvidence(location(20), "CompletableFuture", "CompletableFuture", "supplyAsync",
+                List.of("() -> work()"), InvocationResultUsage.ASSIGNED, false, false, "future", false, true, false,
+                List.of());
+        var joinSame = new InvocationEvidence(location(21), "future", "CompletableFuture", "join", List.of(),
+                InvocationResultUsage.USED_AS_ARGUMENT, false, false, "", false, true, false, List.of());
+        var joinEarlierFutures = new InvocationEvidence(location(40), "future", "CompletableFuture", "join",
+                List.of(), InvocationResultUsage.USED_AS_ARGUMENT, false, false, "", false, true, false, List.of());
+        var rule = new SequentialFutureJoinInLoopRule();
+        assertThat(rule.evaluate(flow(withInvocations(chained)))).hasSize(1);
+        assertThat(rule.evaluate(flow(withInvocations(started, joinSame)))).hasSize(1);
+        // The two-phase pattern: the futures were started before the loop, so joining them in it is correct.
+        assertThat(rule.evaluate(flow(withInvocations(joinEarlierFutures)))).isEmpty();
+    }
+
+    @Test
+    void filesStreamsNeedClosing_butBufferedReaderLinesDoNot() {
+        var files = new InvocationEvidence(location(10), "Files", "Files", "lines", List.of("path"),
+                InvocationResultUsage.ASSIGNED);
+        var reader = new InvocationEvidence(location(11), "reader", "BufferedReader", "lines", List.of(),
+                InvocationResultUsage.ASSIGNED);
+        var profiles = new InvocationEvidence(location(12), "profiles", "ProfileRepo", "list", List.of(),
+                InvocationResultUsage.ASSIGNED);
+        var rule = new StreamIoNotClosedRule();
+        assertThat(rule.evaluate(flow(withInvocations(files)))).hasSize(1);
+        assertThat(rule.evaluate(flow(withInvocations(reader, profiles)))).isEmpty();
+    }
+
+    @Test
+    void threadLocalSetInOneMethodAndRemovedInAnotherOfTheSameClass_isNotReported() {
+        var set = new InvocationEvidence(location(10), "requestId", "ThreadLocal", "set", List.of("id"),
+                InvocationResultUsage.IGNORED);
+        var remove = new InvocationEvidence(location(20), "requestId", "ThreadLocal", "remove", List.of(),
+                InvocationResultUsage.IGNORED);
+        var preHandle = new MethodModel(new MethodId("example.Interceptor", "preHandle", List.of()), location(1),
+                Set.of(), List.of(), List.of(set), List.of(), List.of(), List.of());
+        var afterCompletion = new MethodModel(new MethodId("example.Interceptor", "afterCompletion", List.of()),
+                location(15), Set.of(), List.of(), List.of(remove), List.of(), List.of(), List.of());
+        var leaky = new MethodModel(new MethodId("example.Other", "run", List.of()), location(1), Set.of(),
+                List.of(), List.of(set), List.of(), List.of(), List.of());
+        var rule = new ThreadLocalNotRemovedRule();
+        assertThat(rule.evaluate(project(preHandle, afterCompletion))).isEmpty();
+        assertThat(rule.evaluate(project(leaky))).singleElement()
+                .satisfies(f -> assertThat(f.severity()).isEqualTo(Severity.WARNING));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static MethodModel controllerPost(String name, List<String> parameterTypes, Map<String, String> parameters,
@@ -275,6 +327,11 @@ class CalibrationRulesTest {
         return new MethodModel(new MethodId(type, name, List.of()), location(1), annotations, List.of(), List.of(),
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0),
                 returnType, false);
+    }
+
+    private static MethodModel withInvocations(InvocationEvidence... invocations) {
+        return new MethodModel(new MethodId("example.Service", "run", List.of()), location(1), Set.of(), List.of(),
+                List.of(invocations), List.of(), List.of(), List.of());
     }
 
     private static MethodModel exceptionHandler(String name, String returnType) {

@@ -100,13 +100,23 @@ open class KotlinWave8RetryController {
 @RestController
 open class KotlinWave8FutureService {
 
-    /** SEQUENTIAL_FUTURE_JOIN_IN_LOOP: join() inside a loop — serialises parallel tasks. */
+    /** SEQUENTIAL_FUTURE_JOIN_IN_LOOP: each task is started and joined before the next one starts. */
     @GetMapping("/wave8/futures")
     open fun fetchAll(ids: List<String>): List<String> {
+        val results = mutableListOf<String>()
+        for (id in ids) {
+            results.add(CompletableFuture.supplyAsync { "result-$id" }.join()) // → SEQUENTIAL_FUTURE_JOIN_IN_LOOP
+        }
+        return results
+    }
+
+    /** Safe: start every task first, then join in a second loop — the tasks run concurrently. */
+    @GetMapping("/wave8/futures/two-phase")
+    open fun fetchAllTwoPhase(ids: List<String>): List<String> {
         val futures = ids.map { id -> CompletableFuture.supplyAsync { "result-$id" } }
         val results = mutableListOf<String>()
         for (future in futures) {
-            results.add(future.join()) // → SEQUENTIAL_FUTURE_JOIN_IN_LOOP
+            results.add(future.join())
         }
         return results
     }

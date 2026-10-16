@@ -40,6 +40,18 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- **Second audit pass** (JDK and library claims, see `docs/RULE_AUDIT.md`):
+  - `SEQUENTIAL_FUTURE_JOIN_IN_LOOP` 2.0.0 only reports a task that is started and joined in the same iteration. Joining
+    futures that were all started earlier, in a second loop, is the correct pattern and is no longer reported (the old
+    fixture used it as the trigger).
+  - `STREAM_IO_NOT_CLOSED` 1.1.0 stops reporting `BufferedReader.lines()`, whose stream does not own a handle, and no
+    longer matches any receiver that merely contains "files".
+  - Removed `THREAD_LOCAL_LEAK`: `THREAD_LOCAL_NOT_REMOVED` reports the same call, so each case appeared twice (the id
+    stays reserved). `THREAD_LOCAL_NOT_REMOVED` 1.1.0 accepts a `remove()` anywhere in the declaring class, which covers an
+    interceptor's `preHandle`/`afterCompletion`, and is now WARNING.
+  - Text corrections: `saveAll()`/`deleteAllById()` do not batch by themselves (`BULK_OPERATION_IN_LOOP`,
+    `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR`), coroutine cancellation, `setAccessible`, regex compilation, `java.util.Timer`,
+    the Kafka consumer group and metric lookups in a loop. Titles that still carried a retracted claim were rewritten.
 - **Audit of the WARNING rules that make framework claims** (see `docs/RULE_AUDIT.md`, which lists every claim checked
   and its source). Corrected: `ASYNC_VOID_RETURN`, `FIELD_INJECTION_USED`, `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR`,
   `OBJECT_MAPPER_CREATED_PER_REQUEST`, `TRANSACTIONAL_READONLY_MISSING`, `UNGUARDED_THREAD_CREATION`,

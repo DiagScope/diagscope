@@ -4,6 +4,7 @@ import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
 import dev.diagscope.core.domain.InvocationEvidence;
+import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.RelatedFlow;
 import dev.diagscope.core.domain.Severity;
 
@@ -48,6 +49,9 @@ public final class SequentialFutureJoinInLoopRule implements DiagnosticRule {
 
     public static final String ID = "SEQUENTIAL_FUTURE_JOIN_IN_LOOP";
 
+    /** An asynchronous start in the receiver itself: supplyAsync(...), supplyAsync { ... }, runAsync<T>(...). */
+    private static final java.util.regex.Pattern ASYNC_START = java.util.regex.Pattern.compile("Async\\s*[({<]");
+
     private static final Set<String> JOIN_METHODS = Set.of("join");
 
     @Override
@@ -64,19 +68,17 @@ public final class SequentialFutureJoinInLoopRule implements DiagnosticRule {
                 if (!JOIN_METHODS.contains(invocation.methodName())) continue;
                 if (!invocation.insideLoop()) continue;
                 if (!looksLikeFuture(invocation)) continue;
+                if (!startedInSameIteration(method, invocation)) continue;
 
                 var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
                 findings.add(new Finding(
                         ID, Severity.WARNING, confidence, invocation.location(),
-                        "CompletableFuture.join() is called inside a loop. Each join() blocks"
-                                + " the calling thread until that specific future completes,"
-                                + " serialising what should be parallel execution into sequential"
-                                + " blocking calls. Total latency becomes the sum, not the max.",
-                        "Collect all futures into a list first, then join them in one step:"
-                                + " CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();"
-                                + " then extract results with future.join() or future.getNow(null)."
-                                + " This fans out all tasks simultaneously and waits only for"
-                                + " the slowest one, not for each one in turn.",
+                        "This loop starts an asynchronous task and joins it before the next iteration,"
+                                + " so the tasks run one after the other: total latency is the sum of the"
+                                + " task durations, not the longest one.",
+                        "Start every task first and join afterwards: collect the futures in a list in one"
+                                + " loop, then join them in a second loop (or with"
+                                + " CompletableFuture.allOf(...).join()). The tasks then run concurrently.",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of(
                                 "method", method.id().displayName(),
@@ -85,6 +87,22 @@ public final class SequentialFutureJoinInLoopRule implements DiagnosticRule {
             }
         }
         return List.copyOf(findings);
+    }
+
+    /**
+     * True when the joined future was started in the same loop iteration: the receiver is itself an asynchronous
+     * call ({@code supplyAsync(...).join()}), or a variable assigned from one a few lines earlier. A future that was
+     * started before the loop and joined inside it is the correct two-phase pattern and is not reported.
+     */
+    private static boolean startedInSameIteration(MethodModel method, InvocationEvidence join) {
+        if (ASYNC_START.matcher(join.scope()).find()) return true;
+        String variable = join.scopeRoot();
+        if (variable.isBlank()) return false;
+        int joinLine = join.location().startLine();
+        return method.invocations().stream().anyMatch(call -> call.insideLoop()
+                && variable.equals(call.assignedTo())
+                && (call.methodName().endsWith("Async") || call.methodName().equals("submit"))
+                && call.location().startLine() <= joinLine && joinLine - call.location().startLine() <= 3);
     }
 
     private static boolean looksLikeFuture(InvocationEvidence invocation) {

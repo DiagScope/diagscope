@@ -78,9 +78,8 @@ public final class JpaBatchLoopWithoutFlushClearRule implements DiagnosticRule {
                                         + " — the persistence context grows with every iteration.",
                                 "Call entityManager.flush() then entityManager.clear() every N"
                                         + " iterations (typically 50-100) to bound the first-level"
-                                        + " cache size. Also configure hibernate.jdbc.batch_size."
-                                        + " Alternatively, use Spring Data saveAll() which manages"
-                                        + " batching internally.",
+                                        + " cache size. Also configure hibernate.jdbc.batch_size so the inserts are sent"
+                                        + " in JDBC batches (saveAll() alone still runs one statement per entity).",
                                 List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                                 Map.of(
                                         "method", method.id().displayName(),

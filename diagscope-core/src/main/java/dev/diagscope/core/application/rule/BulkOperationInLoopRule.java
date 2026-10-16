@@ -79,8 +79,10 @@ public final class BulkOperationInLoopRule implements DiagnosticRule {
                         ID, Severity.WARNING, confidence, invocation.location(),
                         "Repository write call inside a loop: each iteration is a separate"
                                 + " database round-trip and transaction.",
-                        "Collect items first, then call " + batchAlternative + " once outside"
-                                + " the loop to persist them in a single batch operation.",
+                        "Collect items first, then call " + batchAlternative + " once outside the loop, in a"
+                                + " single transaction. For real JDBC batching also set"
+                                + " hibernate.jdbc.batch_size; for bulk deletes prefer deleteAllInBatch or a"
+                                + " @Modifying query.",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of(
                                 "method", method.id().displayName(),

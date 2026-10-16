@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Fixture: exercises LOCK_NOT_RELEASED, THREAD_LOCAL_LEAK, FUTURE_GET_WITHOUT_TIMEOUT,
+ * Fixture: exercises LOCK_NOT_RELEASED, THREAD_LOCAL_NOT_REMOVED, FUTURE_GET_WITHOUT_TIMEOUT,
  * BLOCKING_CALL_IN_REACTIVE_CONTEXT, N_PLUS_ONE_QUERY_RISK, and OPTIONAL_GET_WITHOUT_CHECK.
  */
 @Service
@@ -44,7 +44,7 @@ class JavaConcurrencyAndSafetyService {
         }
     }
 
-    // ── THREAD_LOCAL_LEAK ────────────────────────────────────────────────────
+    // ── THREAD_LOCAL_NOT_REMOVED ────────────────────────────────────────────────────
 
     /** set() without remove() — leaks across thread-pool reuse. */
     void handleRequest(String id) {

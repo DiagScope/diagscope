@@ -50,6 +50,8 @@ public final class StreamIoNotClosedRule implements DiagnosticRule {
 
     public static final String ID = "STREAM_IO_NOT_CLOSED";
 
+    private static final java.util.regex.Pattern FILES = java.util.regex.Pattern.compile("(?:[\\w.]*\\.)?Files");
+
     private static final Set<String> IO_STREAM_METHODS = Set.of("list", "walk", "lines", "find");
 
     @Override
@@ -96,16 +98,11 @@ public final class StreamIoNotClosedRule implements DiagnosticRule {
 
     private static boolean isIoStreamFactory(InvocationEvidence invocation) {
         if (!IO_STREAM_METHODS.contains(invocation.methodName())) return false;
-        return isFilesClass(invocation) || isBufferedReader(invocation);
+        return isFilesClass(invocation);
     }
 
     private static boolean isFilesClass(InvocationEvidence invocation) {
-        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
-        return hint.contains("files");
-    }
-
-    private static boolean isBufferedReader(InvocationEvidence invocation) {
-        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
-        return hint.contains("bufferedreader") || hint.contains("reader");
+        return FILES.matcher(invocation.scope().strip()).matches()
+                || FILES.matcher(invocation.receiverType().strip()).matches();
     }
 }

@@ -103,6 +103,9 @@ public final class RuleLifecycle {
         entries.put("SYNCHRONIZED_ON_SPRING_BEAN", new Entry("SYNCHRONIZED_ON_SPRING_BEAN", Status.REMOVED, "0.1.2",
                 null, "A Spring proxy delegates to the target object, so a synchronized method locks the target"
                 + " instance, not the proxy. For a singleton bean the synchronisation works as written."));
+        entries.put("THREAD_LOCAL_LEAK", new Entry("THREAD_LOCAL_LEAK", Status.REMOVED, "0.1.2",
+                "THREAD_LOCAL_NOT_REMOVED", "Superseded: THREAD_LOCAL_NOT_REMOVED reports the same ThreadLocal.set() without"
+                + " remove(), so every case was reported twice."));
         var sorted = new TreeMap<String, Entry>(entries);
         return Map.copyOf(sorted);
     }

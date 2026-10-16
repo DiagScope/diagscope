@@ -123,6 +123,18 @@ public final class RuleVersions {
         overrides.put(TransactionalReadOnlyMissingRule.ID, "1.0.1");
         overrides.put(UnguardedThreadCreationRule.ID, "1.0.1");
         overrides.put(ValueWithoutDefaultRule.ID, "1.1.0");
+        // Second audit pass (JDK and library claims): see docs/RULE_AUDIT.md.
+        overrides.put(BulkOperationInLoopRule.ID, "1.0.1");
+        overrides.put(CancellationExceptionSwallowedRule.ID, "1.0.1");
+        overrides.put(ReflectiveAccessInProductionRule.ID, "1.0.1");
+        overrides.put(RegexCompiledInLoopRule.ID, "1.0.1");
+        overrides.put(TimerTaskExceptionKillsTimerRule.ID, "1.0.1");
+        overrides.put(KafkaConsumerGroupHardcodedRule.ID, "1.0.1");
+        overrides.put(SequentialFutureJoinInLoopRule.ID, "2.0.0");
+        overrides.put(StreamIoNotClosedRule.ID, "1.1.0");
+        overrides.put(ThreadLocalNotRemovedRule.ID, "1.1.0");
+        overrides.put(RateLimiterWithoutFallbackRule.ID, "1.0.1");
+        overrides.put(MetricCreatedInLoopRule.ID, "1.0.1");
         return Map.copyOf(overrides);
     }
 }

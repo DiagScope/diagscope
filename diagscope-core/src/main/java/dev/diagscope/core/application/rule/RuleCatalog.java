@@ -326,8 +326,11 @@ public final class RuleCatalog {
                 "observability", Severity.WARNING, ALL_LANGUAGES,
                 "Spring Boot Actuator or Micrometer",
                 "A counter, timer, or gauge is resolved inside a loop body.",
-                "Instrument creation per iteration multiplies time series and adds overhead on the hot"
-                        + " path, which can degrade the metrics backend during an incident.",
+                "Looking an instrument up by name and tags on every iteration allocates the tag objects and goes "
+                        + "through the registry's map each time, on the hot path. Re-resolving the same name and tags "
+                        + "returns the existing meter, so the time series are not multiplied unless the tags differ per "
+                        + "iteration, which is then a cardinality problem (HIGH_CARDINALITY_METRIC_TAG). Resolve the "
+                        + "instrument once outside the loop.",
                 "A metric registration call whose enclosing statement is a for/while/do-while body.");
 
         // ── Resilience ───────────────────────────────────────────────────────────
@@ -498,20 +501,6 @@ public final class RuleCatalog {
                         + " by a finally block on the same receiver.",
                 "Best-effort receiver matching compares scope names; fields accessed through"
                         + " different aliases may not be correlated, which can cause false negatives.");
-
-        put(catalog, ThreadLocalLeakRule.ID,
-                "ThreadLocal value never removed",
-                "concurrency", Severity.WARNING, ALL_LANGUAGES,
-                "Any Java or Kotlin application using thread pools",
-                "ThreadLocal.set() is called but remove() is never called in the same method.",
-                "Pooled threads are reused. A value stored in a ThreadLocal that is never removed"
-                        + " persists to the next request on the same thread, leaking state"
-                        + " (and potentially sensitive data) across requests, or growing the heap"
-                        + " without bound.",
-                "A set() call on a ThreadLocal or InheritableThreadLocal with no matching remove()"
-                        + " on the same receiver in the same method body.",
-                "remove() called in a finally block in a different method (e.g., a servlet filter"
-                        + " or interceptor) is not visible here and may cause a false positive.");
 
         put(catalog, FutureGetWithoutTimeoutRule.ID,
                 "Future.get() blocks without a timeout",
@@ -801,10 +790,11 @@ public final class RuleCatalog {
                 "Spring Data, JPA / Hibernate, or any DAO layer",
                 "A repository write operation (save, delete, update, persist, merge) is called"
                         + " inside a loop body, issuing one database round-trip per iteration.",
-                "With N items: N network round-trips, N lock acquisitions, N transaction log"
-                        + " entries. Spring Data saveAll() and deleteAllById() collapse all of"
-                        + " these into one or two round-trips. The performance difference is"
-                        + " 10–100× under production data volumes.",
+                "With N items the loop issues N statements and, when it runs outside a transaction, N separate "
+                        + "transactions with N commits. Moving the writes into one transaction removes the commits. Note "
+                        + "that Spring Data JPA's saveAll() and deleteAllById() still run one statement per entity: real "
+                        + "batching needs hibernate.jdbc.batch_size (and ordered inserts), and a bulk delete needs "
+                        + "deleteAllInBatch() or a @Modifying query.",
                 "An invocation of a repository write method whose insideLoop flag is true,"
                         + " on a receiver whose type suggests a Spring Data repository or JPA"
                         + " EntityManager.",
@@ -1283,7 +1273,7 @@ public final class RuleCatalog {
 
         // ── Wave 3: minor domain extensions ──────────────────────────────────
         put(catalog, ScheduledNoInitialDelayRule.ID,
-                "@Scheduled task fires immediately at application startup",
+                "@Scheduled task starts as soon as the scheduler does",
                 "configuration", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using @Scheduled with fixedRate or fixedDelay",
                 "A @Scheduled method uses fixedRate or fixedDelay without an initialDelay, so its first run "
@@ -1423,7 +1413,7 @@ public final class RuleCatalog {
 
         // ── Wave 5 ────────────────────────────────────────────────────────────
         put(catalog, ScheduledNonVoidReturnRule.ID,
-                "@Scheduled method with non-void return type — return value is silently discarded",
+                "@Scheduled method with a non-void return type (the value is ignored)",
                 "correctness", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using @Scheduled",
                 "A @Scheduled method declares a return type other than void. Spring documents that the returned "
@@ -1436,7 +1426,7 @@ public final class RuleCatalog {
                 null);
 
         put(catalog, FeignClientNoFallbackRule.ID,
-                "@FeignClient without fallback — remote failures propagate with no degradation",
+                "@FeignClient without fallback",
                 "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Spring Cloud applications using OpenFeign (@FeignClient)",
                 "A @FeignClient interface declares no fallback or fallbackFactory attribute."
@@ -1783,14 +1773,12 @@ public final class RuleCatalog {
                 "Pattern.compile() called inside a loop body",
                 "performance", Severity.WARNING, ALL_LANGUAGES,
                 "Spring Boot services that validate or transform strings in loops",
-                "Pattern.compile() re-parses the entire regular expression and builds a new NFA/DFA"
-                        + " automaton on every call. When this sits inside a loop, N identical"
-                        + " compilations are performed, each allocating intermediate objects that"
-                        + " immediately become garbage.",
-                "Regex compilation is one of the most CPU-intensive string operations in the JVM."
-                        + " Moving it out of the loop to a static final field eliminates all"
-                        + " redundant work: the pattern is compiled once at class load time"
-                        + " and shared across all loop iterations at zero additional cost.",
+                "Pattern.compile() parses the regular expression and builds a new compiled pattern on every call. "
+                        + "Inside a loop, the same expression is compiled N times for no reason.",
+                "Compiling a regular expression costs far more than matching with an already compiled one, and "
+                        + "each compile allocates a fresh pattern that immediately becomes garbage. Pattern is immutable "
+                        + "and thread-safe, so a static final field compiled once is shared by every iteration and every "
+                        + "thread.",
                 "Invocations of Pattern.compile() with insideLoop == true, matched by scope/receiverType"
                         + " hint containing 'pattern'. Confidence HIGH.",
                 "Does not detect Pattern.compile() called inside a helper method that is in turn"
@@ -1849,22 +1837,21 @@ public final class RuleCatalog {
                         + " for intentional background-thread sleeps.");
 
         put(catalog, SequentialFutureJoinInLoopRule.ID,
-                "CompletableFuture.join() called inside a loop, serialising parallel tasks",
+                "CompletableFuture started and joined within the same loop iteration",
                 "performance", Severity.WARNING, ALL_LANGUAGES,
                 "Services that fan out concurrent tasks with CompletableFuture",
-                "CompletableFuture.join() blocks the calling thread until that specific future"
-                        + " completes. Called in a loop, it processes futures one at a time:"
-                        + " the thread waits for future-0, then future-1, and so on. Total latency"
-                        + " becomes the sum of all task durations, not the maximum.",
-                "Submitting N HTTP calls or DB queries as CompletableFuture tasks and joining"
-                        + " them in a loop reduces to N sequential blocking calls. At N=10 remote"
-                        + " calls of 100 ms each, the loop takes 1000 ms where CompletableFuture.allOf"
-                        + " would take ≈100 ms. The regression is invisible in tests that use mocks"
-                        + " returning instantly and only surfaces under realistic latencies.",
-                "Invocations of join() with insideLoop == true and scope/receiverType hint"
-                        + " containing 'future' or 'completable'. Confidence MEDIUM.",
-                "Does not distinguish intentional sequential ordering (where future-2 depends on"
-                        + " future-1's result) from accidental serialisation.");
+                "A loop starts an asynchronous task and joins it before the next iteration (for example "
+                        + "supplyAsync(...).join()), so the tasks run one after the other.",
+                "A future that is started and immediately joined gives no parallelism: the loop takes the sum of "
+                        + "the task durations instead of the longest one. With ten remote calls of 100 ms each that is 1000 "
+                        + "ms against about 100 ms. Starting all the futures first and joining them in a second loop is "
+                        + "fine: the tasks run concurrently and the total is the longest one.",
+                "A join() inside a loop whose receiver is an asynchronous call in the same expression "
+                        + "(supplyAsync(...).join()), or a variable assigned from an asynchronous call in the same loop a "
+                        + "few lines earlier. Confidence MEDIUM.",
+                "A future started in one method and joined in another is not seen. A join on a variable that was "
+                        + "started earlier, outside the loop, is deliberately not reported: that is the correct two-phase "
+                        + "pattern.");
 
         // ── Wave 9: virtual threads, reactive context, events, Kafka, testability ────
 
@@ -1932,12 +1919,11 @@ public final class RuleCatalog {
                 "Spring Kafka applications using @KafkaListener with groupId",
                 "A @KafkaListener groupId attribute contains a plain string literal instead of"
                         + " a property placeholder (${kafka.consumer.group-id}).",
-                "Consumer group IDs determine partition assignment and offset tracking in the"
-                        + " Kafka broker. A hardcoded group ID bakes the environment identity into"
-                        + " the compiled artifact. In a multi-environment deployment, a staging"
-                        + " consumer silently joins the production consumer group, consumes and"
-                        + " commits production offsets, and may cause messages to be skipped."
-                        + " The failure is invisible until business metrics show missing data.",
+                "Consumer group IDs determine partition assignment and offset tracking in the broker. A hardcoded "
+                        + "group ID bakes one environment's identity into the artifact: if two environments share a "
+                        + "cluster, a staging consumer joins the production consumer group, takes partitions from it and "
+                        + "commits production offsets, so messages are skipped. With separate clusters per environment the "
+                        + "literal is harmless, which is why this is informational.",
                 "Methods carrying @KafkaListener whose annotationAttributes 'groupId' value is"
                         + " present, non-blank, and does not contain a ${...} placeholder."
                         + " Confidence HIGH. Complement to KAFKA_TOPIC_HARDCODED.",
@@ -2028,7 +2014,7 @@ public final class RuleCatalog {
                         + " suppress with diagscope:ignore.");
 
         put(catalog, TransactionalOnRestControllerRule.ID,
-                "@Transactional on @RestController — database connection held for full HTTP cycle",
+                "@Transactional on a controller method ties the transaction to the web layer",
                 "transactions", Severity.INFO, ALL_LANGUAGES,
                 "Spring MVC controllers annotated with @RestController or @Controller",
                 "A method on a @RestController or @Controller class is also annotated with"
@@ -2104,7 +2090,7 @@ public final class RuleCatalog {
                         + " if the constructor method carries the annotation.");
 
         put(catalog, CircuitBreakerWithoutFallbackRule.ID,
-                "@CircuitBreaker without fallbackMethod — open circuit throws uncaught exception",
+                "@CircuitBreaker without fallbackMethod",
                 "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Resilience4j @CircuitBreaker annotations",
                 "A method annotated with @CircuitBreaker does not specify a fallbackMethod."
@@ -2122,7 +2108,7 @@ public final class RuleCatalog {
                         + " Suppress with diagscope:ignore when global handling is in place.");
 
         put(catalog, BulkheadWithoutFallbackRule.ID,
-                "@Bulkhead without fallbackMethod — full bulkhead throws uncaught exception",
+                "@Bulkhead without fallbackMethod",
                 "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Resilience4j @Bulkhead annotations",
                 "A method annotated with @Bulkhead does not specify a fallbackMethod."
@@ -2139,16 +2125,15 @@ public final class RuleCatalog {
                         + " Suppress with diagscope:ignore when global handling is in place.");
 
         put(catalog, RateLimiterWithoutFallbackRule.ID,
-                "@RateLimiter without fallbackMethod — exceeded limit throws uncaught exception",
+                "@RateLimiter without fallbackMethod",
                 "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Resilience4j @RateLimiter annotations",
                 "A method annotated with @RateLimiter does not specify a fallbackMethod."
                         + " When the rate limit is exceeded, RequestNotPermitted propagates"
                         + " to callers as an unhandled exception.",
-                "Without a fallback, a rate limiter exceedance is not returned as 429 Too Many"
-                        + " Requests but as an uncaught exception — not the correct HTTP semantics"
-                        + " and not a useful user experience. The response gives the client no"
-                        + " Retry-After hint or actionable message.",
+                "Without a fallback an exceeded limit surfaces RequestNotPermitted to the caller. That is the "
+                        + "documented default and is often right when a global exception handler maps it to 429 Too Many "
+                        + "Requests; it becomes a problem when nothing does and clients see a generic 500.",
                 "Methods carrying @RateLimiter in their effective annotation set where the"
                         + " annotationAttributes map for RateLimiter contains no 'fallbackMethod'"
                         + " key or an empty value. Severity INFO (less severe than circuit breaker"
@@ -2535,9 +2520,10 @@ public final class RuleCatalog {
                 "maintainability", Severity.WARNING, ALL_LANGUAGES,
                 "Any Java or Kotlin production code",
                 "Production code calls setAccessible(true) on a reflected member.",
-                "It bypasses encapsulation, fails with InaccessibleObjectException on Java 17+ unless"
-                        + " the package is opened, and ties the code to another library's internals, which then"
-                        + " break on upgrade.",
+                "It bypasses encapsulation and ties the code to another library's internals, which then break on "
+                        + "upgrade. On Java 17 and later it also fails with InaccessibleObjectException for members of "
+                        + "JDK-internal packages unless the package is opened with --add-opens; application classes are not "
+                        + "affected.",
                 "An invocation of setAccessible with the literal argument true outside test lifecycle"
                         + " methods.",
                 "Kotlin's isAccessible = true is a property assignment and is not seen. Code that is"
@@ -2637,10 +2623,11 @@ public final class RuleCatalog {
                 "A suspend function catches Exception, Throwable, RuntimeException,"
                         + " IllegalStateException or CancellationException without rethrowing, or uses"
                         + " runCatching.",
-                "Cancellation is delivered as a CancellationException thrown from the next suspension"
-                        + " point. Swallowing it tells the coroutine machinery that nothing happened, so the"
-                        + " coroutine keeps running after its scope was cancelled: work continues after a"
-                        + " request was abandoned, timeouts stop nothing, and shutdown hangs waiting for it.",
+                "Cancellation is delivered as a CancellationException thrown from a suspension point. Swallowing "
+                        + "it hides the cancellation from the code after the catch: it carries on as if the call had failed "
+                        + "normally, running cleanup or compensation logic for work that was abandoned. The next suspension "
+                        + "point throws again, but a loop that catches and retries can spin, and a timeout or an abandoned "
+                        + "request no longer stops the work promptly.",
                 "In a function carrying the suspend modifier, a catch clause of one of those types"
                         + " whose body does not throw, or a runCatching call. The function is accepted when it"
                         + " also catches CancellationException and rethrows it, or calls ensureActive()."
@@ -2713,10 +2700,11 @@ public final class RuleCatalog {
                 "Any code that schedules recurring work",
                 "A java.util.Timer is created with new Timer(...), or Kotlin's fixedRateTimer is"
                         + " used.",
-                "A Timer runs every task on one thread. If any TimerTask throws, that thread"
-                        + " terminates and the timer is cancelled: all other scheduled tasks silently never run"
-                        + " again, and scheduling another throws IllegalStateException. The original failure is"
-                        + " not logged unless the task catches it.",
+                "A Timer runs every task on one thread. If any TimerTask throws, that thread terminates and the "
+                        + "timer is cancelled: all other scheduled tasks never run again, and scheduling another throws "
+                        + "IllegalStateException. The exception itself is only printed by the thread's default uncaught "
+                        + "exception handler (stderr) unless the task catches it, so nothing in the application's logging "
+                        + "reports that the timer died.",
                 "A constructor call to Timer (java.util.Timer; Micrometer's Timer is never"
                         + " constructed with new) or a call to fixedRateTimer, outside test methods. Reported"
                         + " where the timer is created.",

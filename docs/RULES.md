@@ -538,23 +538,6 @@ matched; suppress those sites explicitly.
 Recommended response: acquire the lock in a `try` block and call `unlock()` unconditionally in the
 corresponding `finally` block.
 
-## `THREAD_LOCAL_LEAK`
-
-Detects a `ThreadLocal.set()` call in a method that does not call `remove()` on the same receiver. In
-thread-pool environments (all modern servers) threads are reused, so the value persists into the next
-task processed by that thread, which typically belongs to a different request or user.
-
-- Default severity: `WARNING`.
-- Evidence confidence: `HIGH` when `set()` is observed on a ThreadLocal receiver with no `remove()` in
-  the same method; `MEDIUM` when the receiver identity is inferred from the scope name alone.
-- Final confidence: capped by reachability.
-
-Known limitation: a `remove()` inside a `finally` block in a calling frame that is not analyzed is not
-detected.
-
-Recommended response: call `ThreadLocal.remove()` in a `finally` block, or prefer request-scoped beans,
-`@RequestScope`, or reactive context propagation.
-
 ## `FUTURE_GET_WITHOUT_TIMEOUT`
 
 Detects a blocking `.get()`, `.join()`, or `.getNow()` call on a `Future`, `CompletableFuture`, or

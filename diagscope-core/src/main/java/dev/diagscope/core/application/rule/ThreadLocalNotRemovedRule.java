@@ -43,8 +43,17 @@ public final class ThreadLocalNotRemovedRule implements ProjectRule {
 
     @Override
     public List<Finding> evaluate(AnalyzedProject project) {
+        // A ThreadLocal set in one method and removed in another (an interceptor's preHandle/afterCompletion, a
+        // filter) is the standard pattern, so a remove() anywhere in the declaring type counts.
+        var typesThatRemove = new java.util.HashSet<String>();
+        for (MethodModel method : project.methods().values()) {
+            boolean removes = method.invocations().stream()
+                    .anyMatch(inv -> isThreadLocalReceiver(inv) && "remove".equals(inv.methodName()));
+            if (removes) typesThatRemove.add(method.id().declaringType());
+        }
         var findings = new ArrayList<Finding>();
         for (MethodModel method : project.methods().values()) {
+            if (typesThatRemove.contains(method.id().declaringType())) continue;
             check(method, findings);
         }
         return List.copyOf(findings);
@@ -68,8 +77,8 @@ public final class ThreadLocalNotRemovedRule implements ProjectRule {
 
         String display = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.ERROR, Confidence.MEDIUM, setCall.location(),
-                "'" + display + "' calls ThreadLocal.set() without a visible ThreadLocal.remove()."
+                ID, Severity.WARNING, Confidence.MEDIUM, setCall.location(),
+                "'" + display + "' calls ThreadLocal.set() without a visible ThreadLocal.remove() anywhere in its class."
                         + " In a thread pool the thread is reused across requests; the stored value"
                         + " leaks into the next request on the same thread — a per-request data leak"
                         + " that is intermittent and impossible to reproduce under low concurrency.",

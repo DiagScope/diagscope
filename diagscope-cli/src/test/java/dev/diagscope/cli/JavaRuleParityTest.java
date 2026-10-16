@@ -80,6 +80,8 @@ class JavaRuleParityTest {
                 .noneMatch(method -> method.contains("returnsTheFuture"));
         assertThat(methodsFor("VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED")).anyMatch(method -> method.contains("callbackIgnoresFailure"))
                 .noneMatch(method -> method.contains("callbackChecksFailure"));
+        assertThat(methodsFor("SEQUENTIAL_FUTURE_JOIN_IN_LOOP")).anyMatch(method -> method.contains("fetchAll("))
+                .noneMatch(method -> method.contains("fetchAllTwoPhase")).noneMatch(method -> method.contains("fetchAllSafe"));
         assertThat(methodsFor("AUTOWIRED_REQUIRED_FALSE_UNSAFE"))
                 .anyMatch(method -> method.contains("recordUnsafe")).noneMatch(method -> method.contains("recordSafe"));
         assertThat(methodsFor("ASYNC_RESULT_UNOBSERVED")).noneMatch(method -> method.contains("submitObserved"));
