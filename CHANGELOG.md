@@ -40,6 +40,9 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- The build now fails on unused or redundant imports (`maven-checkstyle-plugin` with a two-check configuration in
+  `config/checkstyle.xml`, run in the `validate` phase over main and test sources). The first run found and removed
+  two stray imports and a test class that was commented out in full.
 - Calibration against seven open-source projects (Spring Petclinic Java/Kotlin/microservices, JHipster, Quarkus
   quickstarts, Vert.x and Spring Data examples; see `scripts/calibrate.sh`) cut default-mode findings from 2,611 to
   349, mostly false positives:
