@@ -1208,7 +1208,7 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | `TEST_USES_THREAD_SLEEP`, `TEST_WITHOUT_ASSERTION`, `SPRING_DIRTY_CONTEXT` | The analyzer only scans `src/main/java` and `src/main/kotlin`; test sources are never parsed, so these could not fire on a real project. Needs an opt-in test-source scan first. |
 | `ENTITY_MANAGER_CLEAR_IN_TRANSACTION` | Already implemented in wave 10. |
 | `POST_CONSTRUCT_CALLS_OVERRIDABLE` | Premise is wrong: `@PostConstruct` runs after construction, subclass included. The hazard exists for constructors, which are not mapped as methods. |
-| `AUTOWIRED_REQUIRED_FALSE_UNSAFE` | Needs null-check evidence, which the model does not carry. |
+| `AUTOWIRED_REQUIRED_FALSE_UNSAFE` | Implemented after the parsers gained null-check evidence (`NullChecked`); only fields are analysed, not optional setters. |
 | `MISSING_PAGEABLE_ON_FIND_ALL` / `MISSING_PAGEABLE_IN_QUERY_METHOD` | Strict subset of `MISSING_PAGINATION`. |
 | `LOG_EXCEPTION_MESSAGE_ONLY` | `LOG_WITHOUT_THROWABLE` already reports `log.error(e.getMessage())` in a catch. |
 | `MISSING_TRANSACTION_ANNOTATION_ON_WRITE` | Overlaps `MISSING_TRANSACTION_ANNOTATION`, which detects the write operations themselves. |
@@ -1233,6 +1233,7 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | Wave 8 | 2026-09-23 | +5 | 100 |
 | Wave 9 | 2026-10-14 | +7 | 107 |
 | Wave 10 | 2026-10-14 | +15 | 122 |
-| Wave 11 | 2026-10-14 | +28 | **150** |
+| Wave 11 | 2026-10-14 | +28 | 150 |
+| Wave 12 | 2026-10-16 | +1 | **151** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

@@ -303,6 +303,20 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
                         "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
             }
+            // Fields injected with @Autowired(required = false) stay null when no bean matches.
+            String optionalFields = type.getMembers().stream()
+                    .filter(BodyDeclaration::isFieldDeclaration)
+                    .map(BodyDeclaration::asFieldDeclaration)
+                    .filter(field -> annotations(field.getAnnotations()).stream().anyMatch(a ->
+                            "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
+                    .filter(field -> !isNullSafeInjectionType(field.getCommonType().asString()))
+                    .flatMap(field -> field.getVariables().stream())
+                    .map(variable -> variable.getNameAsString())
+                    .collect(java.util.stream.Collectors.joining(","));
+            if (!optionalFields.isEmpty()) {
+                syntheticMarkers.add(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
+                        Map.of("fields", optionalFields)));
+            }
             // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's: it has no
             // readOnly attribute and is not subject to Spring's proxy rules. Record which one the file imports.
             if (usesJakartaTransactional(unit)) {
@@ -343,6 +357,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
                 List.copyOf(rawMethods), List.copyOf(types), declaresProducerListener(unit));
+    }
+
+    /** Injection points whose type already models absence, so a missing bean never yields a null reference. */
+    private static boolean isNullSafeInjectionType(String type) {
+        return type.startsWith("Optional<") || type.startsWith("ObjectProvider<") || type.startsWith("Provider<")
+                || type.startsWith("java.util.Optional<");
     }
 
     private static boolean usesJakartaTransactional(CompilationUnit unit) {

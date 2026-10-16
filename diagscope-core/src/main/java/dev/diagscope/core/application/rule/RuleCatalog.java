@@ -631,8 +631,9 @@ public final class RuleCatalog {
                 "A find(...) call on an EntityManager-looking receiver is assigned to a variable,"
                         + " and a later invocation uses that variable as receiver without an observed"
                         + " Objects.requireNonNull, Optional.ofNullable, or equivalent guard.",
-                "The rule cannot see plain if (value == null) checks until null-check evidence is"
-                        + " represented in the parser-neutral model, so guarded code may need review.");
+                "A method that compares the variable with null (x == null, x != null, or ?. and ?: in Kotlin)"
+                        + " is not reported. A guard in a caller, or one that goes through a helper method, is"
+                        + " not visible, so such code may need review.");
 
         // ── Transactions ────────────────────────────────────────────────────────
         put(catalog, MissingTransactionAnnotationRule.ID,
@@ -1529,6 +1530,25 @@ public final class RuleCatalog {
                         + " JSON fields) may generate false positives. Suppress with diagscope:ignore"
                         + " and an inline comment explaining the nullable contract.");
 
+        put(catalog, AutowiredRequiredFalseUnsafeRule.ID,
+                "Optional @Autowired field used without a null check",
+                "null-safety", Severity.WARNING, ALL_LANGUAGES,
+                "Spring applications that inject fields with @Autowired(required = false)",
+                "A field injected with @Autowired(required = false) is used as a method-call receiver in a"
+                        + " method that never compares it with null. With required = false Spring leaves the"
+                        + " field untouched when no bean matches, so it stays null.",
+                "The application starts normally without the optional bean, then fails on the first call"
+                        + " with a NullPointerException that points at the call site, not at the missing"
+                        + " bean or the profile that did not register it. The failure appears only in the"
+                        + " environment that lacks the bean, often production.",
+                "The parsers record the fields of a class declared with @Autowired(required = false) and the"
+                        + " variables each method compares with null (or reaches through ?. or ?: in Kotlin)."
+                        + " The rule reports the first call on such a field in a method with no such check.",
+                "Fields typed Optional, ObjectProvider or Provider are skipped, as are Kotlin properties"
+                        + " declared nullable, since the compiler already enforces the check. Optional setters"
+                        + " and constructor parameters are not analysed. A null check in a caller or a guard"
+                        + " such as Objects.requireNonNull is not visible here.");
+
         put(catalog, MapGetDereferencedWithoutCheckRule.ID,
                 "Map.get() result dereferenced without a null guard",
                 "null-safety", Severity.WARNING, ALL_LANGUAGES,
@@ -1545,10 +1565,9 @@ public final class RuleCatalog {
                         + " to a variable, followed by a dereference of that variable without an"
                         + " intervening containsKey, getOrDefault, computeIfAbsent, or"
                         + " requireNonNull guard.",
-                "Plain if (value == null) guards are not represented in the current"
-                        + " parser-neutral evidence model — same known limitation as"
-                        + " ENTITY_MANAGER_FIND_DEREFERENCE. Code that guards with ordinary branching"
-                        + " may be falsely flagged.");
+                "A method that compares the variable with null is not reported. A guard in a caller, or"
+                        + " one that goes through a helper method, is not visible, so such code may be"
+                        + " falsely flagged.");
 
         put(catalog, TransactionIsolationDangerousRule.ID,
                 "@Transactional(isolation = READ_UNCOMMITTED) enables dirty reads",

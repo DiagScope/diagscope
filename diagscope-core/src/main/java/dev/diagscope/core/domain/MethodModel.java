@@ -56,6 +56,12 @@ public record MethodModel(
      * Synthetic annotation listing, per parameter index ({@code p0}, {@code p1}, ...), the simple names of the
      * annotations on that parameter, comma separated. Parameters without annotations are absent.
      */
+    /**
+     * Synthetic class-level annotation listing, in its {@code fields} attribute, the injected fields declared with
+     * {@code @Autowired(required = false)} that stay {@code null} when no bean matches (comma separated).
+     */
+    public static final String OPTIONAL_AUTOWIRED_ANNOTATION = "OptionalAutowired";
+
     public static final String JAKARTA_TRANSACTIONAL_ANNOTATION = "JakartaTransactional";
 
     public static final String PARAMETER_ANNOTATIONS = "ParameterAnnotations";

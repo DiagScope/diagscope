@@ -38,6 +38,7 @@ import dev.diagscope.core.application.rule.FeignClientNoFallbackRule;
 import dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule;
 import dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule;
 import dev.diagscope.core.application.rule.OptionalOrElseNullRule;
+import dev.diagscope.core.application.rule.AutowiredRequiredFalseUnsafeRule;
 import dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule;
 import dev.diagscope.core.application.rule.TransactionIsolationDangerousRule;
 import dev.diagscope.core.application.rule.RequiresNewInLoopRule;
@@ -228,6 +229,7 @@ public final class DiagScopeMain {
                 // Wave 6: null-safety, transactions, database
                 new OptionalOrElseNullRule(),
                 new MapGetDereferencedWithoutCheckRule(),
+                new AutowiredRequiredFalseUnsafeRule(),
                 new TransactionIsolationDangerousRule(),
                 new RequiresNewInLoopRule(),
                 new JpaBatchLoopWithoutFlushClearRule(),
@@ -505,6 +507,7 @@ public final class DiagScopeMain {
                 // Wave 6
                 dev.diagscope.core.application.rule.OptionalOrElseNullRule.ID,
                 dev.diagscope.core.application.rule.MapGetDereferencedWithoutCheckRule.ID,
+                dev.diagscope.core.application.rule.AutowiredRequiredFalseUnsafeRule.ID,
                 dev.diagscope.core.application.rule.TransactionIsolationDangerousRule.ID,
                 dev.diagscope.core.application.rule.RequiresNewInLoopRule.ID,
                 dev.diagscope.core.application.rule.JpaBatchLoopWithoutFlushClearRule.ID,

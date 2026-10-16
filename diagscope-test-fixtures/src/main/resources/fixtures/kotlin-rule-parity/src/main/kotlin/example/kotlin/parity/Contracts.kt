@@ -3,7 +3,7 @@ package example.kotlin.parity
 annotation class RestController
 annotation class GetMapping(val value: String)
 annotation class Scheduled(val cron: String = "", val fixedDelay: Long = -1L, val fixedRate: Long = -1L, val initialDelay: Long = -1L, val initialDelayString: String = "")
-annotation class Autowired
+annotation class Autowired(val required: Boolean = true)
 annotation class Synchronized
 annotation class Retryable(val include: Array<out kotlin.reflect.KClass<out Throwable>> = [])
 annotation class Recover

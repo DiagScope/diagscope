@@ -1397,6 +1397,19 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             declaredAnnotations.add(new AnnotationDescriptor("EagerCollectionFetch",
                     Map.of("fields", String.join(",", eagerFields), "line", Integer.toString(eagerLine))));
         }
+        // Non-null properties injected with @Autowired(required = false): the compiler cannot see they may stay unset.
+        var optionalFields = new ArrayList<String>();
+        PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
+                .filter(prop -> !prop.isLocal() && containingType(prop) == type && prop.getName() != null)
+                .filter(prop -> annotations(prop).stream().anyMatch(a ->
+                        "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
+                .filter(prop -> !propertyType(prop).endsWith("?") && !propertyType(prop).startsWith("Optional<")
+                        && !propertyType(prop).startsWith("ObjectProvider<"))
+                .forEach(prop -> optionalFields.add(prop.getName()));
+        if (!optionalFields.isEmpty()) {
+            declaredAnnotations.add(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
+                    Map.of("fields", String.join(",", optionalFields))));
+        }
         // @Lazy on a constructor parameter (primary or secondary).
         var constructorParameters = new ArrayList<KtParameter>(type.getPrimaryConstructorParameters());
         type.getSecondaryConstructors().forEach(constructor -> constructorParameters.addAll(constructor.getValueParameters()));

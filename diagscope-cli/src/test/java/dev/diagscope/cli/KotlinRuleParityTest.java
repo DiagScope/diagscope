@@ -93,6 +93,8 @@ class KotlinRuleParityTest {
     @Test
     void keeps_correct_kotlin_variants_silent() {
         assertThat(methodsFor("LOG_WITHOUT_THROWABLE")).noneMatch(method -> method.contains("logFailureProperly"));
+        assertThat(methodsFor("AUTOWIRED_REQUIRED_FALSE_UNSAFE"))
+                .anyMatch(method -> method.contains("recordUnsafe")).noneMatch(method -> method.contains("recordSafe"));
         assertThat(methodsFor("ASYNC_RESULT_UNOBSERVED")).noneMatch(method -> method.contains("submitObserved"));
         assertThat(methodsFor("HTTP_CLIENT_ERROR_DISCARDED")).noneMatch(method -> method.contains("callRemoteObserved"));
         assertThat(methodsFor("RETRY_WITHOUT_DIAGNOSTICS")).noneMatch(method -> method.contains("fetchWithDiagnostics"));

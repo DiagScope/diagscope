@@ -838,6 +838,18 @@ Known limitation: intentional nullable interop with legacy APIs that expect `nul
 
 Recommended response: replace `orElse(null)` with `orElseThrow()` (forces callers to handle absence), `orElse(defaultValue)` (explicit fallback), or return `Optional<T>` to propagate the absent-case contract.
 
+## `AUTOWIRED_REQUIRED_FALSE_UNSAFE`
+
+Detects a field injected with `@Autowired(required = false)` that a method calls without comparing it with `null`. With `required = false` Spring leaves the field untouched when no bean matches, so it stays `null` and the call throws a `NullPointerException` that points at the call site rather than at the missing bean.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `MEDIUM`; a guard in a caller is not visible.
+- Final confidence: capped by reachability.
+
+Known limitation: fields typed `Optional`, `ObjectProvider` or `Provider` are skipped, as are Kotlin properties declared nullable, because the type already models absence. Optional setters and constructor parameters are not analysed.
+
+Recommended response: check the field for `null` before use, inject `Optional<T>` or `ObjectProvider<T>`, or drop `required = false` if the dependency is not really optional.
+
 ## `MAP_GET_DEREFERENCED_WITHOUT_CHECK`
 
 Detects the result of `Map.get(key)` assigned to a local variable and later used as a method-call receiver without a guard for the absent-key case. `Map.get()` returns `null` when the key is not present.
@@ -846,7 +858,7 @@ Detects the result of `Map.get(key)` assigned to a local variable and later used
 - Evidence confidence: `MEDIUM`; the guard may exist in a caller not visible to this method.
 - Final confidence: capped by reachability.
 
-Known limitation: plain `if (value == null)` checks are not represented in the current parser-neutral evidence model. Code that guards with ordinary branching may be falsely flagged.
+Known limitation: a method that compares the variable with `null` is not reported, but a guard in a caller or inside a helper method is not visible, so such code may be falsely flagged.
 
 Recommended response: replace `map.get(key)` followed by dereference with `map.getOrDefault(key, defaultValue)`, `map.computeIfAbsent(key, ...)`, or guard explicitly with `map.containsKey(key)` before use.
 

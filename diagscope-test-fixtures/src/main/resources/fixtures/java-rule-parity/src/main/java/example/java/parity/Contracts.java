@@ -8,7 +8,7 @@ import java.util.function.Function;
 @interface RestController {}
 @interface GetMapping { String value(); }
 @interface Scheduled { String cron() default ""; long fixedDelay() default -1L; long fixedRate() default -1L; long initialDelay() default -1L; String initialDelayString() default ""; }
-@interface Autowired {}
+@interface Autowired { boolean required() default true; }
 @interface Retryable { Class<?>[] include() default {}; Class<?>[] value() default {}; }
 @interface Recover {}
 @interface Timed { String value() default ""; }

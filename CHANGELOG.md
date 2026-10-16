@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (151st rule): a field injected with `@Autowired(required = false)` is called in a
+  method that never compares it with `null`. The adapters expose such fields through an `OptionalAutowired` synthetic
+  annotation; `Optional`/`ObjectProvider`/`Provider` fields and nullable Kotlin properties are skipped.
 - Wave 11: 28 rules (122 → 150) covering security (`SENSITIVE_HEADER_LOGGED`, `OPEN_REDIRECT_RISK`,
   `PATH_TRAVERSAL_RISK`, `OBJECT_INPUT_STREAM_RISK`, `XML_EXTERNAL_ENTITY_RISK`), concurrency lifecycle
   (`SEMAPHORE_RELEASE_NOT_IN_FINALLY`, `COUNT_DOWN_LATCH_NOT_IN_FINALLY`, `VIRTUAL_THREAD_WITH_THREAD_LOCAL`,

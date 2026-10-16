@@ -137,6 +137,19 @@ public final class RuleRemediationCatalog {
                             + "    EntityNotFoundException(\"Missing value for $key\")\n"
                             + "}",
                     "Prefer orElseThrow() or orElse(defaultValue). If null is truly required for a legacy API, suppress with an inline comment.")),
+            Map.entry(AutowiredRequiredFalseUnsafeRule.ID, snippets(
+                    "// Instead of calling the optional field directly:\n"
+                            + "@Autowired(required = false)\n"
+                            + "private AuditClient audit;\n"
+                            + "// Inject an Optional and let the call be conditional:\n"
+                            + "private final Optional<AuditClient> audit;\n"
+                            + "audit.ifPresent(client -> client.record(event));",
+                    "// Instead of a lateinit property that may never be set:\n"
+                            + "@Autowired(required = false) lateinit var audit: AuditClient\n"
+                            + "// Declare it nullable so the compiler enforces the check:\n"
+                            + "@Autowired(required = false) var audit: AuditClient? = null\n"
+                            + "audit?.record(event)",
+                    "Check the field for null, or inject Optional<T>/ObjectProvider<T>. If the dependency is not really optional, remove required = false.")),
             Map.entry(MapGetDereferencedWithoutCheckRule.ID, snippets(
                     "// Instead of map.get(key).method():\n"
                             + "T value = map.getOrDefault(key, defaultValue);\n"

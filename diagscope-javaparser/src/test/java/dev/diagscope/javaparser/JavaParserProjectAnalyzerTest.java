@@ -736,6 +736,37 @@ class JavaParserProjectAnalyzerTest {
     }
 
 
+    @Test
+    void records_fields_injected_with_autowired_required_false() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("optional-autowired"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/java/sample"));
+        Files.writeString(sourceRoot.resolve("Service.java"), """
+                package sample;
+
+                import java.util.Optional;
+
+                class Service {
+                    @Autowired(required = false)
+                    private AuditClient audit;
+                    @Autowired(required = false)
+                    private Optional<Mailer> mailer;
+                    @Autowired
+                    private Clock clock;
+
+                    void run() {
+                        audit.record();
+                    }
+                }
+                """);
+
+        var analyzed = new JavaParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "sample.Service", "run")
+                .annotationAttribute("OptionalAutowired", "fields")).contains("audit");
+    }
+
+
     private static MethodModel method(AnalyzedProject project, String declaringType, String name) {
         return project.methods().values().stream()
                 .filter(method -> declaringType.equals(method.id().declaringType()) && name.equals(method.id().name()))

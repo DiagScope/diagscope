@@ -635,6 +635,35 @@ class KotlinParserProjectAnalyzerTest {
     }
 
 
+    @Test
+    void records_non_null_properties_injected_with_autowired_required_false() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("optional-autowired"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Service.kt"), """
+                package sample
+
+                class Service {
+                    @Autowired(required = false)
+                    lateinit var audit: AuditClient
+                    @Autowired(required = false)
+                    var mailer: Mailer? = null
+                    @Autowired
+                    lateinit var clock: Clock
+
+                    fun run() {
+                        audit.record()
+                    }
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "Service", "run").annotationAttribute("OptionalAutowired", "fields"))
+                .contains("audit");
+    }
+
+
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {
         return project.methods().values().stream()
                 .filter(method -> method.id().declaringType().endsWith(type) && method.id().name().equals(name))
