@@ -276,72 +276,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             String qualifiedName = qualifiedTypeName(packageName, type);
             Map<String, String> declaredVariables = declaredTypeVariables(type);
             List<AnnotationDescriptor> typeAnnotations = annotations(type.getAnnotations());
-            // Detect field injection: any field in this class carries @Autowired, @Inject, or @Resource.
-            // We synthesise a "FieldInjectionPresent" class-level annotation so that the merge step
-            // propagates the signal into every method's effective annotation set without domain changes.
-            boolean hasFieldInjection = type.getMembers().stream()
-                    .filter(BodyDeclaration::isFieldDeclaration)
-                    .anyMatch(field -> field.asFieldDeclaration().getAnnotations().stream()
-                            .map(a -> a.getName().getIdentifier())
-                            .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
-            var syntheticMarkers = new ArrayList<AnnotationDescriptor>();
-            if (hasFieldInjection) {
-                syntheticMarkers.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
-            }
-            // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER).
-            var eagerMembers = type.getMembers().stream()
-                    .filter(BodyDeclaration::isFieldDeclaration)
-                    .filter(member -> annotations(member.asFieldDeclaration().getAnnotations()).stream()
-                            .anyMatch(a -> EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
-                                    && a.attributes().getOrDefault("fetch", "").contains("EAGER")))
-                    .toList();
-            if (!eagerMembers.isEmpty()) {
-                String eagerFields = eagerMembers.stream()
-                        .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
-                        .map(variable -> variable.getNameAsString())
-                        .collect(java.util.stream.Collectors.joining(","));
-                syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
-                        "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
-            }
-            // Fields injected with @Autowired(required = false) stay null when no bean matches.
-            String optionalFields = type.getMembers().stream()
-                    .filter(BodyDeclaration::isFieldDeclaration)
-                    .map(BodyDeclaration::asFieldDeclaration)
-                    .filter(field -> annotations(field.getAnnotations()).stream().anyMatch(a ->
-                            "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
-                    .filter(field -> !isNullSafeInjectionType(field.getCommonType().asString()))
-                    .flatMap(field -> field.getVariables().stream())
-                    .map(variable -> variable.getNameAsString())
-                    .collect(java.util.stream.Collectors.joining(","));
-            if (!optionalFields.isEmpty()) {
-                syntheticMarkers.add(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
-                        Map.of("fields", optionalFields)));
-            }
-            // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's: it has no
-            // readOnly attribute and is not subject to Spring's proxy rules. Record which one the file imports.
-            if (usesJakartaTransactional(unit)) {
-                syntheticMarkers.add(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()));
-            }
-            // An interface extending a Spring Data repository is instantiated by the container, so treat it as a
-            // @Repository bean: its proxy carries the transaction and caching advice declared on it.
-            if (type.isClassOrInterfaceDeclaration() && type.asClassOrInterfaceDeclaration().isInterface()
-                    && typeAnnotations.stream().noneMatch(a -> "Repository".equals(a.name()))
-                    && (type.asClassOrInterfaceDeclaration().getExtendedTypes().stream()
-                            .anyMatch(extended -> extended.getNameAsString().endsWith("Repository"))
-                    || typeAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name())))) {
-                syntheticMarkers.add(new AnnotationDescriptor("Repository", Map.of()));
-            }
-            // @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here.
-            var lazyParameter = type.getMembers().stream()
-                    .filter(BodyDeclaration::isConstructorDeclaration)
-                    .flatMap(member -> member.asConstructorDeclaration().getParameters().stream())
-                    .filter(parameter -> parameter.getAnnotations().stream()
-                            .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())))
-                    .findFirst();
-            if (lazyParameter.isPresent()) {
-                syntheticMarkers.add(new AnnotationDescriptor("LazyConstructorParameter",
-                        Map.of("line", lineOf(lazyParameter.get()))));
-            }
+            var syntheticMarkers = syntheticTypeMarkers(unit, type, typeAnnotations);
             if (!syntheticMarkers.isEmpty()) {
                 var augmented = new ArrayList<>(typeAnnotations);
                 augmented.addAll(syntheticMarkers);
@@ -357,6 +292,97 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
                 List.copyOf(rawMethods), List.copyOf(types), declaresProducerListener(unit));
+    }
+
+    /**
+     * The class-level facts the rules read, as synthetic annotations. The merge step propagates them into every
+     * method's effective annotation set without domain changes.
+     */
+    private static List<AnnotationDescriptor> syntheticTypeMarkers(
+            CompilationUnit unit, TypeDeclaration<?> type, List<AnnotationDescriptor> typeAnnotations) {
+        var markers = new ArrayList<AnnotationDescriptor>();
+        fieldInjectionMarker(type).ifPresent(markers::add);
+        eagerCollectionMarker(type).ifPresent(markers::add);
+        optionalAutowiredMarker(type).ifPresent(markers::add);
+        // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's: it has no
+        // readOnly attribute and is not subject to Spring's proxy rules. Record which one the file imports.
+        if (usesJakartaTransactional(unit)) {
+            markers.add(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()));
+        }
+        repositoryMarker(type, typeAnnotations).ifPresent(markers::add);
+        lazyConstructorMarker(type).ifPresent(markers::add);
+        return markers;
+    }
+
+    /** Field injection: any field in this class carries @Autowired, @Inject, or @Resource. */
+    private static Optional<AnnotationDescriptor> fieldInjectionMarker(TypeDeclaration<?> type) {
+        boolean present = type.getMembers().stream()
+                .filter(BodyDeclaration::isFieldDeclaration)
+                .anyMatch(field -> field.asFieldDeclaration().getAnnotations().stream()
+                        .map(a -> a.getName().getIdentifier())
+                        .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+        return present ? Optional.of(new AnnotationDescriptor("FieldInjectionPresent", Map.of())) : Optional.empty();
+    }
+
+    /** JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER). */
+    private static Optional<AnnotationDescriptor> eagerCollectionMarker(TypeDeclaration<?> type) {
+        var eagerMembers = type.getMembers().stream()
+                .filter(BodyDeclaration::isFieldDeclaration)
+                .filter(member -> annotations(member.asFieldDeclaration().getAnnotations()).stream()
+                        .anyMatch(a -> EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
+                                && a.attributes().getOrDefault("fetch", "").contains("EAGER")))
+                .toList();
+        if (eagerMembers.isEmpty()) return Optional.empty();
+        String eagerFields = eagerMembers.stream()
+                .flatMap(member -> member.asFieldDeclaration().getVariables().stream())
+                .map(variable -> variable.getNameAsString())
+                .collect(java.util.stream.Collectors.joining(","));
+        return Optional.of(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
+                "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
+    }
+
+    /** Fields injected with @Autowired(required = false) stay null when no bean matches. */
+    private static Optional<AnnotationDescriptor> optionalAutowiredMarker(TypeDeclaration<?> type) {
+        String optionalFields = type.getMembers().stream()
+                .filter(BodyDeclaration::isFieldDeclaration)
+                .map(BodyDeclaration::asFieldDeclaration)
+                .filter(field -> annotations(field.getAnnotations()).stream().anyMatch(a ->
+                        "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
+                .filter(field -> !isNullSafeInjectionType(field.getCommonType().asString()))
+                .flatMap(field -> field.getVariables().stream())
+                .map(variable -> variable.getNameAsString())
+                .collect(java.util.stream.Collectors.joining(","));
+        return optionalFields.isEmpty() ? Optional.empty()
+                : Optional.of(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
+                        Map.of("fields", optionalFields)));
+    }
+
+    /**
+     * An interface extending a Spring Data repository is instantiated by the container, so treat it as a
+     * {@code @Repository} bean: its proxy carries the transaction and caching advice declared on it.
+     */
+    private static Optional<AnnotationDescriptor> repositoryMarker(
+            TypeDeclaration<?> type, List<AnnotationDescriptor> typeAnnotations) {
+        if (!type.isClassOrInterfaceDeclaration() || !type.asClassOrInterfaceDeclaration().isInterface()) {
+            return Optional.empty();
+        }
+        if (typeAnnotations.stream().anyMatch(a -> "Repository".equals(a.name()))) return Optional.empty();
+        boolean repository = type.asClassOrInterfaceDeclaration().getExtendedTypes().stream()
+                .anyMatch(extended -> extended.getNameAsString().endsWith("Repository"))
+                || typeAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name()));
+        return repository ? Optional.of(new AnnotationDescriptor("Repository", Map.of())) : Optional.empty();
+    }
+
+    /** @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here. */
+    private static Optional<AnnotationDescriptor> lazyConstructorMarker(TypeDeclaration<?> type) {
+        return type.getMembers().stream()
+                .filter(BodyDeclaration::isConstructorDeclaration)
+                .flatMap(member -> member.asConstructorDeclaration().getParameters().stream())
+                .filter(parameter -> parameter.getAnnotations().stream()
+                        .anyMatch(a -> "Lazy".equals(a.getName().getIdentifier())))
+                .findFirst()
+                .map(parameter -> new AnnotationDescriptor("LazyConstructorParameter",
+                        Map.of("line", lineOf(parameter))));
     }
 
     /** Injection points whose type already models absence, so a missing bean never yields a null reference. */
@@ -424,91 +450,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         MethodId id = methodId(declaringType, method);
         SourceLocation methodLocation = location(root, file, method);
-        List<AnnotationDescriptor> methodAnnotations = annotations(method.getAnnotations());
-        // Synthesise a "Synchronized" annotation for the Java 'synchronized' keyword so that
-        // SYNCHRONIZED_ON_SPRING_BEAN can detect it the same way it detects Kotlin's @Synchronized.
-        if (method.isSynchronized()) {
-            var augmented = new ArrayList<>(methodAnnotations);
-            augmented.add(new AnnotationDescriptor("Synchronized", Map.of()));
-            methodAnnotations = List.copyOf(augmented);
-        }
-        // Synthesise a "Final" annotation for the Java 'final' keyword so that
-        // TRANSACTIONAL_ON_FINAL_METHOD can detect it without a MethodModel change.
-        if (method.isFinal()) {
-            var augmented = new ArrayList<>(methodAnnotations);
-            augmented.add(new AnnotationDescriptor("Final", Map.of()));
-            methodAnnotations = List.copyOf(augmented);
-        }
+        List<AnnotationDescriptor> methodAnnotations = methodAnnotationsOf(method);
 
-        // Expose parameter names so rules can tell whether an argument comes from the caller.
-        if (!method.getParameters().isEmpty()) {
-            var augmented = new ArrayList<>(methodAnnotations);
-            augmented.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()
-                    .map(parameter -> parameter.getNameAsString())
-                    .collect(java.util.stream.Collectors.joining(",")))));
-            methodAnnotations = List.copyOf(augmented);
-        }
-
-        // Annotations on each parameter (p0, p1, ...), so rules can tell @RequestBody @Valid from a bare parameter.
-        var parameterAnnotations = new LinkedHashMap<String, String>();
-        for (int index = 0; index < method.getParameters().size(); index++) {
-            var names = method.getParameter(index).getAnnotations().stream()
-                    .map(a -> a.getName().getIdentifier()).collect(java.util.stream.Collectors.joining(","));
-            if (!names.isEmpty()) parameterAnnotations.put("p" + index, names);
-        }
-        if (!parameterAnnotations.isEmpty()) {
-            var augmented = new ArrayList<>(methodAnnotations);
-            augmented.add(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, parameterAnnotations));
-            methodAnnotations = List.copyOf(augmented);
-        }
-
-        // McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their method).
-        int cyclomatic = 1
-                + method.findAll(com.github.javaparser.ast.stmt.IfStmt.class).size()
-                + method.findAll(com.github.javaparser.ast.stmt.ForStmt.class).size()
-                + method.findAll(com.github.javaparser.ast.stmt.ForEachStmt.class).size()
-                + method.findAll(com.github.javaparser.ast.stmt.WhileStmt.class).size()
-                + method.findAll(com.github.javaparser.ast.stmt.DoStmt.class).size()
-                + method.findAll(com.github.javaparser.ast.stmt.CatchClause.class).size()
-                + method.findAll(com.github.javaparser.ast.expr.ConditionalExpr.class).size()
-                + (int) method.findAll(com.github.javaparser.ast.stmt.SwitchEntry.class).stream()
-                        .filter(entry -> !entry.getLabels().isEmpty()).count()
-                + (int) method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class).stream()
-                        .filter(binary -> binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.AND
-                                || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.OR)
-                        .count();
-        // Variables the method compares with null (x == null, x != null), so rules can see the guard.
-        var nullChecked = new java.util.TreeSet<String>();
-        for (var binary : method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class)) {
-            boolean equality = binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.EQUALS
-                    || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.NOT_EQUALS;
-            if (!equality) continue;
-            var other = binary.getLeft().isNullLiteralExpr() ? binary.getRight()
-                    : binary.getRight().isNullLiteralExpr() ? binary.getLeft() : null;
-            if (other != null) nullChecked.add(other.toString().replaceFirst("^this\\.", ""));
-        }
-        {
-            var augmented = new ArrayList<>(methodAnnotations);
-            augmented.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
-                    Map.of("value", Integer.toString(cyclomatic))));
-            if (!nullChecked.isEmpty()) {
-                augmented.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
-                        Map.of("names", String.join(",", nullChecked))));
-            }
-            methodAnnotations = List.copyOf(augmented);
-        }
-
-        var variableTypes = new LinkedHashMap<>(declaredVariables);
-        method.getParameters().forEach(parameter ->
-                variableTypes.put(parameter.getNameAsString(), parameter.getTypeAsString()));
-        method.findAll(VariableDeclarator.class).stream()
-                .filter(variable -> belongsToMethod(variable, method))
-                .forEach(variable -> variableTypes.put(variable.getNameAsString(), variable.getTypeAsString()));
-        method.findAll(CatchClause.class).stream()
-                .filter(clause -> belongsToMethod(clause, method))
-                .forEach(clause -> variableTypes.put(
-                        clause.getParameter().getNameAsString(), clause.getParameter().getTypeAsString()));
-
+        var variableTypes = variableTypesOf(method, declaredVariables);
         var catches = method.findAll(CatchClause.class).stream()
                 .filter(clause -> belongsToMethod(clause, method))
                 .map(clause -> catchEvidence(root, file, clause, variableTypes, policy))
@@ -532,42 +476,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 Set.copyOf(parameterNames), Set.copyOf(localNames),
                 Set.copyOf(fieldNames), Set.copyOf(constantFieldNames));
 
-        var invocations = new ArrayList<InvocationEvidence>();
-        var metricTags = new ArrayList<MetricTagEvidence>();
-        var metricNames = new ArrayList<MetricNameEvidence>();
-        var calls = new ArrayList<RawCall>();
-        List<MethodCallExpr> methodCalls = method.findAll(MethodCallExpr.class).stream()
-                .filter(call -> belongsToMethod(call, method))
-                .sorted(Comparator.comparingInt(call -> call.getBegin().map(position -> position.line).orElse(1)))
-                .toList();
-        for (var call : methodCalls) {
-            InvocationEvidence invocation = invocationEvidence(
-                    root, file, call, variableTypes, policy, symbolResolutionEnabled);
-            invocations.add(invocation);
-            SourceLocation callLocation = location(root, file, call);
-            metricTags.addAll(MetricEvidenceExtractor.tags(callLocation, call, metricNamesContext));
-            MetricEvidenceExtractor.meter(callLocation, call, metricNamesContext).ifPresent(metricNames::add);
-            calls.add(new RawCall(location(root, file, call), scope(call), invocation.receiverType(),
-                    call.getNameAsString(), call.getArguments().size(), invocation.argumentTypes()));
-        }
-        // Capture constructor calls (new Foo(args)) as synthetic invocations so rules can detect
-        // patterns like new FixedBackOff(0, 3) for KAFKA_RETRY_WITHOUT_BACKOFF.
-        // Convention: methodName = simple class name, scope = "", receiverType = "".
-        method.findAll(ObjectCreationExpr.class).stream()
-                .filter(call -> belongsToMethod(call, method))
-                .sorted(Comparator.comparingInt(call -> call.getBegin().map(pos -> pos.line).orElse(1)))
-                .forEach(call -> invocations.add(constructorInvocationEvidence(root, file, call)));
-
-        // Detect throw statements inside finally blocks: EXCEPTION_SUPPRESSED_IN_FINALLY.
-        // A throw in finally replaces any exception propagating from the protected block.
-        var throwsInFinally = method.findAll(TryStmt.class).stream()
-                .filter(tryStmt -> belongsToMethod(tryStmt, method))
-                .filter(tryStmt -> tryStmt.getFinallyBlock().isPresent())
-                .flatMap(tryStmt -> tryStmt.getFinallyBlock().get()
-                        .findAll(ThrowStmt.class).stream()
-                        .filter(throwStmt -> isDirectlyInFinally(throwStmt, tryStmt))
-                        .map(throwStmt -> location(root, file, throwStmt)))
-                .toList();
+        var extracted = new MethodCalls();
+        collectCalls(root, file, method, variableTypes, policy, symbolResolutionEnabled, metricNamesContext, extracted);
 
         int varargIndex = method.getParameters().stream().filter(parameter -> parameter.isVarArgs())
                 .findFirst().map(method.getParameters()::indexOf).orElse(-1);
@@ -578,14 +488,146 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return new RawMethod(id, methodLocation, typeAnnotations, methodAnnotations,
                 catches,
                 // Receivers that are variables declared inside this method cannot be shared state.
-                InvocationEvidence.withLocalReceivers(invocations, localNames),
-                dedupeTags(metricTags), dedupeMeters(metricNames),
-                List.copyOf(calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
+                InvocationEvidence.withLocalReceivers(extracted.invocations, localNames),
+                dedupeTags(extracted.metricTags), dedupeMeters(extracted.metricNames),
+                List.copyOf(extracted.calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
                 visibility(method), method.isStatic(), method.isFinal(), method.getTypeAsString(),
                 minimumArity, maximumArity, varargIndex,
                 method.getTypeParameters().stream().map(parameter -> parameter.getNameAsString())
                         .collect(java.util.stream.Collectors.toSet()), method.getBody().isPresent(),
-                throwsInFinally);
+                throwsInFinally(root, file, method));
+    }
+
+    /** Annotations written on the method plus the synthetic ones the rules read. */
+    private static List<AnnotationDescriptor> methodAnnotationsOf(MethodDeclaration method) {
+        var annotations = new ArrayList<>(annotations(method.getAnnotations()));
+        // Synthesise a "Synchronized" annotation for the Java 'synchronized' keyword so that
+        // SYNCHRONIZED_ON_SPRING_BEAN can detect it the same way it detects Kotlin's @Synchronized.
+        if (method.isSynchronized()) annotations.add(new AnnotationDescriptor("Synchronized", Map.of()));
+        // Synthesise a "Final" annotation for the Java 'final' keyword so that
+        // TRANSACTIONAL_ON_FINAL_METHOD can detect it without a MethodModel change.
+        if (method.isFinal()) annotations.add(new AnnotationDescriptor("Final", Map.of()));
+        // Expose parameter names so rules can tell whether an argument comes from the caller.
+        if (!method.getParameters().isEmpty()) {
+            annotations.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()
+                    .map(parameter -> parameter.getNameAsString())
+                    .collect(java.util.stream.Collectors.joining(",")))));
+        }
+        parameterAnnotationsOf(method).ifPresent(annotations::add);
+        annotations.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
+                Map.of("value", Integer.toString(cyclomaticComplexity(method)))));
+        var nullChecked = nullCheckedNames(method);
+        if (!nullChecked.isEmpty()) {
+            annotations.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
+                    Map.of("names", String.join(",", nullChecked))));
+        }
+        return List.copyOf(annotations);
+    }
+
+    /** Annotations on each parameter (p0, p1, ...), so rules can tell @RequestBody @Valid from a bare parameter. */
+    private static Optional<AnnotationDescriptor> parameterAnnotationsOf(MethodDeclaration method) {
+        var byIndex = new LinkedHashMap<String, String>();
+        for (int index = 0; index < method.getParameters().size(); index++) {
+            var names = method.getParameter(index).getAnnotations().stream()
+                    .map(a -> a.getName().getIdentifier()).collect(java.util.stream.Collectors.joining(","));
+            if (!names.isEmpty()) byIndex.put("p" + index, names);
+        }
+        return byIndex.isEmpty() ? Optional.empty()
+                : Optional.of(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, byIndex));
+    }
+
+    /** McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their method). */
+    private static int cyclomaticComplexity(MethodDeclaration method) {
+        return 1
+                + method.findAll(com.github.javaparser.ast.stmt.IfStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.ForStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.ForEachStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.WhileStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.DoStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.CatchClause.class).size()
+                + method.findAll(com.github.javaparser.ast.expr.ConditionalExpr.class).size()
+                + (int) method.findAll(com.github.javaparser.ast.stmt.SwitchEntry.class).stream()
+                        .filter(entry -> !entry.getLabels().isEmpty()).count()
+                + (int) method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class).stream()
+                        .filter(binary -> binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.AND
+                                || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.OR)
+                        .count();
+    }
+
+    /** Variables the method compares with null (x == null, x != null), so rules can see the guard. */
+    private static java.util.TreeSet<String> nullCheckedNames(MethodDeclaration method) {
+        var names = new java.util.TreeSet<String>();
+        for (var binary : method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class)) {
+            boolean equality = binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.EQUALS
+                    || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.NOT_EQUALS;
+            if (!equality) continue;
+            var other = binary.getLeft().isNullLiteralExpr() ? binary.getRight()
+                    : binary.getRight().isNullLiteralExpr() ? binary.getLeft() : null;
+            if (other != null) names.add(other.toString().replaceFirst("^this\\.", ""));
+        }
+        return names;
+    }
+
+    /** The declared type of every name visible in the method: fields, parameters, locals and catch parameters. */
+    private static LinkedHashMap<String, String> variableTypesOf(
+            MethodDeclaration method, Map<String, String> declaredVariables) {
+        var variableTypes = new LinkedHashMap<>(declaredVariables);
+        method.getParameters().forEach(parameter ->
+                variableTypes.put(parameter.getNameAsString(), parameter.getTypeAsString()));
+        method.findAll(VariableDeclarator.class).stream()
+                .filter(variable -> belongsToMethod(variable, method))
+                .forEach(variable -> variableTypes.put(variable.getNameAsString(), variable.getTypeAsString()));
+        method.findAll(CatchClause.class).stream()
+                .filter(clause -> belongsToMethod(clause, method))
+                .forEach(clause -> variableTypes.put(
+                        clause.getParameter().getNameAsString(), clause.getParameter().getTypeAsString()));
+        return variableTypes;
+    }
+
+    /** What the call expressions of one method produce, filled in source order. */
+    private static final class MethodCalls {
+        final List<InvocationEvidence> invocations = new ArrayList<>();
+        final List<MetricTagEvidence> metricTags = new ArrayList<>();
+        final List<MetricNameEvidence> metricNames = new ArrayList<>();
+        final List<RawCall> calls = new ArrayList<>();
+    }
+
+    private static void collectCalls(
+            Path root, Path file, MethodDeclaration method, Map<String, String> variableTypes, AnalysisPolicy policy,
+            boolean symbolResolutionEnabled, MetricEvidenceExtractor.Names metricNamesContext, MethodCalls out) {
+        List<MethodCallExpr> methodCalls = method.findAll(MethodCallExpr.class).stream()
+                .filter(call -> belongsToMethod(call, method))
+                .sorted(Comparator.comparingInt(call -> call.getBegin().map(position -> position.line).orElse(1)))
+                .toList();
+        for (var call : methodCalls) {
+            InvocationEvidence invocation = invocationEvidence(
+                    root, file, call, variableTypes, policy, symbolResolutionEnabled);
+            out.invocations.add(invocation);
+            SourceLocation callLocation = location(root, file, call);
+            out.metricTags.addAll(MetricEvidenceExtractor.tags(callLocation, call, metricNamesContext));
+            MetricEvidenceExtractor.meter(callLocation, call, metricNamesContext).ifPresent(out.metricNames::add);
+            out.calls.add(new RawCall(location(root, file, call), scope(call), invocation.receiverType(),
+                    call.getNameAsString(), call.getArguments().size(), invocation.argumentTypes()));
+        }
+        // Capture constructor calls (new Foo(args)) as synthetic invocations so rules can detect
+        // patterns like new FixedBackOff(0, 3) for KAFKA_RETRY_WITHOUT_BACKOFF.
+        // Convention: methodName = simple class name, scope = "", receiverType = "".
+        method.findAll(ObjectCreationExpr.class).stream()
+                .filter(call -> belongsToMethod(call, method))
+                .sorted(Comparator.comparingInt(call -> call.getBegin().map(pos -> pos.line).orElse(1)))
+                .forEach(call -> out.invocations.add(constructorInvocationEvidence(root, file, call)));
+    }
+
+    /** Throw statements directly inside finally blocks: a throw there replaces any exception from the try block. */
+    private static List<SourceLocation> throwsInFinally(Path root, Path file, MethodDeclaration method) {
+        return method.findAll(TryStmt.class).stream()
+                .filter(tryStmt -> belongsToMethod(tryStmt, method))
+                .filter(tryStmt -> tryStmt.getFinallyBlock().isPresent())
+                .flatMap(tryStmt -> tryStmt.getFinallyBlock().get()
+                        .findAll(ThrowStmt.class).stream()
+                        .filter(throwStmt -> isDirectlyInFinally(throwStmt, tryStmt))
+                        .map(throwStmt -> location(root, file, throwStmt)))
+                .toList();
     }
 
     /**

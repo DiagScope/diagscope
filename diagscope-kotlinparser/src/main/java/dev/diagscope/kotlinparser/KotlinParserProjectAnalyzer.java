@@ -251,36 +251,93 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         MethodId id = new MethodId(declaringType, Objects.requireNonNullElse(function.getName(), "<anonymous>"),
                 function.getValueParameters().stream().map(KotlinParserProjectAnalyzer::parameterType).toList());
         SourceLocation location = location(root, file, lines, function);
-        List<AnnotationDescriptor> methodAnnotations = new ArrayList<>(annotations(function));
+        List<AnnotationDescriptor> methodAnnotations = functionAnnotations(function);
+
+        FunctionScope scope = functionScope(owner, function);
+        var catches = PsiTreeUtil.findChildrenOfType(function, KtCatchClause.class).stream()
+                .filter(clause -> belongsToFunction(clause, function))
+                .map(clause -> catchEvidence(root, file, lines, clause, scope.variableTypes(), policy))
+                .sorted(Comparator.comparingInt(evidence -> evidence.location().startLine()))
+                .toList();
+
+        var extracted = new FunctionCalls();
+        collectCalls(root, file, lines, function, scope, policy, extracted);
+        collectAccessibleAssignments(root, file, lines, function, extracted.invocations);
+        // Receivers that are variables declared inside this function cannot be shared state.
+        var markedInvocations = InvocationEvidence.withLocalReceivers(extracted.invocations, scope.localNames());
+
+        var parameters = function.getValueParameters();
+        int minimumArity = (int) parameters.stream()
+                .filter(parameter -> !parameter.hasDefaultValue() && !parameter.isVarArg()).count();
+        int varargIndex = -1;
+        for (int index = 0; index < parameters.size(); index++) {
+            if (parameters.get(index).isVarArg()) {
+                varargIndex = index;
+                break;
+            }
+        }
+        int maximumArity = varargIndex >= 0 ? Integer.MAX_VALUE : parameters.size();
+        boolean springOpened = kotlinSpringEnabled && typeAnnotations.stream()
+                .map(AnnotationDescriptor::name).anyMatch(SPRING_STEREOTYPES::contains);
+        String returnType = function.getTypeReference() == null ? "" : function.getTypeReference().getTypeText();
+
+        return new RawMethod(id, location, typeAnnotations, methodAnnotations,
+                catches, markedInvocations, dedupeTags(extracted.metricTags), dedupeMeters(extracted.metricNames),
+                List.copyOf(extracted.calls), Map.copyOf(scope.variableTypes()),
+                visibility(function), false, effectiveFinal(function, springOpened), returnType,
+                minimumArity, maximumArity, varargIndex,
+                function.getTypeParameters().stream().map(parameter -> parameter.getName())
+                        .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()),
+                owner == null, function.getBodyExpression() != null, throwsInFinally(root, file, lines, function));
+    }
+
+    /** Annotations written on the function plus the synthetic ones the rules read: final, suspend, parameters, ... */
+    private static List<AnnotationDescriptor> functionAnnotations(KtNamedFunction function) {
+        List<AnnotationDescriptor> annotations = new ArrayList<>(annotations(function));
         // Synthesise a "Final" annotation for Kotlin methods that are effectively final
         // (not 'open', 'abstract', or 'override'). This mirrors the JavaParser's handling
         // of the Java 'final' modifier so TRANSACTIONAL_ON_FINAL_METHOD works uniformly.
         if (!function.hasModifier(KtTokens.OPEN_KEYWORD)
                 && !function.hasModifier(KtTokens.ABSTRACT_KEYWORD)
                 && !function.hasModifier(KtTokens.OVERRIDE_KEYWORD)) {
-            methodAnnotations.add(new AnnotationDescriptor("Final", Map.of()));
+            annotations.add(new AnnotationDescriptor("Final", Map.of()));
         }
         // Expose the 'suspend' modifier to rules (coroutine execution context) the same way.
         if (function.hasModifier(KtTokens.SUSPEND_KEYWORD)) {
-            methodAnnotations.add(new AnnotationDescriptor(MethodModel.SUSPEND_ANNOTATION, Map.of()));
+            annotations.add(new AnnotationDescriptor(MethodModel.SUSPEND_ANNOTATION, Map.of()));
         }
         if (!function.getValueParameters().isEmpty()) {
-            methodAnnotations.add(new AnnotationDescriptor("ParameterNames", Map.of("names",
+            annotations.add(new AnnotationDescriptor("ParameterNames", Map.of("names",
                     function.getValueParameters().stream().map(KtParameter::getName)
                             .filter(Objects::nonNull).collect(java.util.stream.Collectors.joining(",")))));
         }
-        var parameterAnnotations = new LinkedHashMap<String, String>();
-        var valueParameters = function.getValueParameters();
-        for (int index = 0; index < valueParameters.size(); index++) {
-            var names = annotations(valueParameters.get(index)).stream().map(AnnotationDescriptor::name)
+        parameterAnnotationsOf(function).ifPresent(annotations::add);
+        annotations.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
+                Map.of("value", Integer.toString(cyclomaticComplexity(function)))));
+        var nullChecked = nullCheckedNames(function);
+        if (!nullChecked.isEmpty()) {
+            annotations.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
+                    Map.of("names", String.join(",", nullChecked))));
+        }
+        return List.copyOf(annotations);
+    }
+
+    /** The annotations on each parameter (p0, p1, ...), so rules can tell @RequestBody @Valid from a bare one. */
+    private static Optional<AnnotationDescriptor> parameterAnnotationsOf(KtNamedFunction function) {
+        var byIndex = new LinkedHashMap<String, String>();
+        var parameters = function.getValueParameters();
+        for (int index = 0; index < parameters.size(); index++) {
+            var names = annotations(parameters.get(index)).stream().map(AnnotationDescriptor::name)
                     .collect(java.util.stream.Collectors.joining(","));
-            if (!names.isEmpty()) parameterAnnotations.put("p" + index, names);
+            if (!names.isEmpty()) byIndex.put("p" + index, names);
         }
-        if (!parameterAnnotations.isEmpty()) {
-            methodAnnotations.add(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, parameterAnnotations));
-        }
-        // McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their function).
-        int cyclomatic = 1
+        return byIndex.isEmpty() ? Optional.empty()
+                : Optional.of(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, byIndex));
+    }
+
+    /** McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their function). */
+    private static int cyclomaticComplexity(KtNamedFunction function) {
+        return 1
                 + countOwned(function, org.jetbrains.kotlin.psi.KtIfExpression.class, element -> true)
                 + countOwned(function, KtLoopExpression.class, element -> true)
                 + countOwned(function, KtCatchClause.class, element -> true)
@@ -289,32 +346,41 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     var token = binary.getOperationToken();
                     return token == KtTokens.ANDAND || token == KtTokens.OROR || token == KtTokens.ELVIS;
                 });
-        methodAnnotations.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
-                Map.of("value", Integer.toString(cyclomatic))));
-        // Variables the function compares with null, calls through ?. or defaults with ?:, so rules can see the guard.
-        var nullChecked = new java.util.TreeSet<String>();
+    }
+
+    /** Variables the function compares with null, calls through ?. or defaults with ?:, so rules can see the guard. */
+    private static java.util.TreeSet<String> nullCheckedNames(KtNamedFunction function) {
+        var names = new java.util.TreeSet<String>();
         for (KtBinaryExpression binary : PsiTreeUtil.findChildrenOfType(function, KtBinaryExpression.class)) {
             if (!belongsToFunction(binary, function) || binary.getLeft() == null || binary.getRight() == null) continue;
             var token = binary.getOperationToken();
             if (token == KtTokens.ELVIS) {
-                nullChecked.add(binary.getLeft().getText());
+                names.add(binary.getLeft().getText());
             } else if (token == KtTokens.EQEQ || token == KtTokens.EXCLEQ
                     || token == KtTokens.EQEQEQ || token == KtTokens.EXCLEQEQEQ) {
                 String left = binary.getLeft().getText();
                 String right = binary.getRight().getText();
-                if ("null".equals(right)) nullChecked.add(left);
-                else if ("null".equals(left)) nullChecked.add(right);
+                if ("null".equals(right)) names.add(left);
+                else if ("null".equals(left)) names.add(right);
             }
         }
         for (var safe : PsiTreeUtil.findChildrenOfType(function, org.jetbrains.kotlin.psi.KtSafeQualifiedExpression.class)) {
-            if (belongsToFunction(safe, function)) nullChecked.add(safe.getReceiverExpression().getText());
+            if (belongsToFunction(safe, function)) names.add(safe.getReceiverExpression().getText());
         }
-        if (!nullChecked.isEmpty()) {
-            methodAnnotations.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
-                    Map.of("names", String.join(",", nullChecked))));
-        }
-        methodAnnotations = List.copyOf(methodAnnotations);
+        return names;
+    }
 
+    /** The names visible inside a function: fields, parameters, locals, and the type of each variable. */
+    private record FunctionScope(
+            Map<String, String> variableTypes,
+            Set<String> fieldNames,
+            Set<String> constantFieldNames,
+            Set<String> parameterNames,
+            Set<String> localNames
+    ) {
+    }
+
+    private static FunctionScope functionScope(KtClassOrObject owner, KtNamedFunction function) {
         Map<String, String> variableTypes = declaredVariables(owner);
         var fieldNames = new LinkedHashSet<>(variableTypes.keySet());
         Set<String> constantFieldNames = constantVariables(owner);
@@ -336,19 +402,22 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             KtParameter parameter = clause.getCatchParameter();
             if (parameter.getName() != null) variableTypes.put(parameter.getName(), parameterType(parameter));
         }
+        return new FunctionScope(variableTypes, fieldNames, constantFieldNames, parameterNames, localNames);
+    }
 
-        var catches = PsiTreeUtil.findChildrenOfType(function, KtCatchClause.class).stream()
-                .filter(clause -> belongsToFunction(clause, function))
-                .map(clause -> catchEvidence(root, file, lines, clause, variableTypes, policy))
-                .sorted(Comparator.comparingInt(evidence -> evidence.location().startLine()))
-                .toList();
+    /** What the call expressions of one function produce, filled in source order. */
+    private static final class FunctionCalls {
+        final List<InvocationEvidence> invocations = new ArrayList<>();
+        final List<MetricTagEvidence> metricTags = new ArrayList<>();
+        final List<MetricNameEvidence> metricNames = new ArrayList<>();
+        final List<RawCall> calls = new ArrayList<>();
+    }
 
-        var invocations = new ArrayList<InvocationEvidence>();
-        var metricTags = new ArrayList<MetricTagEvidence>();
-        var metricNames = new ArrayList<MetricNameEvidence>();
-        var calls = new ArrayList<RawCall>();
-        var metricContext = new KotlinMetricEvidenceExtractor.Names(variableTypes, parameterNames,
-                localNames, fieldNames, constantFieldNames);
+    private static void collectCalls(
+            Path root, Path file, LineIndex lines, KtNamedFunction function, FunctionScope scope,
+            AnalysisPolicy policy, FunctionCalls out) {
+        var metricContext = new KotlinMetricEvidenceExtractor.Names(scope.variableTypes(), scope.parameterNames(),
+                scope.localNames(), scope.fieldNames(), scope.constantFieldNames());
         var callExpressions = PsiTreeUtil.findChildrenOfType(function, KtCallExpression.class).stream()
                 .filter(call -> belongsToFunction(call, function))
                 .sorted(Comparator.comparingInt(PsiElement::getTextOffset))
@@ -357,18 +426,21 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             String methodName = methodName(call);
             if (methodName.isBlank()) continue;
             SourceLocation callLocation = location(root, file, lines, call);
-            String scope = scope(call);
-            String receiverType = Optional.ofNullable(receiverType(scope, variableTypes))
-                    .orElseGet(() -> inferReceiverType(scope));
-            invocations.add(invocationEvidence(callLocation, call, methodName, scope, receiverType,
-                    isLoggerCall(call, variableTypes, policy), inferArgumentTypes(call, variableTypes)));
-            metricTags.addAll(KotlinMetricEvidenceExtractor.tags(callLocation, call, metricContext));
-            KotlinMetricEvidenceExtractor.meter(callLocation, call, metricContext).ifPresent(metricNames::add);
-            calls.add(new RawCall(callLocation, scope, receiverType, methodName, argumentCount(call),
-                    inferArgumentTypes(call, variableTypes)));
+            String callScope = scope(call);
+            String receiverType = Optional.ofNullable(receiverType(callScope, scope.variableTypes()))
+                    .orElseGet(() -> inferReceiverType(callScope));
+            out.invocations.add(invocationEvidence(callLocation, call, methodName, callScope, receiverType,
+                    isLoggerCall(call, scope.variableTypes(), policy), inferArgumentTypes(call, scope.variableTypes())));
+            out.metricTags.addAll(KotlinMetricEvidenceExtractor.tags(callLocation, call, metricContext));
+            KotlinMetricEvidenceExtractor.meter(callLocation, call, metricContext).ifPresent(out.metricNames::add);
+            out.calls.add(new RawCall(callLocation, callScope, receiverType, methodName, argumentCount(call),
+                    inferArgumentTypes(call, scope.variableTypes())));
         }
+    }
 
-        // Kotlin's `member.isAccessible = true` is a property assignment; surface it as the call it compiles to.
+    /** Kotlin's {@code member.isAccessible = true} is a property assignment; surface it as the call it compiles to. */
+    private static void collectAccessibleAssignments(
+            Path root, Path file, LineIndex lines, KtNamedFunction function, List<InvocationEvidence> invocations) {
         for (KtBinaryExpression assignment : PsiTreeUtil.findChildrenOfType(function, KtBinaryExpression.class)) {
             if (!belongsToFunction(assignment, function) || !"=".equals(assignment.getOperationReference().getText())) continue;
             if (!(assignment.getLeft() instanceof KtQualifiedExpression target)
@@ -379,42 +451,17 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     target.getReceiverExpression().getText(), "", "setAccessible",
                     List.of(assignment.getRight().getText()), InvocationResultUsage.IGNORED));
         }
+    }
 
-        // Receivers that are variables declared inside this function cannot be shared state.
-        var markedInvocations = InvocationEvidence.withLocalReceivers(invocations, localNames);
-
-        int minimumArity = (int) function.getValueParameters().stream()
-                .filter(parameter -> !parameter.hasDefaultValue() && !parameter.isVarArg()).count();
-        boolean vararg = function.getValueParameters().stream().anyMatch(KtParameter::isVarArg);
-        int varargIndex = -1;
-        for (int index = 0; index < function.getValueParameters().size(); index++) {
-            if (function.getValueParameters().get(index).isVarArg()) {
-                varargIndex = index;
-                break;
-            }
-        }
-        int maximumArity = vararg ? Integer.MAX_VALUE : function.getValueParameters().size();
-        boolean springOpened = kotlinSpringEnabled && typeAnnotations.stream()
-                .map(AnnotationDescriptor::name).anyMatch(SPRING_STEREOTYPES::contains);
-        String returnType = function.getTypeReference() == null ? "" : function.getTypeReference().getTypeText();
-
-        // Detect throw statements inside finally blocks: EXCEPTION_SUPPRESSED_IN_FINALLY.
-        var throwsInFinally = PsiTreeUtil.findChildrenOfType(function, KtTryExpression.class).stream()
+    /** Throw statements directly inside finally blocks: EXCEPTION_SUPPRESSED_IN_FINALLY. */
+    private static List<SourceLocation> throwsInFinally(Path root, Path file, LineIndex lines, KtNamedFunction function) {
+        return PsiTreeUtil.findChildrenOfType(function, KtTryExpression.class).stream()
                 .filter(tryExpr -> tryExpr.getFinallyBlock() != null)
                 .flatMap(tryExpr -> PsiTreeUtil.findChildrenOfType(
                                 tryExpr.getFinallyBlock(), KtThrowExpression.class).stream()
                         .filter(throwExpr -> isDirectlyInFinally(throwExpr, tryExpr))
                         .map(throwExpr -> location(root, file, lines, throwExpr)))
                 .toList();
-
-        return new RawMethod(id, location, typeAnnotations, methodAnnotations,
-                catches, markedInvocations, dedupeTags(metricTags), dedupeMeters(metricNames),
-                List.copyOf(calls), Map.copyOf(variableTypes),
-                visibility(function), false, effectiveFinal(function, springOpened), returnType,
-                minimumArity, maximumArity, varargIndex,
-                function.getTypeParameters().stream().map(parameter -> parameter.getName())
-                        .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()),
-                owner == null, function.getBodyExpression() != null, throwsInFinally);
     }
 
     /**
@@ -1372,82 +1419,14 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static TypeInfo typeInfo(KtClassOrObject type, boolean kotlinSpringEnabled, LineIndex lines) {
         String qualified = qualifiedTypeName(type.getContainingKtFile().getPackageFqName().asString(), type);
         List<AnnotationDescriptor> declaredAnnotations = new ArrayList<>(annotations(type));
-        // Detect field injection: any non-local class property annotated with @Autowired, @Inject, or @Resource.
-        boolean hasFieldInjection = PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
-                .filter(prop -> !prop.isLocal() && containingType(prop) == type)
-                .anyMatch(prop -> annotations(prop).stream()
-                        .map(AnnotationDescriptor::name)
-                        .anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
-        if (hasFieldInjection) {
-            declaredAnnotations.add(new AnnotationDescriptor("FieldInjectionPresent", Map.of()));
-        }
-        // JPA collections fetched eagerly: @OneToMany / @ManyToMany(fetch = EAGER), on properties or
-        // on primary-constructor properties.
-        var eagerFields = new ArrayList<String>();
-        int eagerLine = 0;
-        var propertyLike = new ArrayList<KtAnnotated>();
-        PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
-                .filter(prop -> !prop.isLocal() && containingType(prop) == type).forEach(propertyLike::add);
-        if (type.getPrimaryConstructor() != null) propertyLike.addAll(type.getPrimaryConstructorParameters());
-        for (KtAnnotated candidate : propertyLike) {
-            boolean eager = annotations(candidate).stream().anyMatch(a ->
-                    EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
-                            && a.attributes().getOrDefault("fetch", "").contains("EAGER"));
-            if (eager && candidate instanceof KtNamedDeclaration named && named.getName() != null) {
-                eagerFields.add(named.getName());
-                if (eagerLine == 0) eagerLine = lines.lineOf(named.getTextRange().getStartOffset());
-            }
-        }
-        if (!eagerFields.isEmpty()) {
-            declaredAnnotations.add(new AnnotationDescriptor("EagerCollectionFetch",
-                    Map.of("fields", String.join(",", eagerFields), "line", Integer.toString(eagerLine))));
-        }
-        // Non-null properties injected with @Autowired(required = false): the compiler cannot see they may stay unset.
-        var optionalFields = new ArrayList<String>();
-        PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
-                .filter(prop -> !prop.isLocal() && containingType(prop) == type && prop.getName() != null)
-                .filter(prop -> annotations(prop).stream().anyMatch(a ->
-                        "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
-                .filter(prop -> !propertyType(prop).endsWith("?") && !propertyType(prop).startsWith("Optional<")
-                        && !propertyType(prop).startsWith("ObjectProvider<"))
-                .forEach(prop -> optionalFields.add(prop.getName()));
-        if (!optionalFields.isEmpty()) {
-            declaredAnnotations.add(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
-                    Map.of("fields", String.join(",", optionalFields))));
-        }
-        // @Lazy on a constructor parameter (primary or secondary).
-        var constructorParameters = new ArrayList<KtParameter>(type.getPrimaryConstructorParameters());
-        type.getSecondaryConstructors().forEach(constructor -> constructorParameters.addAll(constructor.getValueParameters()));
-        for (KtParameter parameter : constructorParameters) {
-            if (annotations(parameter).stream().noneMatch(a -> "Lazy".equals(a.name()))) continue;
-            declaredAnnotations.add(new AnnotationDescriptor("LazyConstructorParameter",
-                    Map.of("line", Integer.toString(lines.lineOf(parameter.getTextRange().getStartOffset())))));
-            break;
-        }
-        // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's.
-        boolean springTransactional = false;
-        boolean jakartaTransactional = false;
-        for (var directive : type.getContainingKtFile().getImportDirectives()) {
-            var imported = directive.getImportedFqName();
-            if (imported == null) continue;
-            String name = imported.asString();
-            if (name.startsWith("org.springframework.transaction.annotation")) springTransactional = true;
-            if (name.equals("jakarta.transaction.Transactional") || name.equals("javax.transaction.Transactional")
-                    || directive.isAllUnder() && (name.equals("jakarta.transaction") || name.equals("javax.transaction"))) {
-                jakartaTransactional = true;
-            }
-        }
-        if (jakartaTransactional && !springTransactional) {
-            declaredAnnotations.add(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()));
-        }
-        // An interface extending a Spring Data repository is instantiated by the container: treat it as @Repository.
-        if (type instanceof KtClass repositoryCandidate && repositoryCandidate.isInterface()
-                && declaredAnnotations.stream().noneMatch(a -> "Repository".equals(a.name()))
-                && (declaredAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name()))
-                || type.getSuperTypeListEntries().stream().map(PsiElement::getText)
-                        .map(KotlinParserProjectAnalyzer::baseTypeName).anyMatch(name -> name.endsWith("Repository")))) {
-            declaredAnnotations.add(new AnnotationDescriptor("Repository", Map.of()));
-        }
+        List<KtProperty> properties = PsiTreeUtil.findChildrenOfType(type, KtProperty.class).stream()
+                .filter(prop -> !prop.isLocal() && containingType(prop) == type).toList();
+        fieldInjectionMarker(properties).ifPresent(declaredAnnotations::add);
+        eagerCollectionMarker(type, properties, lines).ifPresent(declaredAnnotations::add);
+        optionalAutowiredMarker(properties).ifPresent(declaredAnnotations::add);
+        lazyConstructorMarker(type, lines).ifPresent(declaredAnnotations::add);
+        jakartaTransactionalMarker(type).ifPresent(declaredAnnotations::add);
+        repositoryMarker(type, declaredAnnotations).ifPresent(declaredAnnotations::add);
         declaredAnnotations = List.copyOf(declaredAnnotations);
         boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)
                 .anyMatch(SPRING_STEREOTYPES::contains);
@@ -1462,6 +1441,89 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         return new TypeInfo(qualified, simpleName(qualified), interfaceType, Set.copyOf(superTypes),
                 List.copyOf(declaredAnnotations), annotationType, Map.copyOf(declaredVariables(type)),
                 finalType, kotlinSpringEnabled);
+    }
+
+    /** Field injection: any class property annotated with @Autowired, @Inject, or @Resource. */
+    private static Optional<AnnotationDescriptor> fieldInjectionMarker(List<KtProperty> properties) {
+        boolean present = properties.stream().anyMatch(prop -> annotations(prop).stream()
+                .map(AnnotationDescriptor::name).anyMatch(FIELD_INJECTION_ANNOTATIONS::contains));
+        return present ? Optional.of(new AnnotationDescriptor("FieldInjectionPresent", Map.of())) : Optional.empty();
+    }
+
+    /** JPA collections fetched eagerly, on properties or on primary-constructor properties. */
+    private static Optional<AnnotationDescriptor> eagerCollectionMarker(
+            KtClassOrObject type, List<KtProperty> properties, LineIndex lines) {
+        var candidates = new ArrayList<KtAnnotated>(properties);
+        if (type.getPrimaryConstructor() != null) candidates.addAll(type.getPrimaryConstructorParameters());
+        var eagerFields = new ArrayList<String>();
+        int eagerLine = 0;
+        for (KtAnnotated candidate : candidates) {
+            boolean eager = annotations(candidate).stream().anyMatch(a ->
+                    EAGER_COLLECTION_ANNOTATIONS.contains(a.name())
+                            && a.attributes().getOrDefault("fetch", "").contains("EAGER"));
+            if (eager && candidate instanceof KtNamedDeclaration named && named.getName() != null) {
+                eagerFields.add(named.getName());
+                if (eagerLine == 0) eagerLine = lines.lineOf(named.getTextRange().getStartOffset());
+            }
+        }
+        if (eagerFields.isEmpty()) return Optional.empty();
+        return Optional.of(new AnnotationDescriptor("EagerCollectionFetch",
+                Map.of("fields", String.join(",", eagerFields), "line", Integer.toString(eagerLine))));
+    }
+
+    /** Non-null properties injected with @Autowired(required = false): the compiler cannot see they may stay unset. */
+    private static Optional<AnnotationDescriptor> optionalAutowiredMarker(List<KtProperty> properties) {
+        var optionalFields = properties.stream()
+                .filter(prop -> prop.getName() != null)
+                .filter(prop -> annotations(prop).stream().anyMatch(a ->
+                        "Autowired".equals(a.name()) && "false".equals(a.attributes().get("required"))))
+                .filter(prop -> !propertyType(prop).endsWith("?") && !propertyType(prop).startsWith("Optional<")
+                        && !propertyType(prop).startsWith("ObjectProvider<"))
+                .map(KtProperty::getName).toList();
+        if (optionalFields.isEmpty()) return Optional.empty();
+        return Optional.of(new AnnotationDescriptor(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION,
+                Map.of("fields", String.join(",", optionalFields))));
+    }
+
+    /** @Lazy on a constructor parameter (primary or secondary). */
+    private static Optional<AnnotationDescriptor> lazyConstructorMarker(KtClassOrObject type, LineIndex lines) {
+        var constructorParameters = new ArrayList<KtParameter>(type.getPrimaryConstructorParameters());
+        type.getSecondaryConstructors().forEach(constructor -> constructorParameters.addAll(constructor.getValueParameters()));
+        return constructorParameters.stream()
+                .filter(parameter -> annotations(parameter).stream().anyMatch(a -> "Lazy".equals(a.name())))
+                .findFirst()
+                .map(parameter -> new AnnotationDescriptor("LazyConstructorParameter",
+                        Map.of("line", Integer.toString(lines.lineOf(parameter.getTextRange().getStartOffset())))));
+    }
+
+    /** @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's. */
+    private static Optional<AnnotationDescriptor> jakartaTransactionalMarker(KtClassOrObject type) {
+        boolean springTransactional = false;
+        boolean jakartaTransactional = false;
+        for (var directive : type.getContainingKtFile().getImportDirectives()) {
+            var imported = directive.getImportedFqName();
+            if (imported == null) continue;
+            String name = imported.asString();
+            if (name.startsWith("org.springframework.transaction.annotation")) springTransactional = true;
+            if (name.equals("jakarta.transaction.Transactional") || name.equals("javax.transaction.Transactional")
+                    || directive.isAllUnder() && (name.equals("jakarta.transaction") || name.equals("javax.transaction"))) {
+                jakartaTransactional = true;
+            }
+        }
+        return jakartaTransactional && !springTransactional
+                ? Optional.of(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()))
+                : Optional.empty();
+    }
+
+    /** An interface extending a Spring Data repository is instantiated by the container: treat it as @Repository. */
+    private static Optional<AnnotationDescriptor> repositoryMarker(
+            KtClassOrObject type, List<AnnotationDescriptor> declaredAnnotations) {
+        if (!(type instanceof KtClass candidate) || !candidate.isInterface()) return Optional.empty();
+        if (declaredAnnotations.stream().anyMatch(a -> "Repository".equals(a.name()))) return Optional.empty();
+        boolean repository = declaredAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name()))
+                || type.getSuperTypeListEntries().stream().map(PsiElement::getText)
+                        .map(KotlinParserProjectAnalyzer::baseTypeName).anyMatch(name -> name.endsWith("Repository"));
+        return repository ? Optional.of(new AnnotationDescriptor("Repository", Map.of())) : Optional.empty();
     }
 
     private static Map<String, String> declaredVariables(KtClassOrObject owner) {

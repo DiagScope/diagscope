@@ -40,6 +40,10 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Refactored the nine methods that DiagScope's own `HIGH_METHOD_COMPLEXITY` flagged (cyclomatic complexity 16 to 49):
+  `DoctorCommand.call`, both parsers' `resolveCall`, the Kotlin `mapFunction` and `typeInfo`, the Java `mapUnit` and
+  `mapMethod`, `BlockingCalls.hinted` and `TransactionalPropagationMismatchRule.evaluate`. Behaviour is unchanged:
+  the test suite passes and scanning seven open-source projects gives identical findings before and after.
 - The build now fails on unused or redundant imports (`maven-checkstyle-plugin` with a two-check configuration in
   `config/checkstyle.xml`, run in the `validate` phase over main and test sources). The first run found and removed
   two stray imports and a test class that was commented out in full.
