@@ -1029,23 +1029,22 @@ public final class RuleCatalog {
                         + " awaitBlocking are not analysed.");
 
         put(catalog, TransactionalOnInterfaceRule.ID,
-                "@Transactional on interface method ignored by CGLIB proxy",
-                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
-                "Spring applications using CGLIB proxying (the default since Spring Boot 2)",
-                "A method declared on an interface is annotated with @Transactional. Under"
-                        + " CGLIB subclass proxying, annotations on interfaces are not picked"
-                        + " up — no transaction boundary is opened and rollback has no effect.",
-                "CGLIB creates a subclass of the concrete bean class; it does not read"
-                        + " annotations from interfaces. An interface-level @Transactional is"
-                        + " silently ignored. The failure is discovered at runtime when a rollback"
-                        + " fails or writes appear outside expected transaction boundaries.",
+                "@Transactional on an interface method instead of the implementation",
+                "aop-proxy", Severity.INFO, ALL_LANGUAGES,
+                "Spring applications that use @Transactional",
+                "A method declared on an interface is annotated with @Transactional. Since Spring 5.0 this is"
+                        + " honoured for interface-based and class-based proxies, but the Spring reference"
+                        + " recommends annotating the concrete class.",
+                "Java annotations are not inherited from interfaces. In AspectJ mode, and before Spring 5.0, an"
+                        + " interface-declared @Transactional is silently ignored, so the code appears to work"
+                        + " until someone tests a rollback. Declaring it on the implementation works in every mode.",
                 "DiagScope detects @Transactional on methods whose declaring type is an"
                         + " interface (resolved from the AST type declaration kind). Interfaces that extend a"
                         + " Spring Data repository are skipped: the container builds their proxy from the"
                         + " interface, so the annotation is honoured.",
-                "Methods in JDK dynamic proxy mode (proxyTargetClass=false) would correctly"
-                        + " pick up the interface annotation, but this mode is not the default"
-                        + " and should not be relied upon.");
+                "Confidence is LOW: source alone does not show the proxy mode (@EnableTransactionManagement"
+                        + " mode = ASPECTJ) or the Spring version, so on a current proxy-based setup the"
+                        + " annotation does work and the finding is only a recommendation.");
 
         // ── Database / Performance: missing pagination ────────────────────────
         put(catalog, MissingPaginationRule.ID,

@@ -86,7 +86,8 @@ public final class RuleVersions {
         overrides.put(MassAssignmentRiskRule.ID, "1.1.0");
         overrides.put(EntityExposedInRestResponseRule.ID, "1.1.0");
         overrides.put(MissingPaginationRule.ID, "1.1.0");
-        overrides.put(TransactionalOnInterfaceRule.ID, "1.1.0");
+        // Spring honours @Transactional on interface methods since 5.0; the finding is a recommendation now.
+        overrides.put(TransactionalOnInterfaceRule.ID, "2.0.0");
         // The scheduler logs and continues, so the finding is about missing job context; Async confidence is LOW.
         overrides.put(ScheduledExceptionNotHandledRule.ID, "2.0.0");
         overrides.put(AsyncDefaultExecutorRule.ID, "1.1.0");

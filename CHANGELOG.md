@@ -40,6 +40,9 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- `TRANSACTIONAL_ON_INTERFACE` 2.0.0: the claim that CGLIB proxies ignore `@Transactional` on interface methods was
+  wrong. The Spring reference says it works for interface-based and class-based proxies since 5.0, and is only lost in
+  AspectJ mode or before 5.0. The rule is now INFO with LOW confidence and recommends annotating the implementation.
 - `OPTIONAL_OR_ELSE_NULL` 1.1.0 no longer reports an `orElse(null)` whose result is assigned to a variable the method
   then compares with `null`: that absent case is handled. On DiagScope itself this removed 7 of 10 findings.
 - Refactored the nine methods that DiagScope's own `HIGH_METHOD_COMPLEXITY` flagged (cyclomatic complexity 16 to 49):

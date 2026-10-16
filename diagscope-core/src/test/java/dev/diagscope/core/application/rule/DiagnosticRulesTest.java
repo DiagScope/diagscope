@@ -750,8 +750,10 @@ class DiagnosticRulesTest {
                 .hasSize(1)
                 .allSatisfy(f -> {
                     assertThat(f.ruleId()).isEqualTo(TransactionalOnInterfaceRule.ID);
-                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
-                    assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
+                    // Spring 5+ honours it on proxy-based setups, so this is advice with low confidence.
+                    assertThat(f.severity()).isEqualTo(Severity.INFO);
+                    assertThat(f.confidence()).isEqualTo(Confidence.LOW);
+                    assertThat(f.message()).doesNotContain("ignored by CGLIB").contains("5.0");
                 });
     }
 

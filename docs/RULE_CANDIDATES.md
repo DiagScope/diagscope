@@ -170,7 +170,7 @@ Spring's `@Async` works via proxy. A private method cannot be overridden by a pr
 `@Transactional` declared on an interface method or on the interface itself (not on the implementing class).
 
 **Why it matters**  
-With CGLIB proxying (the default since Spring Boot 2), annotations on interfaces are not picked up. The transaction never opens. Writes happen without a transaction, `@Rollback` in tests has no effect, and the behavior changes depending on whether the proxy mode is JDK dynamic or CGLIB — making it environment-sensitive and hard to diagnose.
+**Corrected in rule version 2.0.0:** Spring has honoured `@Transactional` on interface methods for class-based proxies since 5.0; it is still ignored in AspectJ mode and before 5.0, so the rule is now an INFO recommendation with LOW confidence. Original premise, kept for the record: with CGLIB proxying (the default since Spring Boot 2), annotations on interfaces are not picked up. The transaction never opens. Writes happen without a transaction, `@Rollback` in tests has no effect, and the behavior changes depending on whether the proxy mode is JDK dynamic or CGLIB — making it environment-sensitive and hard to diagnose.
 
 **Detection strategy**  
 1. Find `@Transactional` annotations on `interface` declarations or `interface` methods.

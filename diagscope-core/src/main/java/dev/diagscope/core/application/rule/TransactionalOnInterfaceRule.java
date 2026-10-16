@@ -11,21 +11,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reports {@code @Transactional} annotations placed on interface methods.
+ * Reports {@code @Transactional} placed on interface methods instead of on the implementing class.
  *
- * <p>Spring's default proxy strategy since Spring Boot 2 is <em>CGLIB subclass proxying</em>.
- * CGLIB creates a subclass of the concrete bean class — it does not read annotations from
- * implemented interfaces. An interface method annotated with {@code @Transactional} is
- * therefore silently ignored: no transaction is opened, no rollback occurs on exception,
- * and the method runs without a persistence context boundary. Developers discover this only
- * when a rollback fails to happen in production.</p>
+ * <p>Since Spring Framework 5.0 the annotation <em>is</em> honoured on interface methods for both interface-based
+ * and class-based (CGLIB) proxies, so this is no longer a guaranteed bug. The Spring reference still recommends
+ * annotating concrete classes, because Java annotations are not inherited from interfaces: in AspectJ weaving mode,
+ * and before Spring 5.0, the declaration is silently ignored and the code "works" until someone tests a rollback.
+ * The rule therefore reports an INFO with LOW confidence: source alone cannot show the proxy mode or the Spring
+ * version.</p>
  *
- * <p>Even under JDK dynamic proxy mode ({@code proxyTargetClass=false}), relying on
- * interface-level transactions makes the application sensitive to proxy mode changes — a
- * configuration difference between environments that should be transparent to business logic.</p>
- *
- * <p>Suppression: a method is not flagged when its declaring type is not an interface. The
- * rule has no false negatives for the CGLIB case.</p>
+ * <p>Spring Data repository interfaces are skipped: the container builds their proxy from the interface itself.</p>
  */
 public final class TransactionalOnInterfaceRule implements ProjectRule {
 
@@ -52,14 +47,14 @@ public final class TransactionalOnInterfaceRule implements ProjectRule {
         if (method.annotations().contains("Repository")) return;
 
         findings.add(new Finding(
-                ID, Severity.ERROR, Confidence.HIGH, method.location(),
-                "@Transactional declared on interface method '" + method.id().displayName()
-                        + "'. Under Spring's default CGLIB proxying, annotations on interfaces"
-                        + " are ignored and no transaction boundary is opened.",
-                "Move @Transactional to the implementing class method."
-                        + " Interface-level transaction declarations are not picked up by CGLIB"
-                        + " proxies (the default since Spring Boot 2). The annotation belongs on"
-                        + " the concrete implementation, not on the interface contract.",
+                ID, Severity.INFO, Confidence.LOW, method.location(),
+                "@Transactional is declared on interface method '" + method.id().displayName()
+                        + "'. Spring honours it for proxy-based transactions since 5.0, but it is silently ignored"
+                        + " in AspectJ mode and before Spring 5.0, so the transaction can appear to work until a"
+                        + " rollback is tested.",
+                "Move @Transactional to the implementing class method, as the Spring reference recommends."
+                        + " Annotations are not inherited from interfaces, so the class is the declaration that"
+                        + " every proxy mode recognises.",
                 List.of(),
                 Map.of(
                         "method", method.id().displayName(),
