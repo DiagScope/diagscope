@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -189,33 +190,78 @@ public final class BlockingCalls {
         return hinted(scope, method, argc);
     }
 
+    /** What a naming hint looks at: the lower-cased receiver text, the method and its argument count. */
+    private record Hint(String text, String method, int argc) {
+        /** Receiver text without a call chain, such as {@code latch} or {@code this.queue}. */
+        boolean plainName() {
+            return text.indexOf('(') < 0;
+        }
+    }
+
+    private static final Set<String> REACTOR_BLOCKING_METHODS = Set.of("block", "blockFirst", "blockLast", "blockOptional");
+
+    private static final List<Function<Hint, Optional<BlockingCall>>> HINTS = List.of(
+            BlockingCalls::monitorWaitHint,
+            BlockingCalls::synchronizerAwaitHint,
+            BlockingCalls::semaphoreHint,
+            BlockingCalls::futureHint,
+            BlockingCalls::reactorBlockHint,
+            BlockingCalls::blockingQueueHint);
+
     /** Naming-hint fallback for receivers whose type could not be resolved. Always MEDIUM. */
     private static Optional<BlockingCall> hinted(String scope, String method, int argc) {
-        String hint = scope.toLowerCase(Locale.ROOT);
-        boolean plainName = hint.indexOf('(') < 0;
+        var hint = new Hint(scope.toLowerCase(Locale.ROOT), method, argc);
+        for (var candidate : HINTS) {
+            Optional<BlockingCall> match = candidate.apply(hint);
+            if (match.isPresent()) return match;
+        }
+        return Optional.empty();
+    }
 
-        if (method.equals("wait") && argc <= 2 && plainName) {
+    private static Optional<BlockingCall> monitorWaitHint(Hint hint) {
+        if (hint.method().equals("wait") && hint.argc() <= 2 && hint.plainName()) {
             return medium(Category.THREAD_BLOCKING, "monitor-wait", "Object.wait()");
         }
-        if (method.equals("await") && argc == 0 && plainName
-                && (hint.contains("latch") || hint.contains("barrier"))) {
+        return Optional.empty();
+    }
+
+    private static Optional<BlockingCall> synchronizerAwaitHint(Hint hint) {
+        if (hint.method().equals("await") && hint.argc() == 0 && hint.plainName()
+                && (hint.text().contains("latch") || hint.text().contains("barrier"))) {
             return medium(Category.THREAD_BLOCKING, "synchronizer", "latch/barrier.await()");
         }
-        if ((method.equals("acquire") || method.equals("acquireUninterruptibly"))
-                && plainName && hint.contains("semaphore")) {
+        return Optional.empty();
+    }
+
+    private static Optional<BlockingCall> semaphoreHint(Hint hint) {
+        if ((hint.method().equals("acquire") || hint.method().equals("acquireUninterruptibly"))
+                && hint.plainName() && hint.text().contains("semaphore")) {
             return medium(Category.THREAD_BLOCKING, "synchronizer", "Semaphore.acquire()");
         }
-        if ((method.equals("get") || method.equals("join")) && argc == 0
-                && (hint.contains("future") || hint.contains("promise"))) {
-            return medium(Category.THREAD_BLOCKING, "future", "Future." + method + "()");
+        return Optional.empty();
+    }
+
+    private static Optional<BlockingCall> futureHint(Hint hint) {
+        if ((hint.method().equals("get") || hint.method().equals("join")) && hint.argc() == 0
+                && (hint.text().contains("future") || hint.text().contains("promise"))) {
+            return medium(Category.THREAD_BLOCKING, "future", "Future." + hint.method() + "()");
         }
-        if (Set.of("block", "blockFirst", "blockLast", "blockOptional").contains(method)
-                && (hint.contains("mono") || hint.contains("flux"))) {
-            return medium(Category.THREAD_BLOCKING, "reactive-block", "Mono/Flux." + method + "()");
+        return Optional.empty();
+    }
+
+    private static Optional<BlockingCall> reactorBlockHint(Hint hint) {
+        if (REACTOR_BLOCKING_METHODS.contains(hint.method())
+                && (hint.text().contains("mono") || hint.text().contains("flux"))) {
+            return medium(Category.THREAD_BLOCKING, "reactive-block", "Mono/Flux." + hint.method() + "()");
         }
-        if (((method.equals("take") && argc == 0) || (method.equals("put") && argc == 1))
-                && plainName && hint.contains("blockingqueue")) {
-            return medium(Category.THREAD_BLOCKING, "queue", "BlockingQueue." + method + "()");
+        return Optional.empty();
+    }
+
+    private static Optional<BlockingCall> blockingQueueHint(Hint hint) {
+        boolean blockingOperation = (hint.method().equals("take") && hint.argc() == 0)
+                || (hint.method().equals("put") && hint.argc() == 1);
+        if (blockingOperation && hint.plainName() && hint.text().contains("blockingqueue")) {
+            return medium(Category.THREAD_BLOCKING, "queue", "BlockingQueue." + hint.method() + "()");
         }
         return Optional.empty();
     }

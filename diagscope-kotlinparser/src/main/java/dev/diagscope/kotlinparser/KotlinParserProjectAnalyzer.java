@@ -720,6 +720,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 list.sort(Comparator.comparing(TypeInfo::qualifiedName)));
 
         var result = new LinkedHashMap<MethodId, MethodModel>();
+        var callIndex = new CallIndex(project.types(), typesBySimpleName, implementationsBySuperType,
+                byTypeAndName, bySimpleTypeAndName);
         for (RawMethod raw : project.methods().values()) {
             List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(raw, project);
             List<AnnotationDescriptor> methodAnnotations = effectiveMethodAnnotations(raw, project);
@@ -728,8 +730,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             methodAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
             var calls = new ArrayList<MethodCall>();
             for (RawCall call : raw.calls()) {
-                Resolution resolution = resolveCall(raw, call, project.types(), typesBySimpleName,
-                        implementationsBySuperType, byTypeAndName, bySimpleTypeAndName);
+                Resolution resolution = resolveCall(raw, call, callIndex);
                 calls.add(new MethodCall(call.location(), call.scope(), call.methodName(), call.argumentCount(),
                         resolution.target(), resolution.reason()));
             }
@@ -779,81 +780,85 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         }).toList();
     }
 
-    private static Resolution resolveCall(
-            RawMethod caller,
-            RawCall call,
+    /** The lookup tables call resolution consults, bundled so the resolution steps stay readable. */
+    private record CallIndex(
             Map<String, TypeInfo> types,
             Map<String, List<TypeInfo>> typesBySimpleName,
             Map<String, List<TypeInfo>> implementationsBySuperType,
             Map<String, List<RawMethod>> byTypeAndName,
             Map<String, List<RawMethod>> bySimpleTypeAndName
     ) {
+        List<RawMethod> hierarchy(TypeInfo type, String methodName) {
+            return hierarchyMethods(type, methodName, types, typesBySimpleName, byTypeAndName, new LinkedHashSet<>());
+        }
+    }
+
+    private static Resolution resolveCall(RawMethod caller, RawCall call, CallIndex index) {
         if (call.scope().isBlank() || "this".equals(call.scope())) {
-            return choose(byTypeAndName.get(caller.id().declaringType() + '#' + call.methodName()),
+            return choose(index.byTypeAndName().get(caller.id().declaringType() + '#' + call.methodName()),
                     call, ResolutionReason.SAME_CLASS);
         }
         String declaredReceiverType = call.receiverType().isBlank()
-                ? resolveScopedReceiverType(caller, call.scope(), types, typesBySimpleName)
+                ? resolveScopedReceiverType(caller, call.scope(), index.types(), index.typesBySimpleName())
                 : call.receiverType();
-        if (!declaredReceiverType.isBlank()) {
-            String receiver = simpleName(declaredReceiverType);
-            List<TypeInfo> receiverTypes = typesBySimpleName.getOrDefault(receiver, List.of());
-            if (receiverTypes.size() > 1 && !types.containsKey(baseTypeName(declaredReceiverType))) {
-                return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
-            }
-            TypeInfo receiverInfo = Optional.ofNullable(types.get(baseTypeName(declaredReceiverType)))
-                    .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.getFirst() : null);
-            if (receiverInfo == null) {
-                return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
-            }
-            if (!receiverInfo.interfaceType()) {
-                Resolution declared = choose(
-                        byTypeAndName.get(receiverInfo.qualifiedName() + '#' + call.methodName()),
-                        call, ResolutionReason.DECLARED_RECEIVER);
-                if (declared.target().isPresent() || declared.reason() == ResolutionReason.AMBIGUOUS) {
-                    return declared;
-                }
-                return choose(hierarchyMethods(receiverInfo, call.methodName(), types, typesBySimpleName,
-                                byTypeAndName, new LinkedHashSet<>()),
-                        call, ResolutionReason.DECLARED_RECEIVER);
-            }
-
-            var implementations = new LinkedHashMap<MethodId, RawMethod>();
-            for (TypeInfo type : implementationsBySuperType.getOrDefault(receiver, List.of())) {
-                hierarchyMethods(type, call.methodName(), types, typesBySimpleName,
-                        byTypeAndName, new LinkedHashSet<>()).stream()
-                        .filter(candidate -> candidate.acceptsArity(call.argumentCount()))
-                        .forEach(candidate -> implementations.putIfAbsent(candidate.id(), candidate));
-            }
-            if (implementations.size() == 1) {
-                return new Resolution(Optional.of(implementations.values().iterator().next().id()),
-                        ResolutionReason.SINGLE_IMPLEMENTATION);
-            }
-            if (implementations.size() > 1) {
-                List<RawMethod> typed = bestTypedMatches(
-                        List.copyOf(implementations.values()), call.argumentTypes());
-                if (typed.size() == 1) {
-                    return new Resolution(Optional.of(typed.getFirst().id()),
-                            ResolutionReason.SINGLE_IMPLEMENTATION);
-                }
-                return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
-            }
-            Resolution defaultMethod = choose(
-                    hierarchyMethods(receiverInfo, call.methodName(), types, typesBySimpleName,
-                            byTypeAndName, new LinkedHashSet<>()),
-                    call, ResolutionReason.DECLARED_RECEIVER);
-            if (defaultMethod.target().isPresent() || defaultMethod.reason() == ResolutionReason.AMBIGUOUS) {
-                return defaultMethod;
-            }
-            return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
-        }
+        if (!declaredReceiverType.isBlank()) return resolveDeclaredReceiver(call, declaredReceiverType, index);
         if (looksLikeType(call.scope())) {
             String possibleType = simpleName(call.scope());
-            if (typesBySimpleName.containsKey(possibleType)) {
-                return choose(bySimpleTypeAndName.get(possibleType + '#' + call.methodName()),
+            if (index.typesBySimpleName().containsKey(possibleType)) {
+                return choose(index.bySimpleTypeAndName().get(possibleType + '#' + call.methodName()),
                         call, ResolutionReason.DECLARED_RECEIVER);
             }
             return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
+        }
+        return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
+    }
+
+    /** A call on a receiver whose declared type is known. */
+    private static Resolution resolveDeclaredReceiver(RawCall call, String declaredReceiverType, CallIndex index) {
+        String receiver = simpleName(declaredReceiverType);
+        List<TypeInfo> receiverTypes = index.typesBySimpleName().getOrDefault(receiver, List.of());
+        if (receiverTypes.size() > 1 && !index.types().containsKey(baseTypeName(declaredReceiverType))) {
+            return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
+        }
+        TypeInfo receiverInfo = Optional.ofNullable(index.types().get(baseTypeName(declaredReceiverType)))
+                .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.getFirst() : null);
+        if (receiverInfo == null) return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
+        if (!receiverInfo.interfaceType()) return resolveConcreteReceiver(call, receiverInfo, index);
+        return resolveInterfaceReceiver(call, receiver, receiverInfo, index);
+    }
+
+    private static Resolution resolveConcreteReceiver(RawCall call, TypeInfo receiverInfo, CallIndex index) {
+        Resolution declared = choose(
+                index.byTypeAndName().get(receiverInfo.qualifiedName() + '#' + call.methodName()),
+                call, ResolutionReason.DECLARED_RECEIVER);
+        if (declared.target().isPresent() || declared.reason() == ResolutionReason.AMBIGUOUS) return declared;
+        return choose(index.hierarchy(receiverInfo, call.methodName()), call, ResolutionReason.DECLARED_RECEIVER);
+    }
+
+    /** An interface receiver resolves through its implementations, or through its own default methods. */
+    private static Resolution resolveInterfaceReceiver(
+            RawCall call, String receiver, TypeInfo receiverInfo, CallIndex index) {
+        var implementations = new LinkedHashMap<MethodId, RawMethod>();
+        for (TypeInfo type : index.implementationsBySuperType().getOrDefault(receiver, List.of())) {
+            index.hierarchy(type, call.methodName()).stream()
+                    .filter(candidate -> candidate.acceptsArity(call.argumentCount()))
+                    .forEach(candidate -> implementations.putIfAbsent(candidate.id(), candidate));
+        }
+        if (implementations.size() == 1) {
+            return new Resolution(Optional.of(implementations.values().iterator().next().id()),
+                    ResolutionReason.SINGLE_IMPLEMENTATION);
+        }
+        if (implementations.size() > 1) {
+            List<RawMethod> typed = bestTypedMatches(List.copyOf(implementations.values()), call.argumentTypes());
+            if (typed.size() == 1) {
+                return new Resolution(Optional.of(typed.getFirst().id()), ResolutionReason.SINGLE_IMPLEMENTATION);
+            }
+            return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
+        }
+        Resolution defaultMethod = choose(index.hierarchy(receiverInfo, call.methodName()), call,
+                ResolutionReason.DECLARED_RECEIVER);
+        if (defaultMethod.target().isPresent() || defaultMethod.reason() == ResolutionReason.AMBIGUOUS) {
+            return defaultMethod;
         }
         return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
     }

@@ -107,221 +107,241 @@ public final class DoctorCommand implements Callable<Integer> {
         out.println("DiagScope Doctor");
         out.println();
 
-        int warnings = 0;
-        int failures  = 0;
+        var tally = new Tally();
+        printRuntime(out);
+        ProjectLayout layout = detectLayout(out, projectRoot, tally);
+        if (layout == null) {
+            out.printf("Doctor found %d warning(s) and %d failure(s).%n", tally.warnings, tally.failures);
+            return 1;
+        }
+        printProject(out, layout);
+        long kotlinFiles = printLanguages(out, layout, tally);
+        printSources(out, projectRoot, layout);
+        printResolution(out, kotlinFiles, tally);
+        printFrameworkCapabilities(out, projectRoot);
+        printConfiguration(out, projectRoot, tally);
+        if (withScanHealth) {
+            printScanHealth(out, projectRoot, tally);
+        }
+        return printSummary(out, tally);
+    }
 
-        // ── Runtime ──────────────────────────────────────────────────────────
+    /** Warnings and failures found so far; doctor exits non-zero only on failures. */
+    private static final class Tally {
+        int warnings;
+        int failures;
+    }
+
+    // ── sections ──────────────────────────────────────────────────────────────
+
+    private static void printRuntime(PrintStream out) {
         out.println("Runtime");
         out.printf("  %s Java %s%n", OK, Runtime.version().feature());
         out.printf("  %s DiagScope %s%n", OK, BuildInfo.version());
         out.println();
+    }
 
-        // ── Project ──────────────────────────────────────────────────────────
+    /** Detects the project layout, or reports why it cannot and returns {@code null}. */
+    private ProjectLayout detectLayout(PrintStream out, Path projectRoot, Tally tally) {
         out.println("Project");
-        ProjectLayout layout;
         try {
-            layout = ProjectLayoutDetector.detect(projectRoot,
-                    resolveSourceRoots(projectRoot, sourceRoots));
-        } catch (UnsupportedProjectException exception) {
+            return ProjectLayoutDetector.detect(projectRoot, resolveSourceRoots(projectRoot, sourceRoots));
+        } catch (UnsupportedProjectException | IllegalArgumentException exception) {
             out.printf("  %s %s%n", FAIL, exception.getMessage());
             out.println();
-            out.printf("Doctor found %d warning(s) and %d failure(s).%n", warnings, failures + 1);
-            return 1;
-        } catch (IllegalArgumentException exception) {
-            out.printf("  %s %s%n", FAIL, exception.getMessage());
-            out.println();
-            out.printf("Doctor found %d warning(s) and %d failure(s).%n", warnings, failures + 1);
-            return 1;
+            tally.failures++;
+            return null;
         }
-        String buildLabel = buildLabel(layout);
-        out.printf("  %s %s%n", OK, buildLabel);
-        int moduleCount = layout.modules().size();
-        out.printf("  %s %d module%s discovered%n", OK, moduleCount, moduleCount == 1 ? "" : "s");
-        out.println();
+    }
 
-        // ── Languages ────────────────────────────────────────────────────────
+    private static void printProject(PrintStream out, ProjectLayout layout) {
+        out.printf("  %s %s%n", OK, buildLabel(layout));
+        int moduleCount = layout.modules().size();
+        out.printf("  %s %d module%s discovered%n", OK, moduleCount, plural(moduleCount));
+        out.println();
+    }
+
+    /** Prints the language breakdown and returns the number of Kotlin files. */
+    private static long printLanguages(PrintStream out, ProjectLayout layout, Tally tally) {
         out.println("Languages");
-        long javaFiles  = countFiles(layout.sourceRoots(), path -> path.toString().endsWith(".java"));
+        long javaFiles = countFiles(layout.sourceRoots(), path -> path.toString().endsWith(".java"));
         long kotlinFiles = countFiles(layout.sourceRoots(), path -> path.toString().endsWith(".kt"));
         if (javaFiles > 0) {
-            out.printf("  %s Java: %d file%s%n", OK, javaFiles, javaFiles == 1 ? "" : "s");
+            out.printf("  %s Java: %d file%s%n", OK, javaFiles, plural(javaFiles));
         }
         if (kotlinFiles > 0) {
-            out.printf("  %s Kotlin: %d file%s%n", OK, kotlinFiles, kotlinFiles == 1 ? "" : "s");
+            out.printf("  %s Kotlin: %d file%s%n", OK, kotlinFiles, plural(kotlinFiles));
         }
         if (javaFiles == 0 && kotlinFiles == 0) {
             out.printf("  %s No Java or Kotlin source files found in discovered roots%n", WARN);
-            warnings++;
+            tally.warnings++;
         }
         out.println();
+        return kotlinFiles;
+    }
 
-        // ── Sources ──────────────────────────────────────────────────────────
+    private static void printSources(PrintStream out, Path projectRoot, ProjectLayout layout) {
         out.println("Sources");
         for (Path sourceRoot : layout.sourceRoots()) {
-            Path relative = projectRoot.relativize(sourceRoot);
-            out.printf("  %s %s%n", OK, relative);
+            out.printf("  %s %s%n", OK, projectRoot.relativize(sourceRoot));
         }
         out.println();
+    }
 
-        // ── Resolution ───────────────────────────────────────────────────────
+    private void printResolution(PrintStream out, long kotlinFiles, Tally tally) {
         out.println("Resolution");
-        boolean classpathConfigured = !classpath.isEmpty();
         out.printf("  %s Java local resolution%n", OK);
-        if (classpathConfigured) {
-            out.printf("  %s Java dependency classpath: %d entr%s%n",
-                    OK, classpath.size(), classpath.size() == 1 ? "y" : "ies");
-        } else {
+        if (classpath.isEmpty()) {
             out.printf("  %s Java dependency classpath not configured "
                     + "(pass --classpath for external symbol resolution)%n", WARN);
-            warnings++;
+            tally.warnings++;
+        } else {
+            out.printf("  %s Java dependency classpath: %d entr%s%n",
+                    OK, classpath.size(), pluralY(classpath.size()));
         }
         if (kotlinFiles > 0) {
             out.printf("  %s Kotlin source-level hierarchy%n", OK);
             out.printf("  %s Kotlin dependency resolution is source-first "
                     + "(compiled JARs not inspected)%n", WARN);
-            warnings++;
+            tally.warnings++;
         }
         out.println();
+    }
 
-        // ── Framework capabilities ────────────────────────────────────────────
+    private static void printFrameworkCapabilities(PrintStream out, Path projectRoot) {
         out.println("Framework capabilities");
         String buildContent = readBuildContent(projectRoot);
-        boolean springRest      = containsAny(buildContent, SPRING_REST_MARKERS);
-        boolean springKafka     = containsAny(buildContent, SPRING_KAFKA_MARKERS);
+        boolean springRest = containsAny(buildContent, SPRING_REST_MARKERS);
+        boolean springKafka = containsAny(buildContent, SPRING_KAFKA_MARKERS);
         boolean springScheduling = containsAny(buildContent, SPRING_SCHEDULING_MARKERS);
-        boolean springAop       = containsAny(buildContent, SPRING_AOP_MARKERS);
-        boolean springTx        = containsAny(buildContent, SPRING_TX_MARKERS);
-        boolean micrometer      = containsAny(buildContent, MICROMETER_MARKERS);
+        boolean springAop = containsAny(buildContent, SPRING_AOP_MARKERS);
+        boolean springTx = containsAny(buildContent, SPRING_TX_MARKERS);
+        boolean micrometer = containsAny(buildContent, MICROMETER_MARKERS);
 
         boolean anyFramework = springRest || springKafka || springScheduling
                 || springAop || springTx || micrometer;
-
-        boolean anySpring = buildContent.toLowerCase(java.util.Locale.ROOT).contains("spring");
-        if (!anyFramework) {
-            if (anySpring) {
-                // Spring detected but no specific module identified — informational, not a warning
-                out.printf("  %s Spring Boot detected (specific module capabilities not identified)%n", OK);
-            } else {
-                // No Spring at all — neutral notice, DiagScope still analyzes the project
-                out.printf("  — No Spring/Micrometer dependencies detected; "
-                        + "framework-specific rules will not apply%n");
-            }
-        } else {
-            printCapability(out, springRest,       "Spring REST");
-            printCapability(out, springKafka,      "Spring Kafka");
+        if (anyFramework) {
+            printCapability(out, springRest, "Spring REST");
+            printCapability(out, springKafka, "Spring Kafka");
             printCapability(out, springScheduling, "Spring Scheduling");
-            printCapability(out, springAop,        "Spring AOP");
-            printCapability(out, springTx,         "Transactions");
-            printCapability(out, micrometer,       "Micrometer");
+            printCapability(out, springAop, "Spring AOP");
+            printCapability(out, springTx, "Transactions");
+            printCapability(out, micrometer, "Micrometer");
+        } else if (buildContent.toLowerCase(java.util.Locale.ROOT).contains("spring")) {
+            // Spring detected but no specific module identified: informational, not a warning
+            out.printf("  %s Spring Boot detected (specific module capabilities not identified)%n", OK);
+        } else {
+            // No Spring at all: neutral notice, DiagScope still analyzes the project
+            out.printf("  — No Spring/Micrometer dependencies detected; "
+                    + "framework-specific rules will not apply%n");
         }
         out.println();
+    }
 
-        // ── Configuration ─────────────────────────────────────────────────────
+    private void printConfiguration(PrintStream out, Path projectRoot, Tally tally) {
         out.println("Configuration");
         Path configFile = resolveConfiguration(projectRoot, configuration);
         if (configFile != null && Files.isRegularFile(configFile)) {
             out.printf("  %s %s (schema %s)%n",
                     OK, projectRoot.relativize(configFile), ProjectConfigurationLoader.SCHEMA_VERSION);
             try {
-                var loader = new ProjectConfigurationLoader();
-                var loaded = loader.load(configFile);
-                int totalRules   = RuleCatalog.all().size();
-                int disabledRules = loaded.policy().disabledRules().size();
-                int overridden    = loaded.policy().severityOverrides().size();
-                int enabled = totalRules - disabledRules;
-                out.printf("  %s %d rule%s enabled%n", OK, enabled, enabled == 1 ? "" : "s");
-                if (overridden > 0) {
-                    out.printf("  %s %d rule%s with severity override%n",
-                            OK, overridden, overridden == 1 ? "" : "s");
-                }
-                if (!loaded.policy().disabledRules().isEmpty()) {
-                    out.printf("  %s %d rule%s disabled%n",
-                            WARN, disabledRules, disabledRules == 1 ? "" : "s");
-                    warnings++;
-                }
+                printPolicySummary(out, new ProjectConfigurationLoader().load(configFile).policy(), tally);
             } catch (IOException | IllegalArgumentException exception) {
                 out.printf("  %s Configuration error: %s%n", WARN, exception.getMessage());
-                warnings++;
+                tally.warnings++;
             }
         } else {
-            int totalRules = RuleCatalog.all().size();
             out.printf("  %s No diagscope.yml found — using defaults (%d rules enabled)%n",
-                    OK, totalRules);
+                    OK, RuleCatalog.all().size());
         }
         out.println();
+    }
 
-        // ── Scan health (optional) ────────────────────────────────────────────
-        if (withScanHealth) {
-            out.println("Scan health");
-            try {
-                var configFile2 = resolveConfiguration(projectRoot, configuration);
-                AnalysisPolicy policy;
-                if (configFile2 != null && Files.isRegularFile(configFile2)) {
-                    policy = new ProjectConfigurationLoader().load(configFile2).policy();
-                } else {
-                    policy = AnalysisPolicy.defaults();
-                }
-                var options = new AnalysisOptions(
-                        AnalysisOptions.defaults().maxFlowDepth(),
-                        AnalysisOptions.defaults().parallelism(),
-                        EnumSet.copyOf(AnalysisOptions.DEFAULT_ENTRYPOINT_TYPES),
-                        policy,
-                        resolveClasspath(projectRoot, classpath),
-                        resolveSourceRoots(projectRoot, sourceRoots)
-                );
-                AnalysisResult result = scanUseCase.scan(new AnalysisRequest(projectRoot, options));
-                long parseFailures = result.parseFailures().size();
-                long unresolvedBoundaries = result.flows().stream()
-                        .flatMap(f -> f.boundaries().stream())
-                        .filter(edge -> edge.resolutionReason() == ResolutionReason.UNRESOLVED)
-                        .count();
-                long ambiguousBoundaries = result.flows().stream()
-                        .flatMap(f -> f.boundaries().stream())
-                        .filter(edge -> edge.resolutionReason() == ResolutionReason.AMBIGUOUS)
-                        .count();
-
-                String failureIcon = parseFailures == 0 ? OK : WARN;
-                out.printf("  %s %d parse failure%s%n",
-                        failureIcon, parseFailures, parseFailures == 1 ? "" : "s");
-                if (parseFailures > 0) warnings++;
-
-                String unresolvedIcon = unresolvedBoundaries == 0 ? OK : WARN;
-                out.printf("  %s %d unresolved boundar%s%n",
-                        unresolvedIcon, unresolvedBoundaries,
-                        unresolvedBoundaries == 1 ? "y" : "ies");
-
-                String ambiguousIcon = ambiguousBoundaries == 0 ? OK : WARN;
-                out.printf("  %s %d ambiguous boundar%s%n",
-                        ambiguousIcon, ambiguousBoundaries,
-                        ambiguousBoundaries == 1 ? "y" : "ies");
-
-                out.printf("  %s %d entrypoint%s, %d flow%s analyzed%n",
-                        OK, result.statistics().entrypoints(),
-                        result.statistics().entrypoints() == 1 ? "" : "s",
-                        result.statistics().flows(),
-                        result.statistics().flows() == 1 ? "" : "s");
-            } catch (UnsupportedProjectException exception) {
-                out.printf("  %s Scan failed: %s%n", FAIL, exception.getMessage());
-                failures++;
-            } catch (Exception exception) {
-                out.printf("  %s Scan health check failed: %s%n", WARN, exception.getMessage());
-                warnings++;
-            }
-            out.println();
+    private static void printPolicySummary(PrintStream out, AnalysisPolicy policy, Tally tally) {
+        int disabledRules = policy.disabledRules().size();
+        int overridden = policy.severityOverrides().size();
+        int enabled = RuleCatalog.all().size() - disabledRules;
+        out.printf("  %s %d rule%s enabled%n", OK, enabled, plural(enabled));
+        if (overridden > 0) {
+            out.printf("  %s %d rule%s with severity override%n", OK, overridden, plural(overridden));
         }
+        if (!policy.disabledRules().isEmpty()) {
+            out.printf("  %s %d rule%s disabled%n", WARN, disabledRules, plural(disabledRules));
+            tally.warnings++;
+        }
+    }
 
-        // ── Summary ───────────────────────────────────────────────────────────
-        if (warnings == 0 && failures == 0) {
+    private void printScanHealth(PrintStream out, Path projectRoot, Tally tally) {
+        out.println("Scan health");
+        try {
+            AnalysisResult result = scanUseCase.scan(new AnalysisRequest(projectRoot, scanHealthOptions(projectRoot)));
+            printScanHealthResult(out, result, tally);
+        } catch (UnsupportedProjectException exception) {
+            out.printf("  %s Scan failed: %s%n", FAIL, exception.getMessage());
+            tally.failures++;
+        } catch (Exception exception) {
+            out.printf("  %s Scan health check failed: %s%n", WARN, exception.getMessage());
+            tally.warnings++;
+        }
+        out.println();
+    }
+
+    private AnalysisOptions scanHealthOptions(Path projectRoot) throws IOException {
+        Path configFile = resolveConfiguration(projectRoot, configuration);
+        AnalysisPolicy policy = configFile != null && Files.isRegularFile(configFile)
+                ? new ProjectConfigurationLoader().load(configFile).policy()
+                : AnalysisPolicy.defaults();
+        return new AnalysisOptions(
+                AnalysisOptions.defaults().maxFlowDepth(),
+                AnalysisOptions.defaults().parallelism(),
+                EnumSet.copyOf(AnalysisOptions.DEFAULT_ENTRYPOINT_TYPES),
+                policy,
+                resolveClasspath(projectRoot, classpath),
+                resolveSourceRoots(projectRoot, sourceRoots));
+    }
+
+    private static void printScanHealthResult(PrintStream out, AnalysisResult result, Tally tally) {
+        long parseFailures = result.parseFailures().size();
+        long unresolved = boundaries(result, ResolutionReason.UNRESOLVED);
+        long ambiguous = boundaries(result, ResolutionReason.AMBIGUOUS);
+
+        out.printf("  %s %d parse failure%s%n", parseFailures == 0 ? OK : WARN, parseFailures, plural(parseFailures));
+        if (parseFailures > 0) tally.warnings++;
+        out.printf("  %s %d unresolved boundar%s%n", unresolved == 0 ? OK : WARN, unresolved, pluralY(unresolved));
+        out.printf("  %s %d ambiguous boundar%s%n", ambiguous == 0 ? OK : WARN, ambiguous, pluralY(ambiguous));
+        out.printf("  %s %d entrypoint%s, %d flow%s analyzed%n",
+                OK, result.statistics().entrypoints(), plural(result.statistics().entrypoints()),
+                result.statistics().flows(), plural(result.statistics().flows()));
+    }
+
+    private static long boundaries(AnalysisResult result, ResolutionReason reason) {
+        return result.flows().stream()
+                .flatMap(flow -> flow.boundaries().stream())
+                .filter(edge -> edge.resolutionReason() == reason)
+                .count();
+    }
+
+    /** Prints the closing line and returns the exit code. */
+    private static int printSummary(PrintStream out, Tally tally) {
+        if (tally.warnings == 0 && tally.failures == 0) {
             out.printf("Doctor found no issues. DiagScope is ready to scan this project.%n");
             return 0;
         }
-        String summary = failures > 0
+        String summary = tally.failures > 0
                 ? String.format("Doctor found %d warning(s) and %d failure(s). "
-                        + "Review the items marked %s above.", warnings, failures, WARN + "/" + FAIL)
+                        + "Review the items marked %s above.", tally.warnings, tally.failures, WARN + "/" + FAIL)
                 : String.format("Doctor found %d warning(s). "
-                        + "Review the items marked %s above.", warnings, WARN);
+                        + "Review the items marked %s above.", tally.warnings, WARN);
         out.println(summary);
-        return failures > 0 ? 1 : 0;
+        return tally.failures > 0 ? 1 : 0;
+    }
+
+    private static String plural(long count) {
+        return count == 1 ? "" : "s";
+    }
+
+    private static String pluralY(long count) {
+        return count == 1 ? "y" : "ies";
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
