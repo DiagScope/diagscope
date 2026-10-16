@@ -67,7 +67,8 @@ public final class JdbcTemplateConnectionEscapeRule implements DiagnosticRule {
                                 + " bypasses the template's transaction binding and exception translation.",
                         "Run the statement through JdbcTemplate (execute, query, update) so the connection"
                                 + " stays bound to the active transaction, or release it with"
-                                + " DataSourceUtils.releaseConnection in a finally block.",
+                                + " DataSourceUtils.releaseConnection in a finally block (get it with"
+                                + " DataSourceUtils.getConnection(dataSource), which stays transaction-aware).",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         details));
             }

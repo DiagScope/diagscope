@@ -77,11 +77,12 @@ public final class CorsWildcardOriginRule implements ProjectRule {
         if (!wildcardFound) return;
 
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "@CrossOrigin(\"*\") on '" + method.id().displayName()
-                        + "' permits any browser origin to access this endpoint. Combined with"
-                        + " session cookies or tokens this enables cross-site request forgery"
-                        + " and cross-origin data exfiltration.",
+                        + "' lets any website read this endpoint's responses from a visitor's browser."
+                        + " Credentials are not sent cross-origin by default, so this is not a CSRF hole, but"
+                        + " it exposes anything the browser can reach on the visitor's network (intranet or"
+                        + " localhost services, IP-allowlisted data).",
                 "Replace the wildcard with an explicit list of trusted origins:"
                         + " @CrossOrigin(origins = {\"https://app.example.com\","
                         + " \"https://admin.example.com\"}). For global CORS configuration,"

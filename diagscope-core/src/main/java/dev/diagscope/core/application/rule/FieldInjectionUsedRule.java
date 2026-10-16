@@ -85,7 +85,7 @@ public final class FieldInjectionUsedRule implements ProjectRule {
                 ID, Severity.WARNING, Confidence.HIGH, method.location(),
                 "'" + simpleName + "' uses field injection (@Autowired, @Inject, or @Resource"
                         + " on a field). Field injection hides dependencies, prevents final"
-                        + " fields, complicates unit testing, and can mask circular dependencies.",
+                        + " fields, complicates unit testing, and lets circular dependencies form (constructor injection fails fast on them).",
                 "Switch to constructor injection: declare all dependencies as constructor"
                         + " parameters, assign them to 'final' fields, and remove the field-level"
                         + " @Autowired annotations. Spring automatically autowires single-constructor"

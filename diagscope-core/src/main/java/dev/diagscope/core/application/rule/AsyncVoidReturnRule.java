@@ -57,7 +57,7 @@ public final class AsyncVoidReturnRule implements ProjectRule {
                 ID, Severity.WARNING, Confidence.HIGH, method.location(),
                 "'" + display + "' is @Async with a void return type. Exceptions thrown"
                         + " inside this method are passed to AsyncUncaughtExceptionHandler,"
-                        + " which by default logs once and discards silently. The caller"
+                        + " which by default logs each one at ERROR level and discards it. The caller"
                         + " receives no signal that the operation failed.",
                 "Return CompletableFuture<Void> and wrap the method body with"
                         + " CompletableFuture.runAsync(() -> { ... }, executor) or"

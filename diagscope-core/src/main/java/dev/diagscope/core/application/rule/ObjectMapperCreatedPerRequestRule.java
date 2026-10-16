@@ -73,10 +73,8 @@ public final class ObjectMapperCreatedPerRequestRule implements ProjectRule {
             findings.add(new Finding(
                     ID, Severity.WARNING, Confidence.HIGH, inv.location(),
                     "'" + methodDisplay + "' constructs a new ObjectMapper on every invocation."
-                            + " ObjectMapper construction is expensive: it scans the classpath and"
-                            + " registers all serialisers, deserialisers, and modules in its"
-                            + " constructor — potentially tens of milliseconds and hundreds of"
-                            + " heap allocations per call.",
+                            + " A new mapper starts with empty serializer caches, so each call re-introspects"
+                            + " every class it handles; a shared instance pays that cost once.",
                     "Declare a single ObjectMapper @Bean and inject it wherever serialisation"
                             + " is needed. ObjectMapper is thread-safe after construction, so a"
                             + " shared instance is always safe:\n"

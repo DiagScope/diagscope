@@ -40,6 +40,20 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- **Audit of the WARNING rules that make framework claims** (see `docs/RULE_AUDIT.md`, which lists every claim checked
+  and its source). Corrected: `ASYNC_VOID_RETURN`, `FIELD_INJECTION_USED`, `JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR`,
+  `OBJECT_MAPPER_CREATED_PER_REQUEST`, `TRANSACTIONAL_READONLY_MISSING`, `UNGUARDED_THREAD_CREATION`,
+  `KAFKA_LISTENER_MANUAL_ACK_WRONG_MODE` (the Acknowledgment is `null`, so `acknowledge()` throws) and
+  `KAFKA_SEND_RESULT_IGNORED` (KafkaTemplate logs failures by default). Fixed false positives: `MISSING_RESPONSE_STATUS`
+  skips `ProblemDetail`, `SCHEDULED_NON_VOID_RETURN` skips reactive return types (Spring 6.1), `ENTITY_MANAGER_CLEAR_IN_TRANSACTION`
+  no longer matches any receiver containing "em", and `JDBC_TEMPLATE_CONNECTION_ESCAPE` no longer treats
+  `DataSourceUtils.getConnection` (the transaction-aware way) as an escape.
+- **Demoted to INFO** because the finding is advice, not a defect: `CORS_WILDCARD_ORIGIN` (credentials are not sent by
+  default, so it is not CSRF), `CACHE_EVICT_MISSING`, `CIRCUIT_BREAKER_WITHOUT_FALLBACK`, `BULKHEAD_WITHOUT_FALLBACK`,
+  `FEIGN_CLIENT_NO_FALLBACK`, `KAFKA_DEAD_LETTER_NOT_CONFIGURED`, `SCHEDULED_NON_VOID_RETURN`,
+  `SCHEDULED_NO_INITIAL_DELAY`, `TRANSACTIONAL_ASYNC_COMBINATION`, `TRANSACTIONAL_EVENT_LISTENER_MISSING_PHASE`
+  (now explains that AFTER_COMMIT writes are not committed), `TRANSACTIONAL_ON_REST_CONTROLLER` (the transaction does
+  not span serialization) and `VALUE_WITHOUT_DEFAULT`.
 - **Audit of the ERROR rules against the framework documentation and source.** Six of the 42 ERROR rules made claims
   that do not hold, and the detections were corrected:
   - Removed `AOP_ADVICE_ON_PRIVATE_METHOD`: Spring AOP makes an advice method accessible and invokes it by reflection

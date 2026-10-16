@@ -79,7 +79,7 @@ public final class ValueWithoutDefaultRule implements ProjectRule {
 
         String propertyKey = inner.trim();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "@Value(\"${" + propertyKey + "}\") on '" + method.id().displayName()
                         + "' has no default value. If this property is absent from all config"
                         + " sources, Spring throws IllegalArgumentException at startup.",

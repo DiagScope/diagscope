@@ -78,8 +78,8 @@ public final class TransactionalReadOnlyMissingRule implements ProjectRule {
                 ID, Severity.WARNING, Confidence.HIGH, method.location(),
                 "'" + methodDisplay + "' is @Transactional but does not declare readOnly = true."
                         + " The method name suggests a read-only operation; without readOnly = true"
-                        + " Spring opens a full read-write transaction, preventing connection"
-                        + " reuse optimisations and blocking read-replica routing.",
+                        + " Spring opens a read-write transaction: Hibernate dirty-checks every loaded entity at"
+                        + " the end and a routing DataSource cannot send the query to a replica.",
                 "Add readOnly = true: @Transactional(readOnly = true). This allows the JDBC"
                         + " driver and Hibernate to optimise the operation — Hibernate skips the"
                         + " dirty-check flush, and some JDBC drivers route the query to a replica."

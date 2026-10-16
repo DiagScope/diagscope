@@ -63,9 +63,9 @@ public final class KafkaDeadLetterNotConfiguredRule implements DiagnosticRule {
 
         var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
         findings.add(new Finding(
-                ID, Severity.WARNING, confidence, method.location(),
+                ID, Severity.INFO, confidence, method.location(),
                 "Kafka listener has no dead-letter topic configured. Failed messages after"
-                        + " retry exhaustion will be silently discarded.",
+                        + " retry exhaustion are, by default, logged and skipped, with no topic to inspect or replay them from.",
                 "Configure a DeadLetterPublishingRecoverer in a DefaultErrorHandler bean, or set"
                         + " the errorHandler attribute on @KafkaListener. This ensures failed"
                         + " messages are preserved for inspection and replay.",

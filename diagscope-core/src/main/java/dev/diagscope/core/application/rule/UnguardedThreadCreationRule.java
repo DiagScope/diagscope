@@ -85,7 +85,7 @@ public final class UnguardedThreadCreationRule implements ProjectRule {
                     "'" + display + "' creates a raw Thread in a Spring-managed bean."
                             + " Manually created threads have no pool bounds, no lifecycle"
                             + " management, and cannot be stopped or monitored by Spring."
-                            + " They prevent graceful shutdown and can exhaust JVM thread limits.",
+                            + " They prevent graceful shutdown and can exhaust the JVM's native thread limit.",
                     "Inject a Spring TaskExecutor or ExecutorService @Bean and submit the"
                             + " Runnable to it: executor.execute(runnable). For fire-and-forget"
                             + " async work consider @Async with a named ThreadPoolTaskExecutor."

@@ -86,11 +86,11 @@ public final class ScheduledNoInitialDelayRule implements ProjectRule {
 
         String methodDisplay = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "@Scheduled method '" + methodDisplay + "' uses "
                         + presentAttributes(scheduledAttrs)
-                        + " without an initialDelay. The task fires immediately at application"
-                        + " startup, before the application is fully ready.",
+                        + " without an initialDelay. The first run happens right after the context is"
+                        + " refreshed, possibly before caches and downstream services are ready.",
                 "Add 'initialDelay' (or 'initialDelayString') to give the application time to"
                         + " initialise before the first execution. Example:"
                         + " @Scheduled(fixedRate = 60_000, initialDelay = 30_000). For a"

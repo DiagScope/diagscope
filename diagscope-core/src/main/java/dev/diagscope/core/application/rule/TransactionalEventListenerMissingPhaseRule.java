@@ -65,7 +65,7 @@ public final class TransactionalEventListenerMissingPhaseRule implements Project
         if (phaseExplicit) return;
 
         boolean isAlsoAsync = method.annotations().contains("Async");
-        Severity severity = isAlsoAsync ? Severity.ERROR : Severity.WARNING;
+        Severity severity = isAlsoAsync ? Severity.ERROR : Severity.INFO;
         String display = method.id().displayName();
 
         String message = isAlsoAsync

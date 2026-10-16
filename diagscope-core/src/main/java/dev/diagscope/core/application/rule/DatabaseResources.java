@@ -40,14 +40,15 @@ final class DatabaseResources {
         return "createEntityManager".equals(invocation.methodName());
     }
 
-    /** True when the call reaches the raw connection behind a {@code JdbcTemplate} or {@code DataSourceUtils}. */
+    /** True when the call reaches the raw connection behind a {@code JdbcTemplate}. */
     static boolean escapesJdbcTemplate(InvocationEvidence invocation) {
         if (!"getConnection".equals(invocation.methodName())) {
             return false;
         }
         String hint = hint(invocation);
+        // DataSourceUtils.getConnection is the transaction-aware way to get a connection, so it is not an escape.
         return hint.contains("jdbctemplate") || hint.contains("jdbcoperations")
-                || hint.contains("datasourceutils") || hint.contains("namedparameterjdbc");
+                || hint.contains("namedparameterjdbc");
     }
 
     /**

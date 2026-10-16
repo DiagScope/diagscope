@@ -204,6 +204,49 @@ class CalibrationRulesTest {
         assertThat(rule.evaluate(project(listener("onPublic", publicListener)))).isEmpty();
     }
 
+    // ── framework-claim audit of the WARNING rules ───────────────────────────
+
+    @Test
+    void problemDetailHandlers_carryTheirOwnStatus_butACustomErrorResponseDoesNot() {
+        var problem = exceptionHandler("handleProblem", "ProblemDetail");
+        var custom = exceptionHandler("handleCustom", "ErrorResponse");
+        assertThat(new MissingResponseStatusRule().evaluate(project(problem))).isEmpty();
+        assertThat(new MissingResponseStatusRule().evaluate(project(custom))).hasSize(1);
+    }
+
+    @Test
+    void reactiveScheduledMethods_areSubscribedNotDiscarded() {
+        var mono = scheduled("pollMono", "Mono<Void>");
+        var flux = scheduled("pollFlux", "Flux<String>");
+        var value = scheduled("pollValue", "String");
+        var rule = new ScheduledNonVoidReturnRule();
+        assertThat(rule.evaluate(project(mono, flux))).isEmpty();
+        assertThat(rule.evaluate(project(value))).hasSize(1);
+    }
+
+    @Test
+    void entityManagerClear_ignoresReceiversThatMerelyContainEm() {
+        var clear = new InvocationEvidence(location(10), "itemList", "List", "clear", List.of(),
+                InvocationResultUsage.IGNORED);
+        var method = new MethodModel(new MethodId("example.Service", "reset", List.of()), location(1),
+                Set.of("Transactional"), List.of(), List.of(clear), List.of(), List.of(), List.of());
+        assertThat(new EntityManagerClearInTransactionRule().evaluate(project(method))).isEmpty();
+    }
+
+    @Test
+    void dataSourceUtilsConnection_isTheTransactionAwareWay_notAnEscape() {
+        var utils = new InvocationEvidence(location(10), "DataSourceUtils", "DataSourceUtils", "getConnection",
+                List.of("dataSource"), InvocationResultUsage.ASSIGNED);
+        var template = new InvocationEvidence(location(11), "jdbcTemplate.getDataSource()", "DataSource",
+                "getConnection", List.of(), InvocationResultUsage.ASSIGNED);
+        var viaUtils = new MethodModel(new MethodId("example.Repo", "a", List.of()), location(1), Set.of(),
+                List.of(), List.of(utils), List.of(), List.of(), List.of());
+        var viaTemplate = new MethodModel(new MethodId("example.Repo", "b", List.of()), location(1), Set.of(),
+                List.of(), List.of(template), List.of(), List.of(), List.of());
+        assertThat(new JdbcTemplateConnectionEscapeRule().evaluate(flow(viaUtils))).isEmpty();
+        assertThat(new JdbcTemplateConnectionEscapeRule().evaluate(flow(viaTemplate))).hasSize(1);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static MethodModel controllerPost(String name, List<String> parameterTypes, Map<String, String> parameters,
@@ -232,6 +275,18 @@ class CalibrationRulesTest {
         return new MethodModel(new MethodId(type, name, List.of()), location(1), annotations, List.of(), List.of(),
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0),
                 returnType, false);
+    }
+
+    private static MethodModel exceptionHandler(String name, String returnType) {
+        return new MethodModel(new MethodId("example.Advice", name, List.of("RuntimeException")), location(1),
+                Set.of("ExceptionHandler", "RestControllerAdvice"), List.of(), List.of(), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(1), returnType, false);
+    }
+
+    private static MethodModel scheduled(String name, String returnType) {
+        return new MethodModel(new MethodId("example.Jobs", name, List.of()), location(1), Set.of("Scheduled"),
+                List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), returnType, false);
     }
 
     private static MethodModel listener(String name, ProxyProfile proxy) {

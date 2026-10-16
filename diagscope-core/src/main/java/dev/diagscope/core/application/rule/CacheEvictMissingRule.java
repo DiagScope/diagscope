@@ -89,10 +89,10 @@ public final class CacheEvictMissingRule implements ProjectRule {
                 : declaringType;
 
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.MEDIUM, firstCacheable.location(),
-                "'" + simpleName + "' uses @Cacheable but has no @CacheEvict or @CachePut method."
-                        + " Without explicit eviction, cached entries accumulate indefinitely"
-                        + " and the cache grows without bound.",
+                ID, Severity.INFO, Confidence.MEDIUM, firstCacheable.location(),
+                "'" + simpleName + "' uses @Cacheable but has no @CacheEvict or @CachePut method"
+                        + " in the same class. Unless the cache expires by configuration or is evicted from"
+                        + " another class, cached entries are never invalidated.",
                 "Add a @CacheEvict method that is called when the underlying data changes"
                         + " (e.g. on save, update, or delete operations), or use @CachePut on"
                         + " write methods to keep the cache up-to-date. For data that changes"

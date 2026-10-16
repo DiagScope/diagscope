@@ -7,8 +7,8 @@
 | Build system | Maven |
 | Findings | 9 |
 | Errors | 3 |
-| Warnings | 4 |
-| Info | 2 |
+| Warnings | 3 |
+| Info | 3 |
 | Flows | 3 |
 | Source files | 6 |
 | Methods | 7 |
@@ -33,14 +33,14 @@
 
 ## Executive summary
 
-9 finding(s): 3 error(s), 4 warning(s), 2 info. 6 are high confidence and worth triaging first.
+9 finding(s): 3 error(s), 3 warning(s), 3 info. 6 are high confidence and worth triaging first.
 
 ### Findings by rule
 
 | Rule | What it flags | Findings | Highest severity | High | Medium | Low |
 | --- | --- | --- | --- | --- | --- | --- |
 | `HIGH_CARDINALITY_METRIC_TAG` | High-cardinality metric tag | 1 | `ERROR` | 0 | 1 | 0 |
-| `KAFKA_DEAD_LETTER_NOT_CONFIGURED` | Kafka listener has no dead-letter topic configured | 1 | `WARNING` | 0 | 1 | 0 |
+| `KAFKA_DEAD_LETTER_NOT_CONFIGURED` | Kafka listener has no dead-letter topic configured | 1 | `INFO` | 0 | 1 | 0 |
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_TOPIC_HARDCODED` | Kafka listener topic name is a hardcoded string literal | 1 | `INFO` | 1 | 0 | 0 |
@@ -83,19 +83,19 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 
 ## Findings
 
-### ⚠️ KAFKA_DEAD_LETTER_NOT_CONFIGURED — `src/main/java/example/PaymentListener.java:4`
+### ℹ️ KAFKA_DEAD_LETTER_NOT_CONFIGURED — `src/main/java/example/PaymentListener.java:4`
 
-Kafka listener has no dead-letter topic configured. Failed messages after retry exhaustion will be silently discarded.
+Kafka listener has no dead-letter topic configured. Failed messages after retry exhaustion are, by default, logged and skipped, with no topic to inspect or replay them from.
 
 **What this means:** A @KafkaListener method has no errorHandler attribute and no DeadLetterPublishingRecoverer visible at its call site.
 
-**Why it matters:** After retry exhaustion the failed message is silently discarded. No DLT means no visibility into what failed, no ability to replay, and no audit trail. In financial or event-sourced systems this is data loss disguised as successful processing.
+**Why it matters:** With Spring Kafka's default error handler a record that keeps failing is retried a few times and then logged at ERROR and skipped. It is not silent, but the payload survives only in the log: there is no topic to inspect or replay it from.
 
 **How it was detected:** The @KafkaListener annotation has no errorHandler attribute, and no invocation in the method body references a dead-letter recoverer by name (DeadLetterPublishingRecoverer, DLT, DLQ).
 
 **Suggested action:** Configure a DeadLetterPublishingRecoverer in a DefaultErrorHandler bean, or set the errorHandler attribute on @KafkaListener. This ensures failed messages are preserved for inspection and replay.
 
-- Severity: `WARNING` · Confidence: `MEDIUM`
+- Severity: `INFO` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: Kafka topic=payments (`MEDIUM`, depth 0)
 - Fingerprint: `sha256:2b0cc76372c5ffa66401c169fd80e1077e5be1ee780813545cba4a4bcbcabf46`
@@ -267,7 +267,7 @@ Metric tag may have unbounded cardinality: paymentId
 
 ### ⚠️ KAFKA_SEND_RESULT_IGNORED — `src/main/java/example/PaymentPublisher.java:6`
 
-KafkaTemplate.send() result is ignored by this flow.
+KafkaTemplate.send() result is ignored by this flow; unless a custom ProducerListener is set, a send failure is only logged by KafkaTemplate's default listener.
 
 **What this means:** The asynchronous result of a Kafka producer send is discarded.
 

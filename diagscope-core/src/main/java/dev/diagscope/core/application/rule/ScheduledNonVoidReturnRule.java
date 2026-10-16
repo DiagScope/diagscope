@@ -55,12 +55,14 @@ public final class ScheduledNonVoidReturnRule implements ProjectRule {
         String returnType = method.returnType();
         // void (Java) and Unit (Kotlin) are the only valid return types for @Scheduled
         if (returnType.isEmpty() || returnType.equals("void") || returnType.equals("Unit")) return;
+        // Since Spring 6.1 a @Scheduled method may return a reactive publisher, which the scheduler subscribes to.
+        if (returnType.matches("(?s)(java\\.util\\.concurrent\\.Flow\\.)?(Mono|Flux|Publisher|Flow|Single|Maybe|Completable|Observable|Flowable)\\b.*")) return;
 
         String methodDisplay = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "'" + methodDisplay + "' is @Scheduled but declares a return type of '"
-                        + returnType + "'. Spring silently discards the return value"
+                        + returnType + "'. Spring ignores the return value"
                         + " — it is never observed by any caller or framework component.",
                 "Change the return type to void. If the computed value is needed downstream,"
                         + " write it to a shared store (cache, database, or in-memory structure),"

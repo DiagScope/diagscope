@@ -75,7 +75,7 @@ public final class JpaBatchLoopWithoutFlushClearRule implements DiagnosticRule {
                                 ID, Severity.WARNING, confidence, writeInLoop.location(),
                                 "EntityManager." + writeInLoop.methodName() + "() inside a loop"
                                         + " without " + missing
-                                        + " — persistence context grows unboundedly.",
+                                        + " — the persistence context grows with every iteration.",
                                 "Call entityManager.flush() then entityManager.clear() every N"
                                         + " iterations (typically 50-100) to bound the first-level"
                                         + " cache size. Also configure hibernate.jdbc.batch_size."

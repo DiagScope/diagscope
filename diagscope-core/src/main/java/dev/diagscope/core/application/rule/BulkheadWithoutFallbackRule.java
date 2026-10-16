@@ -48,10 +48,10 @@ public final class BulkheadWithoutFallbackRule implements ProjectRule {
 
         String display = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "'" + display + "' has @Bulkhead without a fallbackMethod."
                         + " When the bulkhead is full, BulkheadFullException propagates"
-                        + " as-is — typically a 500 Internal Server Error.",
+                        + " as-is. Make sure a caller or a global handler turns it into a 'service busy' response.",
                 "Add fallbackMethod = \"methodName\" returning a safe degraded response"
                         + " (empty list, cached value, 'service busy' DTO) when the bulkhead rejects"
                         + " the call. The fallback must accept the same parameters plus Throwable.",

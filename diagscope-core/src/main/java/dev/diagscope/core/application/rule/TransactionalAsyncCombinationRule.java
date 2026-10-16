@@ -57,16 +57,16 @@ public final class TransactionalAsyncCombinationRule implements ProjectRule {
 
             String display = method.id().displayName();
             findings.add(new Finding(
-                    ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                    ID, Severity.INFO, Confidence.HIGH, method.location(),
                     "'" + display + "' is annotated with both @Transactional and @Async."
-                            + " Spring's @Async proxy executes the method body on a separate thread"
-                            + " where no transaction context exists. The @Transactional annotation"
-                            + " opens a new independent transaction on the worker thread that"
-                            + " cannot participate in or be rolled back by the caller's transaction.",
-                    "Remove @Transactional from the async method and instead put @Transactional"
-                            + " on a synchronous helper method that the async method delegates to."
-                            + " This ensures transactional semantics apply within the async thread's"
-                            + " own scope while keeping the caller decoupled from the transaction boundary.",
+                            + " Spring's @Async advice runs first, so the method body executes on a worker thread and"
+                            + " @Transactional opens a new, independent transaction there. It cannot take part in,"
+                            + " or be rolled back with, the caller's transaction, and it may start before the"
+                            + " caller commits.",
+                    "If the async work must only run after the caller's data is committed, publish an event"
+                            + " handled by a @TransactionalEventListener(phase = AFTER_COMMIT) instead of calling"
+                            + " the method directly. If an independent transaction is intended, keep the"
+                            + " combination and document it.",
                     List.of(),
                     Map.of("method", display)));
         }

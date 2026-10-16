@@ -25,7 +25,7 @@ public final class IgnoredKafkaSendResultRule implements DiagnosticRule {
                 var confidence = Confidence.min(ruleConfidence, flowMethod.confidence());
                 String message = producerListener
                         ? "KafkaTemplate.send() result is ignored by this flow; a ProducerListener is declared elsewhere in this project."
-                        : "KafkaTemplate.send() result is ignored by this flow.";
+                        : "KafkaTemplate.send() result is ignored by this flow; unless a custom ProducerListener is set, a send failure is only logged by KafkaTemplate's default listener.";
                 String recommendation = producerListener
                         ? "Confirm the declared ProducerListener is registered on this template and covers this failure path."
                         : "Verify whether the flow requires broker acknowledgement or explicit asynchronous failure handling.";

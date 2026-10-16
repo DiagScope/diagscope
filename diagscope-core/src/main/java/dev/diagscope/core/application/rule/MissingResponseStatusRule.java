@@ -69,7 +69,10 @@ public final class MissingResponseStatusRule implements ProjectRule {
 
         // If the return type contains ResponseEntity, the status is set programmatically
         String returnType = method.returnType() != null ? method.returnType() : "";
-        if (returnType.contains("ResponseEntity")) return;
+        // ProblemDetail carries its own status (Spring 6). A type merely named ErrorResponse is usually the
+        // application's own DTO, which does get HTTP 200, so it is still reported.
+        if (returnType.contains("ResponseEntity") || returnType.contains("ProblemDetail")
+                || returnType.equals("org.springframework.web.ErrorResponse")) return;
 
         String methodDisplay = method.id().displayName();
         findings.add(new Finding(

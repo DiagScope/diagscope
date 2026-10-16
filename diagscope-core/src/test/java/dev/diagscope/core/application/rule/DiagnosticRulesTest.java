@@ -981,7 +981,7 @@ class DiagnosticRulesTest {
         var findings = new ValueWithoutDefaultRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(ValueWithoutDefaultRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
             assertThat(f.evidence()).containsEntry("propertyKey", "payment.api.url");
         });
     }
@@ -1136,7 +1136,7 @@ class DiagnosticRulesTest {
         var findings = new CorsWildcardOriginRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(CorsWildcardOriginRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
             assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
         });
     }
@@ -1204,7 +1204,7 @@ class DiagnosticRulesTest {
         var findings = new ScheduledNoInitialDelayRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(ScheduledNoInitialDelayRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
         });
     }
 
@@ -1401,7 +1401,7 @@ class DiagnosticRulesTest {
         var findings = new CacheEvictMissingRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(CacheEvictMissingRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
             assertThat(f.confidence()).isEqualTo(Confidence.MEDIUM);
         });
     }
@@ -1482,7 +1482,7 @@ class DiagnosticRulesTest {
         var findings = new ScheduledNonVoidReturnRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(ScheduledNonVoidReturnRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
             assertThat(f.confidence()).isEqualTo(Confidence.HIGH);
         });
     }
@@ -1520,7 +1520,7 @@ class DiagnosticRulesTest {
         var findings = new FeignClientNoFallbackRule().evaluate(project(m));
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(FeignClientNoFallbackRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            assertThat(f.severity()).isEqualTo(Severity.INFO);
             assertThat(f.confidence()).isEqualTo(Confidence.MEDIUM);
         });
     }

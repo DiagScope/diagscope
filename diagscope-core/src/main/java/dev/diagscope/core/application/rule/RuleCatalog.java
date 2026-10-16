@@ -477,8 +477,9 @@ public final class RuleCatalog {
         put(catalog, JdbcTemplateConnectionEscapeRule.ID,
                 "Raw connection escapes Spring management",
                 "database", Severity.WARNING, ALL_LANGUAGES,
-                "Spring JDBC (JdbcTemplate, DataSourceUtils)",
-                "A raw Connection is taken from a JdbcTemplate or DataSourceUtils and used directly.",
+                "Spring JDBC (JdbcTemplate)",
+                "A raw Connection is taken from a JdbcTemplate (for example "
+                        + "jdbcTemplate.getDataSource().getConnection()) and used directly.",
                 "The connection loses its binding to the active transaction and Spring's exception"
                         + " translation, so failures surface as vendor errors and work can commit"
                         + " outside the intended transaction.",
@@ -833,14 +834,13 @@ public final class RuleCatalog {
         // ── Kafka: dead-letter topic ──────────────────────────────────────────
         put(catalog, KafkaDeadLetterNotConfiguredRule.ID,
                 "Kafka listener has no dead-letter topic configured",
-                "kafka", Severity.WARNING, ALL_LANGUAGES,
+                "kafka", Severity.INFO, ALL_LANGUAGES,
                 "Spring Kafka (@KafkaListener)",
                 "A @KafkaListener method has no errorHandler attribute and no"
                         + " DeadLetterPublishingRecoverer visible at its call site.",
-                "After retry exhaustion the failed message is silently discarded. No DLT means"
-                        + " no visibility into what failed, no ability to replay, and no audit"
-                        + " trail. In financial or event-sourced systems this is data loss"
-                        + " disguised as successful processing.",
+                "With Spring Kafka's default error handler a record that keeps failing is retried a few times and "
+                        + "then logged at ERROR and skipped. It is not silent, but the payload survives only in the log: "
+                        + "there is no topic to inspect or replay it from.",
                 "The @KafkaListener annotation has no errorHandler attribute, and no"
                         + " invocation in the method body references a dead-letter recoverer"
                         + " by name (DeadLetterPublishingRecoverer, DLT, DLQ).",
@@ -1138,9 +1138,9 @@ public final class RuleCatalog {
                 "@Retryable with no exception filter retries on every failure",
                 "resilience", Severity.WARNING, ALL_LANGUAGES,
                 "Spring Retry (@Retryable) or MicroProfile Fault Tolerance (@Retry)",
-                "A @Retryable method declares no 'include', 'value', or 'retryFor' attribute."
-                        + " Every thrown exception — including NullPointerException,"
-                        + " OutOfMemoryError, and programming defects — triggers the retry budget.",
+                "A @Retryable method declares no 'include', 'value' or 'retryFor' attribute. Every thrown "
+                        + "exception, including NullPointerException and other programming defects, triggers the retry "
+                        + "budget.",
                 "Retrying a programming error delays failure without any chance of recovery."
                         + " The upstream caller is blocked for the full retry budget, the downstream"
                         + " receives redundant requests, and the retry budget is exhausted on a"
@@ -1153,7 +1153,7 @@ public final class RuleCatalog {
         // ── Configuration: required properties without defaults ────────────────
         put(catalog, ValueWithoutDefaultRule.ID,
                 "@Value property placeholder with no default value",
-                "configuration", Severity.WARNING, ALL_LANGUAGES,
+                "configuration", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using @Value for external configuration",
                 "A @Value annotation uses a ${property} placeholder with no default-value suffix"
                         + " (:fallback). If the property is absent from all config sources,"
@@ -1240,18 +1240,19 @@ public final class RuleCatalog {
 
         // ── Security: CORS wildcard origin ────────────────────────────────────
         put(catalog, CorsWildcardOriginRule.ID,
-                "@CrossOrigin(\"*\") permits any browser origin — CSRF risk",
-                "security", Severity.WARNING, ALL_LANGUAGES,
+                "@CrossOrigin(\"*\") lets any website read this endpoint's responses",
+                "security", Severity.INFO, ALL_LANGUAGES,
                 "Spring MVC REST controllers using @CrossOrigin",
                 "A REST endpoint carries @CrossOrigin(\"*\") or @CrossOrigin(origins = \"*\"),"
                         + " permitting any browser origin to make cross-origin requests to"
                         + " this endpoint.",
-                "The browser same-origin policy protects users from cross-site request forgery."
-                        + " A wildcard CORS policy nullifies this protection. Combined with"
-                        + " session cookies or token-based auth, any page on the internet can"
-                        + " make authenticated requests to this endpoint on behalf of a"
-                        + " logged-in user. The impact ranges from data exfiltration to"
-                        + " account takeover depending on what the endpoint exposes.",
+                "Spring's @CrossOrigin does not allow credentials by default, so with a wildcard origin the "
+                        + "browser sends no cookies or HTTP authentication, and the wildcard does not enable cross-site "
+                        + "request forgery. What it allows is any web page, on any site, to read this endpoint's responses "
+                        + "from a visitor's browser. That is harmless for public data. It is a real exposure when the "
+                        + "endpoint is reachable only from the visitor's network position (an intranet or localhost "
+                        + "service) or answers based on ambient trust such as an IP allowlist. Spring rejects the "
+                        + "combination of a wildcard origin and allowCredentials = true.",
                 "The method carries a REST mapping annotation and its CrossOrigin annotation"
                         + " attribute (value or origins) equals the literal string \"*\".",
                 "CORS configured globally via WebMvcConfigurer is not detected here; this"
@@ -1283,16 +1284,14 @@ public final class RuleCatalog {
         // ── Wave 3: minor domain extensions ──────────────────────────────────
         put(catalog, ScheduledNoInitialDelayRule.ID,
                 "@Scheduled task fires immediately at application startup",
-                "configuration", Severity.WARNING, ALL_LANGUAGES,
+                "configuration", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using @Scheduled with fixedRate or fixedDelay",
-                "A @Scheduled method uses fixedRate or fixedDelay without an initialDelay."
-                        + " Spring fires the task immediately after the application starts — before"
-                        + " the application is fully ready to serve traffic.",
-                "In Kubernetes or any orchestrated environment, the scheduled task can execute"
-                        + " before the readiness probe passes, before connection pools are warmed"
-                        + " up, or before downstream services are reachable. A failed startup job"
-                        + " can prevent the pod from passing health checks, causing restart loops"
-                        + " that are difficult to distinguish from application code bugs.",
+                "A @Scheduled method uses fixedRate or fixedDelay without an initialDelay, so its first run "
+                        + "happens as soon as the scheduler starts, right after the application context is refreshed.",
+                "Scheduled tasks start once the application context is fully refreshed, so beans are initialised, "
+                        + "but readiness probes, caches and downstream services may not be ready yet. A task that depends "
+                        + "on them can fail on its first run; the scheduler logs the failure and runs the task again at the "
+                        + "next tick, so the usual effect is a noisy first log entry rather than a crash.",
                 "The method is annotated with @Scheduled and has fixedRate or fixedDelay in"
                         + " its annotation attributes, but no initialDelay or initialDelayString"
                         + " attribute is set (or it is explicitly 0).",
@@ -1308,12 +1307,11 @@ public final class RuleCatalog {
                 "A Spring-managed bean declares one or more fields annotated with @Autowired,"
                         + " @Inject, or @Resource. Field injection bypasses the constructor,"
                         + " injecting dependencies directly into private fields via reflection.",
-                "Field-injected beans hide their dependencies from the constructor signature,"
-                        + " making it impossible to instantiate them in unit tests without a"
-                        + " Spring context. Circular dependencies are not detected at startup."
-                        + " Fields cannot be final, preventing immutability guarantees. Spring"
-                        + " itself has recommended constructor injection since Spring 4.0 and"
-                        + " its own documentation explicitly discourages field injection.",
+                "Field-injected beans hide their dependencies from the constructor signature, so they cannot be "
+                        + "instantiated in a unit test without a Spring context or reflection. Fields cannot be final. "
+                        + "Circular dependencies are allowed to form (Spring Boot 2.6 and later reject them by default; "
+                        + "older versions resolve them silently), whereas constructor injection fails fast. The Spring "
+                        + "Framework reference recommends constructor injection for mandatory dependencies.",
                 "The parser scans the class body for field declarations annotated with"
                         + " @Autowired, @Inject, or @Resource, then synthesises a"
                         + " 'FieldInjectionPresent' marker on the declaring type. This marker"
@@ -1332,11 +1330,10 @@ public final class RuleCatalog {
                 "A @Transactional method whose name starts with a query hint (find, get, list,"
                         + " count, query, fetch, search, exists, load) does not declare"
                         + " readOnly = true. The transaction opens in full read-write mode.",
-                "A full read-write transaction holds a more expensive connection-pool slot and"
-                        + " prevents the JDBC driver from routing the query to a read replica."
-                        + " Hibernate does not skip its dirty-check flush at session end,"
-                        + " adding unnecessary CPU overhead. Under connection-pool pressure,"
-                        + " this delays all requests — not just the query-heavy ones.",
+                "readOnly = true lets Spring mark the connection read-only (some drivers and routing DataSources "
+                        + "use that to pick a read replica) and, with JPA and Hibernate, sets the session flush mode to "
+                        + "MANUAL so no dirty-checking happens at the end. Without it, a query method pays to dirty-check "
+                        + "every entity it loaded and can never be routed to a replica.",
                 "The method carries @Transactional, its annotation attributes do not include"
                         + " readOnly = true, and its name starts with a recognized query prefix.",
                 "False positives occur for methods that read data and then conditionally write"
@@ -1384,17 +1381,15 @@ public final class RuleCatalog {
 
         put(catalog, CacheEvictMissingRule.ID,
                 "Class uses @Cacheable but has no cache eviction",
-                "performance", Severity.WARNING, ALL_LANGUAGES,
+                "performance", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using Spring Cache (@Cacheable, @CacheEvict, @CachePut)",
-                "A class declares at least one @Cacheable method but no @CacheEvict or"
-                        + " @CachePut method anywhere in the same declaring type. Without an"
-                        + " explicit eviction strategy, cache entries accumulate indefinitely.",
-                "In local caches (ConcurrentHashMap, Caffeine) the heap grows unboundedly;"
-                        + " in distributed caches (Redis, Hazelcast) the store fills until"
-                        + " eviction policies discard entries silently. Stale data is served"
-                        + " for the lifetime of the application or until a restart. The problem"
-                        + " is invisible in development (small data volumes, short sessions)"
-                        + " and surfaces weeks or months after go-live.",
+                "A class declares at least one @Cacheable method but no @CacheEvict or @CachePut method in the "
+                        + "same declaring type, so nothing in this class ever invalidates the cache.",
+                "A cache that is never invalidated serves stale data until its entries expire by configuration or "
+                        + "the application restarts. Whether that matters depends on the CacheManager: the default "
+                        + "in-memory cache never evicts, while Caffeine and Redis caches usually carry a TTL or a size "
+                        + "bound. Eviction is also often written in the service class that performs the write, which this "
+                        + "rule cannot see.",
                 "Methods are grouped by declaring type. A type with at least one @Cacheable"
                         + " method is checked for any @CacheEvict or @CachePut method. One"
                         + " finding is emitted per type, at the first @Cacheable method's location.",
@@ -1429,31 +1424,29 @@ public final class RuleCatalog {
         // ── Wave 5 ────────────────────────────────────────────────────────────
         put(catalog, ScheduledNonVoidReturnRule.ID,
                 "@Scheduled method with non-void return type — return value is silently discarded",
-                "correctness", Severity.WARNING, ALL_LANGUAGES,
+                "correctness", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using @Scheduled",
-                "A @Scheduled method declares a return type other than void. Spring invokes the"
-                        + " method reflectively via the task scheduler and discards the return"
-                        + " value without any warning at startup or at runtime.",
-                "The developer who added the return type expects the result to be observable"
-                        + " — for logging, chaining, or storage — but it is silently dropped"
-                        + " on every execution. This is a correctness bug with no compile-time"
-                        + " or runtime signal.",
+                "A @Scheduled method declares a return type other than void. Spring documents that the returned "
+                        + "value is ignored when the method is called by the scheduler. Methods returning a reactive "
+                        + "publisher (Spring 6.1 and later) are subscribed to instead and are not reported.",
+                "The value is dropped on every execution. Nothing fails, but a reader (or a caller of the same "
+                        + "method) that expects the result to go somewhere is misled.",
                 "The method carries @Scheduled and its declared return type is anything other"
                         + " than void (Java) or Unit (Kotlin).",
                 null);
 
         put(catalog, FeignClientNoFallbackRule.ID,
                 "@FeignClient without fallback — remote failures propagate with no degradation",
-                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Spring Cloud applications using OpenFeign (@FeignClient)",
                 "A @FeignClient interface declares no fallback or fallbackFactory attribute."
                         + " Any failure from the remote service — timeout, 5xx, network partition"
                         + " — propagates as an uncaught exception to the caller.",
-                "Without a fallback, a single unavailable downstream service can cascade"
-                        + " failures through the entire service chain. The caller has no"
-                        + " opportunity to return a safe default, serve from cache, or degrade"
-                        + " gracefully. A circuit breaker (Resilience4j) without a fallback"
-                        + " still throws an exception when the circuit is open.",
+                "Without a fallback a downstream failure reaches the caller as a FeignException. That is the "
+                        + "default and is often right when the caller handles it. Note that a Feign fallback is only used "
+                        + "when Spring Cloud CircuitBreaker is on the classpath and "
+                        + "spring.cloud.openfeign.circuitbreaker.enabled=true; declaring one without that setting has no "
+                        + "effect.",
                 "Methods are grouped by declaring type. Types with @FeignClient in their"
                         + " effective annotation set are checked for fallback or fallbackFactory"
                         + " attributes. One finding is emitted per affected Feign client type.",
@@ -1489,13 +1482,11 @@ public final class RuleCatalog {
                 "Java and Kotlin applications using Jackson ObjectMapper",
                 "A new ObjectMapper() is constructed inside a regular method body rather than"
                         + " being declared once as a shared Spring @Bean and injected.",
-                "ObjectMapper construction is expensive: the constructor scans the classpath"
-                        + " and registers all available serialisers, deserialisers, and modules."
-                        + " This can take tens of milliseconds and allocate hundreds of objects"
-                        + " on a cold JVM. Multiplied by request rate, this creates measurable"
-                        + " CPU and heap pressure that profilers attribute to construction,"
-                        + " not to serialisation itself. ObjectMapper is thread-safe after"
-                        + " construction and explicitly documented as a singleton candidate.",
+                "A fresh ObjectMapper has empty serializer and deserializer caches, so every call re-introspects "
+                        + "the classes it handles (reflection over properties, annotations and constructors). That cost is "
+                        + "paid again on each call and is far larger than the constructor itself. ObjectMapper is "
+                        + "thread-safe once configured and designed to be shared. Module discovery only happens if "
+                        + "findAndRegisterModules() is called; the constructor does not scan the classpath.",
                 "The rule walks method.invocations() looking for InvocationEvidence with"
                         + " methodName 'ObjectMapper' (constructor calls are recorded with the"
                         + " class name as method name). Methods annotated with @Bean,"
@@ -1642,11 +1633,11 @@ public final class RuleCatalog {
                         + " flush() and clear() anywhere in the same method. Every persisted entity"
                         + " accumulates in the first-level cache (persistence context) for the entire"
                         + " duration of the loop.",
-                "Hibernate must dirty-check every managed entity on every write. With N entities"
-                        + " in the loop, the dirty-check cost is O(N) per iteration — the total"
-                        + " work is O(N²). Memory pressure grows linearly with the number of"
-                        + " iterations. Imports of thousands of rows manifest as GC pressure,"
-                        + " extreme slowness, or OutOfMemoryError that is traced to the wrong place.",
+                "Every persisted entity stays in the persistence context for the whole loop, so memory grows "
+                        + "linearly with the number of rows and the final flush has to dirty-check all of them. If the loop "
+                        + "also runs queries, each query triggers an automatic flush that re-checks the whole context, "
+                        + "which is where the time becomes quadratic. Imports of many thousands of rows show up as GC "
+                        + "pressure, slowness or OutOfMemoryError.",
                 "A persist or merge invocation with insideLoop = true on an EntityManager-like"
                         + " receiver (scope or type contains entitymanager, em, session, or similar),"
                         + " where neither flush() nor clear() is present anywhere in the method's"
@@ -1822,18 +1813,15 @@ public final class RuleCatalog {
 
         put(catalog, TransactionalAsyncCombinationRule.ID,
                 "@Transactional and @Async both declared on the same method",
-                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "transactions", Severity.INFO, ALL_LANGUAGES,
                 "Spring services using async processing with database writes",
-                "A method annotated with both @Transactional and @Async will execute on a"
-                        + " new thread (via the @Async proxy) where no transaction context exists."
-                        + " Spring opens a brand-new independent transaction on the worker thread"
-                        + " that cannot participate in the caller's transaction.",
-                "@Transactional context is stored in a ThreadLocal bound to the calling thread."
-                        + " When @Async submits the work to a thread-pool executor, that ThreadLocal"
-                        + " is absent on the new thread. Each async invocation runs its own"
-                        + " independent transaction — a failure in the caller after the async method"
-                        + " committed leaves the database in a partially-written state with no"
-                        + " rollback possible.",
+                "A method annotated with both @Transactional and @Async. Spring applies the async advice first, "
+                        + "so the method runs on an executor thread and its transaction starts there: it is a separate "
+                        + "transaction from the caller's.",
+                "The combination works, but the transaction is independent of the caller's. If the caller rolls "
+                        + "back after calling the method, the async work stays committed, and the async method may run "
+                        + "before the caller's transaction commits, so it can read data the caller has not yet made "
+                        + "visible.",
                 "Project-wide scan for methods whose annotations() set contains both 'Transactional'"
                         + " and 'Async'. Confidence HIGH.",
                 "Meta-annotations (e.g. a custom @AsyncTransactional that carries both)"
@@ -1925,21 +1913,16 @@ public final class RuleCatalog {
 
         put(catalog, TransactionalEventListenerMissingPhaseRule.ID,
                 "@TransactionalEventListener without explicit phase",
-                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "transactions", Severity.INFO, ALL_LANGUAGES,
                 "Spring applications using ApplicationEventPublisher with @TransactionalEventListener",
-                "A @TransactionalEventListener method does not declare an explicit phase"
-                        + " attribute. Spring defaults to AFTER_COMMIT, which means the"
-                        + " originating transaction has already committed and its session is closed"
-                        + " when the listener runs.",
-                "Code that accesses lazy-loaded associations or writes to the database inside the"
-                        + " listener fails with LazyInitializationException or a closed-session error."
-                        + " When combined with @Async, the listener runs on a new thread with no"
-                        + " transaction context at all — writes land in auto-commit mode and cannot"
-                        + " be rolled back. This combination is one of the most common silent"
-                        + " data-consistency defects in event-driven Spring applications.",
-                "Methods carrying @TransactionalEventListener whose annotationAttributes map"
-                        + " contains no 'phase' key. Severity is elevated to ERROR when the"
-                        + " method also carries @Async. Confidence HIGH.",
+                "A @TransactionalEventListener method does not declare an explicit phase attribute. Spring "
+                        + "defaults to AFTER_COMMIT, where the originating transaction has already completed.",
+                "In the AFTER_COMMIT phase the transactional resource is still bound to the thread, but Spring "
+                        + "documents that interactions with it are not committed. A listener that writes (repository.save) "
+                        + "without @Transactional(propagation = REQUIRES_NEW) therefore loses those writes silently. "
+                        + "Leaving the phase implicit hides that contract from the next reader.",
+                "Methods carrying @TransactionalEventListener whose annotation attributes contain no 'phase' key. "
+                        + "Confidence HIGH.",
                 "A phase declared via a meta-annotation or @AliasFor is not resolved without"
                         + " symbol resolution and will not suppress the finding.");
 
@@ -2046,16 +2029,16 @@ public final class RuleCatalog {
 
         put(catalog, TransactionalOnRestControllerRule.ID,
                 "@Transactional on @RestController — database connection held for full HTTP cycle",
-                "transactions", Severity.WARNING, ALL_LANGUAGES,
+                "transactions", Severity.INFO, ALL_LANGUAGES,
                 "Spring MVC controllers annotated with @RestController or @Controller",
                 "A method on a @RestController or @Controller class is also annotated with"
                         + " @Transactional, placing a transaction boundary on the HTTP entry point"
                         + " rather than the service layer.",
-                "The database connection is held open for the entire HTTP request cycle, including"
-                        + " serialization, content negotiation, and view rendering. Under concurrency,"
-                        + " this inflates connection hold time and reduces pool availability."
-                        + " If serialization throws after the HTTP status is committed, the rollback"
-                        + " is invisible to the client — a 200 OK with no committed data.",
+                "A transaction at the controller method spans only that method: it commits when the method "
+                        + "returns, before serialization or view rendering. The cost is architectural. The web layer owns "
+                        + "the transaction boundary, so the same business operation cannot be reused from a scheduler or a "
+                        + "message listener, and any non-database work done inside the controller method (an HTTP call, a "
+                        + "slow computation) runs while the transaction and its connection are held.",
                 "Methods carrying both @Transactional and @RestController or @Controller in their"
                         + " effective annotation set. Class-level annotations are merged, so a"
                         + " class-level @Transactional on a controller is also detected."
@@ -2085,17 +2068,17 @@ public final class RuleCatalog {
                         + " to getBean() for lazily resolved or prototype-scoped dependencies.");
 
         put(catalog, AsyncVoidReturnRule.ID,
-                "@Async method returns void — exceptions silently discarded",
+                "@Async method returns void — failures reach only a default error log",
                 "concurrency", Severity.WARNING, ALL_LANGUAGES,
                 "@Async methods on Spring-managed beans",
-                "An @Async method has a void return type. Exceptions thrown inside the method"
-                        + " are passed to AsyncUncaughtExceptionHandler (default: logs once and"
-                        + " discards). The caller receives no failure signal.",
-                "Every exception thrown by every @Async void method is silently swallowed after"
-                        + " a log line that is easy to miss. Failures are invisible to callers,"
-                        + " cannot be surfaced in monitoring as errors, and cannot be retried"
-                        + " programmatically. Teams typically discover this only after a production"
-                        + " incident where background work silently stopped happening.",
+                "An @Async method has a void return type. Exceptions thrown inside the method are passed to "
+                        + "AsyncUncaughtExceptionHandler, whose default logs each one at ERROR level and discards it. The "
+                        + "caller receives no failure signal.",
+                "A void @Async method cannot report failure to its caller, and nothing can retry it "
+                        + "programmatically. Spring hands the exception to the AsyncUncaughtExceptionHandler; the default "
+                        + "(SimpleAsyncUncaughtExceptionHandler) logs every one at ERROR level with the stack trace. The "
+                        + "failure is therefore visible in the log, but it never becomes a metric, an alert or a result "
+                        + "unless a custom handler is configured.",
                 "Methods carrying @Async whose returnType is void, Void, or Unit. Confidence HIGH.",
                 "Methods intentionally fire-and-forget with a configured custom"
                         + " AsyncUncaughtExceptionHandler that alerts/records are false positives."
@@ -2122,16 +2105,15 @@ public final class RuleCatalog {
 
         put(catalog, CircuitBreakerWithoutFallbackRule.ID,
                 "@CircuitBreaker without fallbackMethod — open circuit throws uncaught exception",
-                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Resilience4j @CircuitBreaker annotations",
                 "A method annotated with @CircuitBreaker does not specify a fallbackMethod."
                         + " When the circuit opens, Resilience4j throws CallNotPermittedException"
                         + " directly to the caller — no graceful degradation.",
-                "Without a fallback, a circuit breaker is just a switch: it isolates downstream"
-                        + " failures but provides no user-facing degradation. The exception propagates"
-                        + " as-is, typically becoming a 500 Internal Server Error visible to end"
-                        + " users. The pattern provides only thread isolation, not graceful"
-                        + " degradation.",
+                "Without a fallback the open circuit surfaces CallNotPermittedException to the caller. That is "
+                        + "the documented default and is often right, when the caller or a global exception handler turns "
+                        + "it into a meaningful response. It becomes a problem when nothing does, and users see a generic "
+                        + "500 error.",
                 "Methods carrying @CircuitBreaker in their effective annotation set where the"
                         + " annotationAttributes map for CircuitBreaker contains no 'fallbackMethod'"
                         + " key or an empty value. Confidence HIGH.",
@@ -2141,15 +2123,15 @@ public final class RuleCatalog {
 
         put(catalog, BulkheadWithoutFallbackRule.ID,
                 "@Bulkhead without fallbackMethod — full bulkhead throws uncaught exception",
-                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "resilience", Severity.INFO, ALL_LANGUAGES,
                 "Resilience4j @Bulkhead annotations",
                 "A method annotated with @Bulkhead does not specify a fallbackMethod."
                         + " When all bulkhead slots are occupied, BulkheadFullException"
                         + " propagates to the caller as-is.",
-                "A bulkhead without graceful degradation limits concurrency but provides no"
-                        + " user-facing response. BulkheadFullException typically appears as an"
-                        + " unhandled 500 Internal Server Error instead of a 'service busy,"
-                        + " try again' response with appropriate retry guidance.",
+                "Without a fallback a full bulkhead surfaces BulkheadFullException to the caller. That is the "
+                        + "documented default and is often right when the caller or a global exception handler turns it "
+                        + "into a \"service busy\" response. It becomes a problem when nothing does, and users see a generic "
+                        + "500 error.",
                 "Methods carrying @Bulkhead in their effective annotation set where the"
                         + " annotationAttributes map for Bulkhead contains no 'fallbackMethod'"
                         + " key or an empty value. Confidence HIGH.",
@@ -2638,9 +2620,9 @@ public final class RuleCatalog {
                 "Spring Kafka listeners",
                 "A @KafkaListener method declares an Acknowledgment parameter but names no"
                         + " containerFactory.",
-                "acknowledge() only commits the offset when the container runs in a manual ack mode."
-                        + " In the default BATCH mode the call is ignored and offsets are committed regardless"
-                        + " of what the handler did, so failed messages are lost without an error.",
+                "acknowledge() only exists when the container runs in a manual ack mode. In any other mode Spring "
+                        + "passes null for the Acknowledgment parameter, so the first call to acknowledge() throws "
+                        + "NullPointerException and the record fails through the error handler.",
                 "A KafkaListener or KafkaHandler method with a parameter of type Acknowledgment and"
                         + " no containerFactory attribute. Confidence is LOW because the mode may be set"
                         + " elsewhere.",

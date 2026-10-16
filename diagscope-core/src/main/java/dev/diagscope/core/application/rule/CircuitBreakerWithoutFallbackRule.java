@@ -49,10 +49,11 @@ public final class CircuitBreakerWithoutFallbackRule implements ProjectRule {
 
         String display = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "'" + display + "' has @CircuitBreaker without a fallbackMethod."
                         + " When the circuit opens, CallNotPermittedException propagates to"
-                        + " callers directly — no graceful degradation, likely a 500 error.",
+                        + " callers directly. That is the default; make sure a caller or a global handler turns it"
+                        + " into a meaningful response.",
                 "Add fallbackMethod = \"methodName\" and implement the fallback to return a"
                         + " safe default, a cached value, or a meaningful error DTO."
                         + " The fallback must accept the same parameters plus a Throwable argument.",

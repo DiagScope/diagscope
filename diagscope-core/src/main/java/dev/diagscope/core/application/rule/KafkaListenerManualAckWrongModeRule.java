@@ -46,8 +46,8 @@ public final class KafkaListenerManualAckWrongModeRule implements ProjectRule {
             findings.add(new Finding(
                     ID, Severity.WARNING, Confidence.LOW, method.location(),
                     "'" + method.id().displayName() + "' takes an Acknowledgment but the listener names no containerFactory. Unless"
-                            + " the default factory or spring.kafka.listener.ack-mode is MANUAL, acknowledge() is ignored and"
-                            + " offsets are committed no matter what the handler did.",
+                            + " the default factory or spring.kafka.listener.ack-mode is MANUAL, Spring passes null for the"
+                            + " Acknowledgment and acknowledge() throws NullPointerException.",
                     "Confirm the ack mode is MANUAL or MANUAL_IMMEDIATE (spring.kafka.listener.ack-mode, or a"
                             + " ConcurrentKafkaListenerContainerFactory referenced by containerFactory). If it is, add"
                             + " containerFactory to the listener so the dependency is visible.",

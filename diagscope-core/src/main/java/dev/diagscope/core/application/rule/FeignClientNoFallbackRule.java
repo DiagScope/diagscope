@@ -89,10 +89,10 @@ public final class FeignClientNoFallbackRule implements ProjectRule {
                 : declaringType;
 
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.MEDIUM, firstFeignMethod.location(),
+                ID, Severity.INFO, Confidence.MEDIUM, firstFeignMethod.location(),
                 "'" + simpleName + "' is a @FeignClient with no fallback or fallbackFactory."
-                        + " A remote service failure propagates directly as an exception —"
-                        + " no graceful degradation is possible.",
+                        + " A remote service failure reaches the caller as an exception. A fallback only takes"
+                        + " effect when spring.cloud.openfeign.circuitbreaker.enabled=true.",
                 "Implement a fallback class that provides safe default responses and reference"
                         + " it: @FeignClient(name = \"...\", fallback = " + simpleName + "Fallback.class)."
                         + " The fallback class must implement the same interface. Use"

@@ -78,7 +78,7 @@ public final class EntityManagerClearInTransactionRule implements ProjectRule {
     private static boolean isEntityManagerReceiver(InvocationEvidence inv) {
         String scope = inv.scope() == null ? "" : inv.scope().toLowerCase();
         String receiver = inv.receiverType() == null ? "" : inv.receiverType().toLowerCase();
-        return scope.contains("em") || scope.contains("entitymanager")
+        return java.util.Arrays.asList(scope.split("[^a-z0-9]+")).contains("em") || scope.contains("entitymanager")
                 || receiver.contains("entitymanager");
     }
 }

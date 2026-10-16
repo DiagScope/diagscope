@@ -52,15 +52,14 @@ public final class TransactionalOnRestControllerRule implements ProjectRule {
 
         String display = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
+                ID, Severity.INFO, Confidence.HIGH, method.location(),
                 "'" + display + "' is both @Transactional and a controller method."
-                        + " The transaction holds a database connection open for the full HTTP"
-                        + " request cycle, including serialization. If serialization fails after"
-                        + " the HTTP status is committed, the rollback is invisible to the client.",
+                        + " The web layer owns the transaction boundary, so the operation cannot be reused from"
+                        + " a scheduler or a message listener, and any non-database work in this method"
+                        + " runs while the transaction and its connection are held.",
                 "Move @Transactional to the service-layer method that performs the actual"
                         + " business logic. The controller should delegate to the service and let"
-                        + " the transaction boundary live entirely within the service layer,"
-                        + " releasing the connection before HTTP serialization begins.",
+                        + " the transaction boundary live in the service layer.",
                 List.of(),
                 Map.of(
                         "method", display,

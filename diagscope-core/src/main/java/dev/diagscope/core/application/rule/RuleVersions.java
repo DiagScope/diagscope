@@ -99,6 +99,30 @@ public final class RuleVersions {
         overrides.put(TransactionIsolationDangerousRule.ID, "1.1.0");
         // A variable the method goes on to compare with null is an explicit absent case, not a leaked null.
         overrides.put(OptionalOrElseNullRule.ID, "1.1.0");
+        // Framework-claim audit of the WARNING rules (Spring, Spring Kafka, Spring Cloud OpenFeign, Resilience4j).
+        overrides.put(AsyncVoidReturnRule.ID, "1.0.1");
+        overrides.put(CacheEvictMissingRule.ID, "1.1.0");
+        overrides.put(CorsWildcardOriginRule.ID, "2.0.0");
+        overrides.put(CircuitBreakerWithoutFallbackRule.ID, "1.1.0");
+        overrides.put(BulkheadWithoutFallbackRule.ID, "1.1.0");
+        overrides.put(FeignClientNoFallbackRule.ID, "1.1.0");
+        overrides.put(EntityManagerClearInTransactionRule.ID, "1.0.1");
+        overrides.put(JdbcTemplateConnectionEscapeRule.ID, "1.1.0");
+        overrides.put(JpaBatchLoopWithoutFlushClearRule.ID, "1.0.1");
+        overrides.put(FieldInjectionUsedRule.ID, "1.0.1");
+        overrides.put(KafkaDeadLetterNotConfiguredRule.ID, "1.1.0");
+        overrides.put(KafkaListenerManualAckWrongModeRule.ID, "1.0.1");
+        overrides.put(MissingResponseStatusRule.ID, "1.0.1");
+        overrides.put(ObjectMapperCreatedPerRequestRule.ID, "1.0.1");
+        overrides.put(RetryOnAllExceptionsRule.ID, "1.0.1");
+        overrides.put(ScheduledNonVoidReturnRule.ID, "1.1.0");
+        overrides.put(ScheduledNoInitialDelayRule.ID, "1.1.0");
+        overrides.put(TransactionalAsyncCombinationRule.ID, "1.1.0");
+        overrides.put(TransactionalEventListenerMissingPhaseRule.ID, "2.0.0");
+        overrides.put(TransactionalOnRestControllerRule.ID, "2.0.0");
+        overrides.put(TransactionalReadOnlyMissingRule.ID, "1.0.1");
+        overrides.put(UnguardedThreadCreationRule.ID, "1.0.1");
+        overrides.put(ValueWithoutDefaultRule.ID, "1.1.0");
         return Map.copyOf(overrides);
     }
 }
