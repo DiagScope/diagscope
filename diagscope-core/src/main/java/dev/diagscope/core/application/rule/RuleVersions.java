@@ -90,6 +90,8 @@ public final class RuleVersions {
         // The scheduler logs and continues, so the finding is about missing job context; Async confidence is LOW.
         overrides.put(ScheduledExceptionNotHandledRule.ID, "2.0.0");
         overrides.put(AsyncDefaultExecutorRule.ID, "1.1.0");
+        // A variable the method goes on to compare with null is an explicit absent case, not a leaked null.
+        overrides.put(OptionalOrElseNullRule.ID, "1.1.0");
         return Map.copyOf(overrides);
     }
 }

@@ -165,6 +165,22 @@ class CalibrationRulesTest {
         assertThat(new UnmanagedAdviceTargetRule().evaluate(flow(scoped))).isEmpty();
     }
 
+    // ── OPTIONAL_OR_ELSE_NULL ────────────────────────────────────────────────
+
+    @Test
+    void orElseNull_isIgnoredWhenTheMethodChecksTheVariableForNull() {
+        var orElseNull = new InvocationEvidence(location(10), "parent", "Optional", "orElse", List.of("null"),
+                InvocationResultUsage.ASSIGNED, false, false, "current", false, false, false, List.of());
+        var unchecked = new MethodModel(new MethodId("example.Walker", "walk", List.of()), location(1), Set.of(),
+                List.of(), List.of(orElseNull), List.of(), List.of(), List.of());
+        var checked = new MethodModel(new MethodId("example.Walker", "walkChecked", List.of()), location(1), Set.of(),
+                List.of(), List.of(orElseNull), List.of(), List.of(), List.of(), ProxyProfile.unknown(),
+                Map.of(MethodModel.NULL_CHECKED_ANNOTATION, Map.of("names", "current")), CallableShape.fixed(0),
+                "void", false);
+        assertThat(new OptionalOrElseNullRule().evaluate(flow(unchecked))).hasSize(1);
+        assertThat(new OptionalOrElseNullRule().evaluate(flow(checked))).isEmpty();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static MethodModel controllerPost(String name, List<String> parameterTypes, Map<String, String> parameters,

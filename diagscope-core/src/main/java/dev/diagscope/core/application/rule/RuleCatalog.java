@@ -1591,8 +1591,9 @@ public final class RuleCatalog {
                         + " it, making root-cause analysis significantly harder.",
                 "A call to orElse() whose single argument is the literal null. Both Java"
                         + " and Kotlin parsers record argument text, so the check is syntactic.",
-                "Intentional interop with APIs that expect null (legacy serializers, nullable"
-                        + " JSON fields) may generate false positives. Suppress with diagscope:ignore"
+                "A result assigned to a variable that the method then compares with null is not reported:"
+                        + " the absent case is handled. Intentional interop with APIs that expect null (legacy"
+                        + " serializers, nullable JSON fields, a nullable return) may still generate false positives. Suppress with diagscope:ignore"
                         + " and an inline comment explaining the nullable contract.");
 
         put(catalog, AutowiredRequiredFalseUnsafeRule.ID,

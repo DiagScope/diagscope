@@ -30,6 +30,9 @@ public final class OptionalOrElseNullRule implements DiagnosticRule {
             var method = flowMethod.method();
             for (var invocation : method.invocations()) {
                 if (!isOrElseNull(invocation)) continue;
+                // A variable the method goes on to compare with null is an explicit, handled absent case.
+                if (!invocation.assignedTo().isBlank()
+                        && RuleSupport.nullCheckedNames(method).contains(invocation.assignedTo())) continue;
 
                 var confidence = Confidence.min(Confidence.HIGH, flowMethod.confidence());
                 findings.add(new Finding(
