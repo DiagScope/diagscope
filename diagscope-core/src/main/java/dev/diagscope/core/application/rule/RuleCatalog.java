@@ -586,22 +586,21 @@ public final class RuleCatalog {
                         + " produce too much noise.");
 
         put(catalog, HighMethodComplexityRule.ID,
-                "Method structural complexity is too high",
+                "Method cyclomatic complexity is too high",
                 "maintainability", Severity.WARNING, ALL_LANGUAGES,
                 "Any Java or Kotlin application",
-                "A method makes more than " + HighMethodComplexityRule.MAX_INVOCATIONS
-                        + " calls, or its combined complexity score (calls + catch-block weight)"
-                        + " exceeds " + HighMethodComplexityRule.COMPLEXITY_THRESHOLD + ".",
-                "High structural complexity correlates strongly with defect density and"
-                        + " maintenance cost. A method with many branches and many calls is hard"
-                        + " to unit-test in isolation and expensive to reason about during an"
-                        + " incident.",
-                "The number of method invocations in the body plus the number of catch blocks"
-                        + " (each weighted at 3x because a catch represents at least one additional"
-                        + " execution path) is computed as a proxy for cyclomatic complexity.",
-                "DiagScope cannot count if/else or switch branches without the full AST, so the"
-                        + " score is an approximation. Well-designed orchestration methods may"
-                        + " legitimately call many collaborators; tune the threshold if needed.");
+                "A method's cyclomatic complexity exceeds " + HighMethodComplexityRule.COMPLEXITY_THRESHOLD + ".",
+                "High cyclomatic complexity correlates strongly with defect density and maintenance"
+                        + " cost. A method with many branches needs many tests to cover its paths, is hard to"
+                        + " reason about during an incident, and is where unhandled combinations of conditions hide.",
+                "The parsers count McCabe cyclomatic complexity per method: one path plus one for each if,"
+                        + " for/while/do loop, catch clause, case or when branch, ternary, && / || operator and"
+                        + " Kotlin elvis. Lambdas count towards their enclosing method. The finding appears when the"
+                        + " count is above the threshold.",
+                "The count is syntactic: a flat switch over many enum values or a validation method made of simple"
+                        + " guards can be high and still easy to read. Generated or table-driven code is better"
+                        + " excluded with ignoredPaths in diagscope.yml. Methods the parsers did not measure are"
+                        + " skipped.");
 
         // ── Null safety ───────────────────────────────────────────────────────
         put(catalog, OptionalGetWithoutCheckRule.ID,

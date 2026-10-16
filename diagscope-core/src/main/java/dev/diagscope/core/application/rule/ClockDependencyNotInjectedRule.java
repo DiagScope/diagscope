@@ -54,10 +54,6 @@ public final class ClockDependencyNotInjectedRule implements ProjectRule {
             "BeforeEach", "BeforeAll", "Before", "Test"
     );
 
-    private static final Set<String> CLOCK_METHOD_NAMES = Set.of(
-            "now", "currentTimeMillis"
-    );
-
     private static final Set<String> DATETIME_TYPE_HINTS = Set.of(
             "LocalDateTime", "LocalDate", "Instant", "ZonedDateTime", "OffsetDateTime",
             "LocalTime", "MonthDay", "Year", "YearMonth"

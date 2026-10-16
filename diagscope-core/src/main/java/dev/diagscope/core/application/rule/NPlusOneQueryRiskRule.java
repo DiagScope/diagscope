@@ -81,7 +81,7 @@ public final class NPlusOneQueryRiskRule implements DiagnosticRule {
     }
 
     private static boolean isDatabaseCall(InvocationEvidence invocation) {
-        String receiverHint = (invocation.scope() + ' ' + invocation.receiverType())
+        String receiverHint = (RuleSupport.hintText(invocation))
                 .toLowerCase(Locale.ROOT);
         boolean repoReceiver = REPO_TYPE.matcher(receiverHint).matches();
 

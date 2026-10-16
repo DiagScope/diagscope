@@ -269,6 +269,40 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     function.getValueParameters().stream().map(KtParameter::getName)
                             .filter(Objects::nonNull).collect(java.util.stream.Collectors.joining(",")))));
         }
+        // McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their function).
+        int cyclomatic = 1
+                + countOwned(function, org.jetbrains.kotlin.psi.KtIfExpression.class, element -> true)
+                + countOwned(function, KtLoopExpression.class, element -> true)
+                + countOwned(function, KtCatchClause.class, element -> true)
+                + countOwned(function, org.jetbrains.kotlin.psi.KtWhenEntry.class, entry -> !entry.isElse())
+                + countOwned(function, KtBinaryExpression.class, binary -> {
+                    var token = binary.getOperationToken();
+                    return token == KtTokens.ANDAND || token == KtTokens.OROR || token == KtTokens.ELVIS;
+                });
+        methodAnnotations.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
+                Map.of("value", Integer.toString(cyclomatic))));
+        // Variables the function compares with null, calls through ?. or defaults with ?:, so rules can see the guard.
+        var nullChecked = new java.util.TreeSet<String>();
+        for (KtBinaryExpression binary : PsiTreeUtil.findChildrenOfType(function, KtBinaryExpression.class)) {
+            if (!belongsToFunction(binary, function) || binary.getLeft() == null || binary.getRight() == null) continue;
+            var token = binary.getOperationToken();
+            if (token == KtTokens.ELVIS) {
+                nullChecked.add(binary.getLeft().getText());
+            } else if (token == KtTokens.EQEQ || token == KtTokens.EXCLEQ
+                    || token == KtTokens.EQEQEQ || token == KtTokens.EXCLEQEQEQ) {
+                String left = binary.getLeft().getText();
+                String right = binary.getRight().getText();
+                if ("null".equals(right)) nullChecked.add(left);
+                else if ("null".equals(left)) nullChecked.add(right);
+            }
+        }
+        for (var safe : PsiTreeUtil.findChildrenOfType(function, org.jetbrains.kotlin.psi.KtSafeQualifiedExpression.class)) {
+            if (belongsToFunction(safe, function)) nullChecked.add(safe.getReceiverExpression().getText());
+        }
+        if (!nullChecked.isEmpty()) {
+            methodAnnotations.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
+                    Map.of("names", String.join(",", nullChecked))));
+        }
         methodAnnotations = List.copyOf(methodAnnotations);
 
         Map<String, String> variableTypes = declaredVariables(owner);
@@ -336,6 +370,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     List.of(assignment.getRight().getText()), InvocationResultUsage.IGNORED));
         }
 
+        // Receivers that are variables declared inside this function cannot be shared state.
+        var markedInvocations = InvocationEvidence.withLocalReceivers(invocations, localNames);
+
         int minimumArity = (int) function.getValueParameters().stream()
                 .filter(parameter -> !parameter.hasDefaultValue() && !parameter.isVarArg()).count();
         boolean vararg = function.getValueParameters().stream().anyMatch(KtParameter::isVarArg);
@@ -361,7 +398,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 .toList();
 
         return new RawMethod(id, location, typeAnnotations, methodAnnotations,
-                catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
+                catches, markedInvocations, dedupeTags(metricTags), dedupeMeters(metricNames),
                 List.copyOf(calls), Map.copyOf(variableTypes),
                 visibility(function), false, effectiveFinal(function, springOpened), returnType,
                 minimumArity, maximumArity, varargIndex,
@@ -1498,6 +1535,14 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         return !root.isBlank() && Character.isUpperCase(root.charAt(0)) ? root : "";
     }
 
+    private static <T extends PsiElement> int countOwned(
+            KtNamedFunction function, Class<T> type, java.util.function.Predicate<T> filter) {
+        return (int) PsiTreeUtil.findChildrenOfType(function, type).stream()
+                .filter(element -> belongsToFunction(element, function))
+                .filter(filter)
+                .count();
+    }
+
     private static boolean belongsToFunction(PsiElement element, KtNamedFunction function) {
         PsiElement current = element.getParent();
         while (current != null) {
@@ -1570,7 +1615,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 });
                 if (found) return true;
             } catch (IOException ignored) {
-                // Build-plugin detection improves proxy precision but is not required to parse sources.
+                // diagscope:ignore SILENT_CATCH -- build-plugin detection only improves proxy precision; sources parse without it
             }
         }
         return false;

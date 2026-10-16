@@ -17,6 +17,8 @@ import java.util.Objects;
  * @param lastInLambda whether the call is the last expression of a lambda body, whose value the lambda
  *        returns even though the call looks like a statement (Kotlin); rules that care about discarded results
  *        must not treat it as discarded
+ * @param localReceiver whether the receiver is a variable declared inside the method itself, so it cannot be
+ *        shared with another thread unless the method hands it out
  */
 public record InvocationEvidence(
         SourceLocation location,
@@ -32,7 +34,8 @@ public record InvocationEvidence(
         boolean insideLoop,
         boolean loggerReceiver,
         List<String> argumentTypes,
-        boolean lastInLambda
+        boolean lastInLambda,
+        boolean localReceiver
 ) {
     public InvocationEvidence {
         Objects.requireNonNull(location, "location");
@@ -61,7 +64,28 @@ public record InvocationEvidence(
             List<String> argumentTypes
     ) {
         this(location, scope, receiverType, methodName, arguments, resultUsage, producerListenerVisible,
-                resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver, argumentTypes, false);
+                resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver, argumentTypes, false, false);
+    }
+
+    public InvocationEvidence(
+            SourceLocation location,
+            String scope,
+            String receiverType,
+            String methodName,
+            List<String> arguments,
+            InvocationResultUsage resultUsage,
+            boolean producerListenerVisible,
+            boolean resourceManaged,
+            String assignedTo,
+            boolean insideFinally,
+            boolean insideLoop,
+            boolean loggerReceiver,
+            List<String> argumentTypes,
+            boolean lastInLambda
+    ) {
+        this(location, scope, receiverType, methodName, arguments, resultUsage, producerListenerVisible,
+                resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver, argumentTypes, lastInLambda,
+                false);
     }
 
     public InvocationEvidence(
@@ -158,7 +182,7 @@ public record InvocationEvidence(
         if (Objects.equals(receiverType, resolvedReceiverType)) return this;
         return new InvocationEvidence(location, scope, resolvedReceiverType, methodName, arguments, resultUsage,
                 producerListenerVisible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                argumentTypes, lastInLambda);
+                argumentTypes, lastInLambda, localReceiver);
     }
 
     /** Returns a copy that records a syntax-visible {@code ProducerListener} in the same project. */
@@ -167,6 +191,31 @@ public record InvocationEvidence(
                 ? this
                 : new InvocationEvidence(location, scope, receiverType, methodName, arguments, resultUsage,
                         visible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                        argumentTypes, lastInLambda);
+                        argumentTypes, lastInLambda, localReceiver);
+    }
+
+    /** The first identifier of the scope: {@code items} in {@code items.stream().filter(...)}; empty when none. */
+    public String scopeRoot() {
+        int end = 0;
+        while (end < scope.length() && (Character.isJavaIdentifierPart(scope.charAt(end)))) end++;
+        return scope.substring(0, end);
+    }
+
+    /**
+     * Marks every invocation whose receiver is one of {@code locals} — variables declared inside the method —
+     * so rules about shared state can ignore it.
+     */
+    public static List<InvocationEvidence> withLocalReceivers(List<InvocationEvidence> invocations, java.util.Set<String> locals) {
+        if (locals.isEmpty()) return invocations;
+        var result = new java.util.ArrayList<InvocationEvidence>(invocations.size());
+        for (InvocationEvidence invocation : invocations) {
+            boolean local = !invocation.localReceiver && locals.contains(invocation.scopeRoot());
+            result.add(!local ? invocation : new InvocationEvidence(invocation.location, invocation.scope,
+                    invocation.receiverType, invocation.methodName, invocation.arguments, invocation.resultUsage,
+                    invocation.producerListenerVisible, invocation.resourceManaged, invocation.assignedTo,
+                    invocation.insideFinally, invocation.insideLoop, invocation.loggerReceiver,
+                    invocation.argumentTypes, invocation.lastInLambda, true));
+        }
+        return List.copyOf(result);
     }
 }

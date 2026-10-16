@@ -142,7 +142,7 @@ public final class ExecutionContexts {
     }
 
     private static boolean executorLike(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("executor") || hint.contains("pool") || hint.contains("scheduler")
                 || hint.contains("infrastructure");
     }

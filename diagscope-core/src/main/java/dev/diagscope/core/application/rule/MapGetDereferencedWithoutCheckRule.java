@@ -62,6 +62,7 @@ public final class MapGetDereferencedWithoutCheckRule implements DiagnosticRule 
                 if (variable.isBlank()) continue;
 
                 firstDereferenceAfter(method.invocations(), getCall, variable).ifPresent(dereference -> {
+                    if (RuleSupport.nullCheckedNames(method).contains(variable)) return;
                     if (hasNullGuardBefore(method.invocations(), variable, getCall, dereference)) return;
 
                     var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
@@ -88,7 +89,7 @@ public final class MapGetDereferencedWithoutCheckRule implements DiagnosticRule 
         if (!"get".equals(invocation.methodName())) return false;
         // Require exactly one argument (the key) — distinguishes Map.get(k) from getBean(name, type)
         if (invocation.arguments().size() != 1) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return MAP_HINTS.stream().anyMatch(hint::contains);
     }
 

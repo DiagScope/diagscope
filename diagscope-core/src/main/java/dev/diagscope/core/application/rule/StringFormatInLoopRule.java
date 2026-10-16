@@ -10,7 +10,6 @@ import dev.diagscope.core.domain.Severity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Reports {@code String.format()} or {@code MessageFormat.format()} called inside a loop body.
@@ -41,8 +40,6 @@ import java.util.Set;
 public final class StringFormatInLoopRule implements DiagnosticRule {
 
     public static final String ID = "STRING_FORMAT_IN_LOOP";
-
-    private static final Set<String> FORMAT_CLASSES = Set.of("string", "messageformat", "String", "MessageFormat");
 
     @Override
     public String id() {
@@ -82,7 +79,7 @@ public final class StringFormatInLoopRule implements DiagnosticRule {
 
     private static boolean isFormatCall(InvocationEvidence invocation) {
         if (!invocation.methodName().equals("format")) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("string") || hint.contains("messageformat");
     }
 

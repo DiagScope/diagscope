@@ -75,7 +75,7 @@ public final class FutureGetWithoutTimeoutRule implements DiagnosticRule {
     }
 
     private static boolean looksLikeFuture(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("future") || hint.contains("completablefuture")
                 || hint.contains("listenablefuture") || hint.contains("scheduledresult")
                 || hint.contains("asyncresult") || hint.contains("deferredresult");

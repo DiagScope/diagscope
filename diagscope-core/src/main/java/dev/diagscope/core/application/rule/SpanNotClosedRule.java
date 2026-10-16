@@ -114,7 +114,7 @@ public final class SpanNotClosedRule implements DiagnosticRule {
 
     /** True when the receiver/scope suggests a tracing tracer (span builder or active tracer). */
     private static boolean looksLikeTracer(InvocationEvidence inv) {
-        String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
         return hint.contains("tracer") || hint.contains("tracing") || hint.contains("otel")
                 || hint.contains("opentelemetry") || hint.contains("brave")
                 || hint.contains("span") || hint.contains("scope");
@@ -122,7 +122,7 @@ public final class SpanNotClosedRule implements DiagnosticRule {
 
     /** True when the receiver/scope suggests a span that needs to be closed. */
     private static boolean looksLikeSpan(InvocationEvidence inv) {
-        String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
         return hint.contains("span") || hint.contains("scope") || hint.contains("tracer");
     }
 }

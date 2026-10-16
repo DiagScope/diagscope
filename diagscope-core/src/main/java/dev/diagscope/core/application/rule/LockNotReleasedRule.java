@@ -91,7 +91,7 @@ public final class LockNotReleasedRule implements DiagnosticRule {
     }
 
     private static boolean looksLikeLock(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("lock") || hint.contains("mutex") || hint.contains("reentrant")
                 || hint.contains("readlock") || hint.contains("writelock");
     }

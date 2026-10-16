@@ -77,7 +77,7 @@ public final class OptionalGetWithoutCheckRule implements DiagnosticRule {
     }
 
     private static boolean looksLikeOptional(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("optional") || hint.contains("opt");
     }
 

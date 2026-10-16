@@ -7,9 +7,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Reviewed waivers declared in the project configuration file.
@@ -104,17 +102,5 @@ public final class FindingSuppressions {
     private static String fingerprint(Finding finding) {
         String value = finding.fingerprint();
         return value.startsWith("sha256:") ? value.substring("sha256:".length()) : value;
-    }
-
-    static Set<String> fingerprintsOf(List<Waiver> waivers) {
-        var fingerprints = new LinkedHashSet<String>();
-        waivers.forEach(waiver -> fingerprints.add(waiver.fingerprint()));
-        return Set.copyOf(fingerprints);
-    }
-
-    static Map<String, String> reasonsOf(List<Waiver> waivers) {
-        var reasons = new LinkedHashMap<String, String>();
-        waivers.forEach(waiver -> reasons.put(waiver.fingerprint(), waiver.reason()));
-        return Map.copyOf(reasons);
     }
 }

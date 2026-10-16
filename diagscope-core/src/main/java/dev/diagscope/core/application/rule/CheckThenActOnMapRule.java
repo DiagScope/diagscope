@@ -34,8 +34,9 @@ import java.util.Set;
  * {@link java.util.concurrent.CopyOnWriteArrayList#addIfAbsent}.</p>
  *
  * <p>A finding is only emitted when both the check and the mutating call target the
- * <em>same named receiver</em> and no atomic variant is already present on that
- * receiver — this keeps the false-positive rate low.</p>
+ * <em>same named receiver</em>, no atomic variant is already present on that receiver, and the
+ * receiver is not a variable declared inside the method — a collection that never leaves the method
+ * cannot race. This keeps the false-positive rate low.</p>
  */
 public final class CheckThenActOnMapRule implements DiagnosticRule {
 
@@ -76,7 +77,8 @@ public final class CheckThenActOnMapRule implements DiagnosticRule {
 
             for (var inv : invocations) {
                 String scope = scope(inv);
-                if (scope.isBlank()) continue;
+                // A collection created inside the method is not shared with other threads: no race to report.
+                if (scope.isBlank() || inv.localReceiver()) continue;
                 if (ATOMIC_ALTERNATIVES.contains(inv.methodName())) {
                     atomicReceivers.add(scope);
                 }

@@ -54,7 +54,7 @@ public final class KafkaDeadLetterNotConfiguredRule implements DiagnosticRule {
         // Suppress when any invocation in the method body mentions a DLT-aware recoverer.
         boolean hasDltRecoverer = method.invocations().stream()
                 .anyMatch(inv -> {
-                    String hint = (inv.scope() + ' ' + inv.receiverType()
+                    String hint = (RuleSupport.hintText(inv)
                             + ' ' + inv.methodName()).toLowerCase(Locale.ROOT);
                     return hint.contains("deadletter") || hint.contains("dlt")
                             || hint.contains("recoverer") || hint.contains("dlq");

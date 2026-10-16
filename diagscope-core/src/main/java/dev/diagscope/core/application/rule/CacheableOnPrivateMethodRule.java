@@ -4,7 +4,6 @@ import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.MethodModel;
-import dev.diagscope.core.domain.MethodVisibility;
 import dev.diagscope.core.domain.Severity;
 
 import java.util.ArrayList;

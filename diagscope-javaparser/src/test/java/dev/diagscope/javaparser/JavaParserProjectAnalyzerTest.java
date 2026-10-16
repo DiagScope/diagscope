@@ -602,6 +602,101 @@ class JavaParserProjectAnalyzerTest {
                 new SystemOutputRule());
     }
 
+    @Test
+    void measures_cyclomatic_complexity_and_marks_receivers_declared_inside_the_method() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("complexity"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/java/sample"));
+        Files.writeString(sourceRoot.resolve("Shared.java"), """
+                package sample;
+
+                import java.util.HashMap;
+                import java.util.HashSet;
+                import java.util.Map;
+                import java.util.Set;
+
+                class Shared {
+                    private final Map<String, String> cache = new HashMap<>();
+
+                    int branches(int code, boolean strict) {
+                        int total = 0;
+                        for (int i = 0; i < code; i++) {
+                            if (i % 2 == 0 && strict) {
+                                total += i;
+                            }
+                        }
+                        try {
+                            total += code > 0 ? 1 : 2;
+                        } catch (RuntimeException e) {
+                            total = 0;
+                        }
+                        switch (code) {
+                            case 1: total++; break;
+                            case 2: total--; break;
+                            default: break;
+                        }
+                        return total;
+                    }
+
+                    void local(String key) {
+                        Set<String> seen = new HashSet<>();
+                        if (!seen.contains(key)) {
+                            seen.add(key);
+                        }
+                    }
+
+                    void shared(String key) {
+                        if (!cache.containsKey(key)) {
+                            cache.put(key, key);
+                        }
+                    }
+                }
+                """);
+
+        var analyzed = new JavaParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(analyzed.parseFailures()).isEmpty();
+        // 1 + for + if + && + ternary + catch + two case labels
+        assertThat(method(analyzed, "sample.Shared", "branches").cyclomaticComplexity()).contains(8);
+        assertThat(method(analyzed, "sample.Shared", "local").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("contains") || invocation.methodName().equals("add"))
+                .isNotEmpty().allMatch(invocation -> invocation.localReceiver());
+        assertThat(method(analyzed, "sample.Shared", "shared").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("containsKey") || invocation.methodName().equals("put"))
+                .isNotEmpty().noneMatch(invocation -> invocation.localReceiver());
+    }
+
+    @Test
+    void records_the_variables_a_method_compares_with_null() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("nullchecks"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/java/sample"));
+        Files.writeString(sourceRoot.resolve("Guards.java"), """
+                package sample;
+
+                import java.util.Map;
+
+                class Guards {
+                    int guarded(Map<String, String> map, String key) {
+                        String value = map.get(key);
+                        if (value == null) {
+                            return 0;
+                        }
+                        return value.length();
+                    }
+
+                    int unguarded(Map<String, String> map, String key) {
+                        return map.get(key).length();
+                    }
+                }
+                """);
+
+        var analyzed = new JavaParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "sample.Guards", "guarded").annotationAttribute("NullChecked", "names")).contains("value");
+        assertThat(method(analyzed, "sample.Guards", "unguarded").annotationAttribute("NullChecked", "names")).isEmpty();
+    }
+
     private static MethodModel method(AnalyzedProject project, String declaringType, String name) {
         return project.methods().values().stream()
                 .filter(method -> declaringType.equals(method.id().declaringType()) && name.equals(method.id().name()))

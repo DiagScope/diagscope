@@ -83,7 +83,7 @@ final class DatabaseResources {
     }
 
     private static String hint(InvocationEvidence invocation) {
-        return (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        return (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
     }
 
     /** How a resource variable is released inside the method that acquired it. */

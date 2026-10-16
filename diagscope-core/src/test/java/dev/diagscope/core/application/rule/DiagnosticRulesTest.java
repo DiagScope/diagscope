@@ -681,7 +681,7 @@ class DiagnosticRulesTest {
     void flowException_collect_noCatch_reported() {
         var inv = new InvocationEvidence(location(10), "myFlow", "",
                 "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
-        var m = method(List.of(), List.of(inv), List.of());
+        var m = kotlinMethod(List.of(), List.of(inv));
         assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m)))
                 .hasSize(1)
                 .allSatisfy(f -> {
@@ -696,7 +696,7 @@ class DiagnosticRulesTest {
         var inv = new InvocationEvidence(location(10),
                 "myFlow.catch { ex -> logger.error(ex) }", "",
                 "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
-        var m = method(List.of(), List.of(inv), List.of());
+        var m = kotlinMethod(List.of(), List.of(inv));
         assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
     }
 
@@ -707,7 +707,7 @@ class DiagnosticRulesTest {
                 "catch", List.of("{ ex -> logger.error(ex) }"), InvocationResultUsage.ASSIGNED);
         var collectInv = new InvocationEvidence(location(10), "safeFlow", "",
                 "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
-        var m = method(List.of(), List.of(catchInv, collectInv), List.of());
+        var m = kotlinMethod(List.of(), List.of(catchInv, collectInv));
         assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
     }
 
@@ -716,7 +716,24 @@ class DiagnosticRulesTest {
         var inv = new InvocationEvidence(location(10), "myFlow", "",
                 "collect", List.of("{ item -> process(item) }"), InvocationResultUsage.IGNORED);
         var catchBlock = catchEvidence(11, false, true, false, false, "", false);
-        var m = method(List.of(catchBlock), List.of(inv), List.of());
+        var m = kotlinMethod(List.of(catchBlock), List.of(inv));
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void flowException_javaStreamCollect_notReported() {
+        // Stream.collect(Collectors...) in a Java file has nothing to do with kotlinx.coroutines Flow.
+        var inv = new InvocationEvidence(location(10), "items.stream()", "",
+                "collect", List.of("Collectors.toList()"), InvocationResultUsage.ASSIGNED);
+        var m = method(List.of(), List.of(inv), List.of());
+        assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
+    }
+
+    @Test
+    void flowException_collectorsInAKotlinFile_notReported() {
+        var inv = new InvocationEvidence(location(10), "items.stream()", "",
+                "collect", List.of("Collectors.toList()"), InvocationResultUsage.ASSIGNED);
+        var m = kotlinMethod(List.of(), List.of(inv));
         assertThat(new FlowExceptionNotCaughtRule().evaluate(project(m))).isEmpty();
     }
 
@@ -1822,6 +1839,50 @@ class DiagnosticRulesTest {
         assertThat(new MapGetDereferencedWithoutCheckRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
     }
 
+    @Test
+    void map_get_dereferenced_is_suppressed_when_the_variable_is_compared_with_null() {
+        var get = new InvocationEvidence(location(10), "cache", "Map",
+                "get", List.of("key"), InvocationResultUsage.ASSIGNED,
+                false, false, "value", false, false, false);
+        var deref = new InvocationEvidence(location(12), "value", "String",
+                "toUpperCase", List.of(), InvocationResultUsage.OBSERVED);
+        // `if (value == null) return;` is not an invocation: the parsers record it as the NullChecked marker.
+        MethodModel method = new MethodModel(
+                new MethodId("example.Controller", "execute", List.of()), location(1),
+                Set.of(MethodModel.NULL_CHECKED_ANNOTATION), List.of(), List.of(get, deref), List.of(), List.of(),
+                List.of(), ProxyProfile.unknown(),
+                Map.of(MethodModel.NULL_CHECKED_ANNOTATION, Map.of("names", "other,value")),
+                CallableShape.fixed(0), "", false);
+
+        assertThat(new MapGetDereferencedWithoutCheckRule().evaluate(flow(method, Confidence.HIGH))).isEmpty();
+    }
+
+    // ── FallbackHidesFailureRule ──────────────────────────────────────────────
+
+    @Test
+    void fallback_detection_uses_the_method_name_and_the_failure_parameter() {
+        var fallback = new MethodModel(new MethodId("example.PaymentService", "fallbackCharge", List.of("String", "Throwable")),
+                location(1), Set.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var namedByClass = new MethodModel(new MethodId("example.FallbackHidesFailureRule", "evaluate", List.of("Flow")),
+                location(2), Set.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var helper = new MethodModel(new MethodId("example.Rule", "isFallback", List.of("MethodModel")),
+                location(3), Set.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var handler = new MethodModel(new MethodId("example.Rule", "hasFallbackHandler", List.of("String", "IOException")),
+                location(4), Set.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+
+        var entrypoint = new Entrypoint(EntrypointType.REST, fallback.id(), "GET /x", fallback.location());
+        var flow = new Flow(entrypoint, List.of(
+                new FlowMethod(fallback, 0, Confidence.HIGH, List.of(fallback.id())),
+                new FlowMethod(namedByClass, 1, Confidence.HIGH, List.of(fallback.id(), namedByClass.id())),
+                new FlowMethod(helper, 1, Confidence.HIGH, List.of(fallback.id(), helper.id())),
+                new FlowMethod(handler, 1, Confidence.HIGH, List.of(fallback.id(), handler.id()))), List.of());
+
+        assertThat(new FallbackHidesFailureRule().evaluate(flow))
+                .extracting(f -> f.evidence().get("method"))
+                .containsExactlyInAnyOrder("example.PaymentService.fallbackCharge(String,Throwable)",
+                        "example.Rule.hasFallbackHandler(String,IOException)");
+    }
+
     // ── TransactionIsolationDangerousRule ─────────────────────────────────────
 
     @Test
@@ -1996,6 +2057,14 @@ class DiagnosticRulesTest {
                 location(1), Set.of("Repository"), List.of(), List.of(), List.of(), List.of(),
                 List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(paramTypes.size()), returnType, false);
+    }
+
+    /** A method declared in a Kotlin source file, the only place a coroutines Flow can appear. */
+    private static MethodModel kotlinMethod(List<CatchEvidence> catches, List<InvocationEvidence> invocations) {
+        return new MethodModel(
+                new MethodId("example.Worker", "run", List.of()),
+                new SourceLocation(Path.of("src/main/kotlin/example/Worker.kt"), 1, 1),
+                Set.of(), catches, invocations, List.of(), List.of(), List.of());
     }
 
     private static AnalyzedProject project(MethodModel... methods) {

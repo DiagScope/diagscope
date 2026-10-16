@@ -80,7 +80,7 @@ public final class RegexCompiledInLoopRule implements DiagnosticRule {
 
     private static boolean isPatternCompile(InvocationEvidence invocation) {
         if (!invocation.methodName().equals("compile")) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("pattern");
     }
 }

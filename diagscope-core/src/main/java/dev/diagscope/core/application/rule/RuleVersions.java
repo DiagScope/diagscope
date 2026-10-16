@@ -70,6 +70,15 @@ public final class RuleVersions {
         // Detection moved from lambda text to typed invocations and suspend functions; findings are now
         // anchored at the blocking call instead of the builder, so existing fingerprints change.
         overrides.put(BlockingCallInCoroutineRule.ID, "2.0.0");
+        // Complexity is now McCabe cyclomatic complexity measured by the parsers instead of a call count, so
+        // different methods are reported.
+        overrides.put(HighMethodComplexityRule.ID, "2.0.0");
+        // The flow-only Kotlin Flow rule no longer reports Java Stream.collect(...) calls.
+        overrides.put(FlowExceptionNotCaughtRule.ID, "1.0.1");
+        // Fallback detection matches the method name, not the declaring class name.
+        overrides.put(FallbackHidesFailureRule.ID, "1.0.1");
+        // Collections declared inside the method are no longer reported.
+        overrides.put(CheckThenActOnMapRule.ID, "1.0.1");
         return Map.copyOf(overrides);
     }
 }

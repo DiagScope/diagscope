@@ -60,7 +60,7 @@ public final class DiagnosticSignals {
 
     private static boolean looksLikeLogger(InvocationEvidence invocation) {
         if (invocation.loggerReceiver()) return true;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("logger") || hint.matches(".*\\blog\\b.*") || hint.contains("slf4j");
     }
 
@@ -102,7 +102,7 @@ public final class DiagnosticSignals {
     /** True when the invocation registers or creates a metric instrument. */
     public static boolean isMetricRegistration(InvocationEvidence invocation) {
         if (!METRIC_REGISTRATION_METHODS.contains(invocation.methodName())) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("registry") || hint.contains("meter") || hint.contains("metric")
                 || hint.contains("counter") || hint.contains("timer") || hint.contains("micrometer");
     }
@@ -176,7 +176,7 @@ public final class DiagnosticSignals {
 
     /** True when the invocation targets the logging MDC (or an equivalent context map). */
     public static boolean isMdcCall(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("mdc") || hint.contains("threadcontext");
     }
 
@@ -193,7 +193,7 @@ public final class DiagnosticSignals {
     /** True when the invocation hands work to another thread. */
     public static boolean isAsyncDispatch(InvocationEvidence invocation) {
         if (!ASYNC_DISPATCH_METHODS.contains(invocation.methodName())) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("executor") || hint.contains("completablefuture") || hint.contains("pool")
                 || hint.contains("scheduler") || hint.contains("thread") || hint.contains("async");
     }

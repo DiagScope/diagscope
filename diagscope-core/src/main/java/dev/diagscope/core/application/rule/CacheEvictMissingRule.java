@@ -8,10 +8,8 @@ import dev.diagscope.core.domain.Severity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Reports classes that declare at least one {@code @Cacheable} method but no

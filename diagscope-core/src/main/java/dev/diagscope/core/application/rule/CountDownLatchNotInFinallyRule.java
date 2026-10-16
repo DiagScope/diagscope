@@ -4,14 +4,12 @@ import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.InvocationEvidence;
-import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.Severity;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Reports {@code CountDownLatch.countDown()} that is not in a {@code finally} block while other work precedes it.

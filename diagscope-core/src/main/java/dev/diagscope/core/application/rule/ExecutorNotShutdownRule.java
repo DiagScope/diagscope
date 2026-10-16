@@ -55,7 +55,7 @@ public final class ExecutorNotShutdownRule implements DiagnosticRule {
 
             boolean hasShutdown = method.invocations().stream()
                     .anyMatch(inv -> SHUTDOWN_METHODS.contains(inv.methodName())
-                            && looksLikeExecutor(inv.scope() + ' ' + inv.receiverType()));
+                            && looksLikeExecutor(RuleSupport.hintText(inv)));
             if (hasShutdown) continue;
 
             for (var inv : factories) {
@@ -86,7 +86,7 @@ public final class ExecutorNotShutdownRule implements DiagnosticRule {
         var result = new ArrayList<InvocationEvidence>();
         for (var inv : invocations) {
             if (!FACTORY_METHODS.contains(inv.methodName())) continue;
-            String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+            String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
             // Static factory call: scope may be "Executors" or empty.
             if (hint.isBlank() || hint.contains("executor") || hint.contains("thread")) {
                 result.add(inv);

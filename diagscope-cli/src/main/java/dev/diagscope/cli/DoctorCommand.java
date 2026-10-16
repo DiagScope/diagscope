@@ -8,7 +8,6 @@ import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.application.rule.RuleCatalog;
 import dev.diagscope.core.domain.BuildSystem;
-import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.core.domain.ProjectLayout;
 import dev.diagscope.core.domain.ResolutionReason;
 import dev.diagscope.jvmanalysis.ProjectLayoutDetector;
@@ -343,7 +342,7 @@ public final class DoctorCommand implements Callable<Integer> {
             try (Stream<Path> walk = Files.walk(root)) {
                 count += walk.filter(Files::isRegularFile).filter(filter).count();
             } catch (IOException ignored) {
-                // unreadable root — skip silently, parse failure will surface in scan health
+                // diagscope:ignore SILENT_CATCH -- an unreadable root is skipped on purpose; real parse failures surface in scan health
             }
         }
         return count;
@@ -359,7 +358,7 @@ public final class DoctorCommand implements Callable<Integer> {
                 try {
                     builder.append(Files.readString(descriptor)).append('\n');
                 } catch (IOException ignored) {
-                    // best-effort
+                    // diagscope:ignore SILENT_CATCH -- best-effort read: a missing descriptor only reduces what doctor reports
                 }
             }
         }

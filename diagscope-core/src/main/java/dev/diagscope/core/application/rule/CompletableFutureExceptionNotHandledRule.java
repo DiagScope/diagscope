@@ -98,7 +98,7 @@ public final class CompletableFutureExceptionNotHandledRule implements Diagnosti
     }
 
     private static boolean looksLikeFuture(InvocationEvidence inv) {
-        String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
         return hint.contains("future") || hint.contains("completable") || hint.contains("async")
                 || hint.isBlank(); // static CompletableFuture.supplyAsync()
     }

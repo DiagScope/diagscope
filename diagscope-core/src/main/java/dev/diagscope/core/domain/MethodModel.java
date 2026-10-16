@@ -46,6 +46,12 @@ public record MethodModel(
      */
     public static final String SUSPEND_ANNOTATION = "Suspend";
 
+    /**
+     * Synthetic annotation carrying the method's McCabe cyclomatic complexity in its {@code value} attribute:
+     * one plus the number of branches, loops, catch clauses, case labels, ternaries and short-circuit operators.
+     */
+    public static final String CYCLOMATIC_ANNOTATION = "Cyclomatic";
+
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");
@@ -162,6 +168,25 @@ public record MethodModel(
             List<MethodCall> calls
     ) {
         this(id, location, annotations, catches, invocations, metricTags, List.of(), calls);
+    }
+
+    /**
+     * Synthetic annotation listing, in its {@code names} attribute (comma separated), the variables the method
+     * visibly checks for null: compared with {@code null}, used as the receiver of a Kotlin safe call, or on the left
+     * of an elvis. Rules that look for an unguarded dereference use it, because a {@code == null} test is not an
+     * invocation and would otherwise be invisible.
+     */
+    public static final String NULL_CHECKED_ANNOTATION = "NullChecked";
+
+    /** The method's cyclomatic complexity as recorded by the parsers, or empty when it is unknown. */
+    public Optional<Integer> cyclomaticComplexity() {
+        return annotationAttribute(CYCLOMATIC_ANNOTATION, "value").flatMap(value -> {
+            try {
+                return Optional.of(Integer.parseInt(value));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        });
     }
 
     /** Convenience accessor: the class that declares this method. */

@@ -66,7 +66,7 @@ public final class ThreadLocalLeakRule implements DiagnosticRule {
     }
 
     private static boolean looksLikeThreadLocal(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("threadlocal") || hint.contains("thread_local")
                 || hint.contains("inheritablethreadlocal");
     }

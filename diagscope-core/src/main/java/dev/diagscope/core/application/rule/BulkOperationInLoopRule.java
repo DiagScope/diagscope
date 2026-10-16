@@ -95,7 +95,7 @@ public final class BulkOperationInLoopRule implements DiagnosticRule {
 
     private static boolean isWriteCall(InvocationEvidence invocation) {
         if (!WRITE_METHODS.contains(invocation.methodName())) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         // Require a persistence-looking receiver so we do not flag close/write on streams.
         return REPO_TYPE.matcher(hint).matches()
                 || hint.contains("entitymanager") || hint.contains("session");

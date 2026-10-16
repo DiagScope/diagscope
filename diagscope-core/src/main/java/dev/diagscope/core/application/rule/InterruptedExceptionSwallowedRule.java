@@ -83,7 +83,7 @@ public final class InterruptedExceptionSwallowedRule implements DiagnosticRule {
     private static boolean restoresInterruptFlag(MethodModel method) {
         for (InvocationEvidence inv : method.invocations()) {
             if (!"interrupt".equals(inv.methodName())) continue;
-            String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+            String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
             if (hint.contains("thread") || hint.contains("currentthread") || hint.isBlank()) {
                 return true;
             }

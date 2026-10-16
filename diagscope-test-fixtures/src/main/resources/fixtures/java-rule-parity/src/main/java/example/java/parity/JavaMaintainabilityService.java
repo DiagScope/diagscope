@@ -13,6 +13,9 @@ import java.util.Map;
 @Service
 class JavaMaintainabilityService {
 
+    private final Map<String, String> sharedCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.List<String> sharedItems = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     // ── CHECK_THEN_ACT_ON_MAP ────────────────────────────────────────────────
 
     /**
@@ -20,9 +23,19 @@ class JavaMaintainabilityService {
      * receiver in the same method — a classic race condition under concurrent access.
      */
     void registerIfAbsent(String key, String value) {
+        if (!sharedCache.containsKey(key)) {
+            sharedCache.put(key, value); // non-atomic: another thread can interleave here
+        }
+    }
+
+    /**
+     * SAFE: the same check-then-act on a map created inside the method. It never leaves the method, so no
+     * other thread can interleave.
+     */
+    void registerIfAbsentLocalOnly(String key, String value) {
         Map<String, String> cache = new HashMap<>();
         if (!cache.containsKey(key)) {
-            cache.put(key, value); // non-atomic: another thread can interleave here
+            cache.put(key, value);
         }
     }
 
@@ -38,9 +51,8 @@ class JavaMaintainabilityService {
      * TRIGGERS CHECK_THEN_ACT_ON_MAP via contains + add on a Collection receiver.
      */
     void addIfNotPresent(String item) {
-        java.util.List<String> items = new java.util.ArrayList<>();
-        if (!items.contains(item)) {
-            items.add(item); // non-atomic
+        if (!sharedItems.contains(item)) {
+            sharedItems.add(item); // non-atomic
         }
     }
 
@@ -67,6 +79,5 @@ class JavaMaintainabilityService {
                         String region, String currency, String channel) {}
 
     // ── HIGH_METHOD_COMPLEXITY ────────────────────────────────────────────────
-    // Covered by the controller's inspect() method, which makes more than the
-    // threshold number of calls and is therefore reported automatically.
+    // Covered by the dedicated controller fixture (JavaComplexityController / KotlinComplexityController).
 }

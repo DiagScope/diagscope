@@ -88,7 +88,7 @@ public final class SequentialFutureJoinInLoopRule implements DiagnosticRule {
     }
 
     private static boolean looksLikeFuture(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("future") || hint.contains("completable");
     }
 }

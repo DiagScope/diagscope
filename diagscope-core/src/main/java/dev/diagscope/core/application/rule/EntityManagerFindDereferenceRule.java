@@ -40,6 +40,7 @@ public final class EntityManagerFindDereferenceRule implements DiagnosticRule {
                 if (variable.isBlank()) continue;
 
                 firstDereferenceAfter(method.invocations(), findCall, variable).ifPresent(dereference -> {
+                    if (RuleSupport.nullCheckedNames(method).contains(variable)) return;
                     if (hasNullGuardBefore(method.invocations(), variable, findCall, dereference)) return;
 
                     var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
@@ -64,7 +65,7 @@ public final class EntityManagerFindDereferenceRule implements DiagnosticRule {
 
     private static boolean isEntityManagerFind(InvocationEvidence invocation) {
         if (!"find".equals(invocation.methodName())) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return hint.contains("entitymanager");
     }
 

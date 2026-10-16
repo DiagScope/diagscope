@@ -9,6 +9,9 @@ package example.kotlin.parity
 @Service
 class KotlinMaintainabilityService {
 
+    private val sharedCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val sharedItems = java.util.concurrent.CopyOnWriteArrayList<String>()
+
     // ── CHECK_THEN_ACT_ON_MAP ────────────────────────────────────────────────
 
     /**
@@ -16,9 +19,19 @@ class KotlinMaintainabilityService {
      * receiver — a classic race condition under concurrent access.
      */
     fun registerIfAbsent(key: String, value: String) {
+        if (!sharedCache.containsKey(key)) {
+            sharedCache.put(key, value) // non-atomic: another thread can interleave here
+        }
+    }
+
+    /**
+     * SAFE: the same check-then-act on a map created inside the function. It never leaves the function, so no
+     * other thread can interleave.
+     */
+    fun registerIfAbsentLocalOnly(key: String, value: String) {
         val cache = HashMap<String, String>()
         if (!cache.containsKey(key)) {
-            cache.put(key, value) // non-atomic: another thread can interleave here
+            cache.put(key, value)
         }
     }
 
@@ -34,9 +47,8 @@ class KotlinMaintainabilityService {
      * TRIGGERS CHECK_THEN_ACT_ON_MAP via contains + add on a Collection receiver.
      */
     fun addIfNotPresent(item: String) {
-        val items = java.util.ArrayList<String>()
-        if (!items.contains(item)) {
-            items.add(item) // non-atomic
+        if (!sharedItems.contains(item)) {
+            sharedItems.add(item) // non-atomic
         }
     }
 
@@ -71,6 +83,5 @@ class KotlinMaintainabilityService {
     )
 
     // ── HIGH_METHOD_COMPLEXITY ────────────────────────────────────────────────
-    // Covered by the controller's inspect() function, which makes more than the
-    // threshold number of calls and is therefore reported automatically.
+    // Covered by the dedicated controller fixture (KotlinComplexityController).
 }

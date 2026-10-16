@@ -100,12 +100,12 @@ public final class StreamIoNotClosedRule implements DiagnosticRule {
     }
 
     private static boolean isFilesClass(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("files");
     }
 
     private static boolean isBufferedReader(InvocationEvidence invocation) {
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("bufferedreader") || hint.contains("reader");
     }
 }

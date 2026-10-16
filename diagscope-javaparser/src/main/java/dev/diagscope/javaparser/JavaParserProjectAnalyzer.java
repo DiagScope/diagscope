@@ -398,6 +398,42 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             methodAnnotations = List.copyOf(augmented);
         }
 
+        // McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their method).
+        int cyclomatic = 1
+                + method.findAll(com.github.javaparser.ast.stmt.IfStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.ForStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.ForEachStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.WhileStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.DoStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.CatchClause.class).size()
+                + method.findAll(com.github.javaparser.ast.expr.ConditionalExpr.class).size()
+                + (int) method.findAll(com.github.javaparser.ast.stmt.SwitchEntry.class).stream()
+                        .filter(entry -> !entry.getLabels().isEmpty()).count()
+                + (int) method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class).stream()
+                        .filter(binary -> binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.AND
+                                || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.OR)
+                        .count();
+        // Variables the method compares with null (x == null, x != null), so rules can see the guard.
+        var nullChecked = new java.util.TreeSet<String>();
+        for (var binary : method.findAll(com.github.javaparser.ast.expr.BinaryExpr.class)) {
+            boolean equality = binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.EQUALS
+                    || binary.getOperator() == com.github.javaparser.ast.expr.BinaryExpr.Operator.NOT_EQUALS;
+            if (!equality) continue;
+            var other = binary.getLeft().isNullLiteralExpr() ? binary.getRight()
+                    : binary.getRight().isNullLiteralExpr() ? binary.getLeft() : null;
+            if (other != null) nullChecked.add(other.toString().replaceFirst("^this\\.", ""));
+        }
+        {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor(MethodModel.CYCLOMATIC_ANNOTATION,
+                    Map.of("value", Integer.toString(cyclomatic))));
+            if (!nullChecked.isEmpty()) {
+                augmented.add(new AnnotationDescriptor(MethodModel.NULL_CHECKED_ANNOTATION,
+                        Map.of("names", String.join(",", nullChecked))));
+            }
+            methodAnnotations = List.copyOf(augmented);
+        }
+
         var variableTypes = new LinkedHashMap<>(declaredVariables);
         method.getParameters().forEach(parameter ->
                 variableTypes.put(parameter.getNameAsString(), parameter.getTypeAsString()));
@@ -450,7 +486,6 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             calls.add(new RawCall(location(root, file, call), scope(call), invocation.receiverType(),
                     call.getNameAsString(), call.getArguments().size(), invocation.argumentTypes()));
         }
-
         // Capture constructor calls (new Foo(args)) as synthetic invocations so rules can detect
         // patterns like new FixedBackOff(0, 3) for KAFKA_RETRY_WITHOUT_BACKOFF.
         // Convention: methodName = simple class name, scope = "", receiverType = "".
@@ -477,7 +512,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         int maximumArity = varargIndex >= 0 ? Integer.MAX_VALUE : method.getParameters().size();
 
         return new RawMethod(id, methodLocation, typeAnnotations, methodAnnotations,
-                catches, List.copyOf(invocations), dedupeTags(metricTags), dedupeMeters(metricNames),
+                catches,
+                // Receivers that are variables declared inside this method cannot be shared state.
+                InvocationEvidence.withLocalReceivers(invocations, localNames),
+                dedupeTags(metricTags), dedupeMeters(metricNames),
                 List.copyOf(calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
                 visibility(method), method.isStatic(), method.isFinal(), method.getTypeAsString(),
                 minimumArity, maximumArity, varargIndex,
@@ -1689,7 +1727,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             try {
                 classLoader.close();
             } catch (IOException ignored) {
-                // Parsing is complete; closing a dependency JAR must not discard analysis results.
+                // diagscope:ignore SILENT_CATCH -- parsing is complete; failing to close a dependency JAR must not discard the analysis
             }
         }
     }

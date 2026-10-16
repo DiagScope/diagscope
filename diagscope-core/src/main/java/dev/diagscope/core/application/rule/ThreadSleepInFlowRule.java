@@ -84,7 +84,7 @@ public final class ThreadSleepInFlowRule implements DiagnosticRule {
 
     private static boolean isThreadSleep(InvocationEvidence invocation) {
         if (!invocation.methodName().equals("sleep")) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase();
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase();
         return hint.contains("thread");
     }
 }

@@ -64,7 +64,35 @@ final class RuleSupport {
 
     /** Lower-cased scope and receiver type, for naming-hint checks. */
     static String hint(InvocationEvidence invocation) {
-        return (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        return hintText(invocation).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Scope and receiver type as one string for naming-hint checks, with the contents of call arguments and lambda
+     * bodies removed. The scope of a chained call is source text, so without this a lambda that merely mentions
+     * {@code entityManager} or {@code executor} would make an unrelated call look like one.
+     */
+    static String hintText(InvocationEvidence invocation) {
+        return withoutArguments(invocation.scope()) + ' ' + invocation.receiverType();
+    }
+
+    /** Replaces everything inside balanced parentheses and braces with nothing, keeping the brackets. */
+    static String withoutArguments(String expression) {
+        var result = new StringBuilder(expression.length());
+        int depth = 0;
+        for (int index = 0; index < expression.length(); index++) {
+            char current = expression.charAt(index);
+            if (current == '(' || current == '{') {
+                if (depth == 0) result.append(current);
+                depth++;
+            } else if (current == ')' || current == '}') {
+                depth = Math.max(0, depth - 1);
+                if (depth == 0) result.append(current);
+            } else if (depth == 0) {
+                result.append(current);
+            }
+        }
+        return result.toString();
     }
 
     static boolean calls(MethodModel method, String... names) {
@@ -95,6 +123,12 @@ final class RuleSupport {
             "getParameter", "getParameterValues", "getHeader", "getPathInfo", "getQueryString", "getRequestURI",
             "getRequestURL", "getAttribute", "getCookies", "getInputStream", "getReader");
 
+    /** Variables the method visibly checks for null, as recorded by the parsers; empty when none. */
+    static Set<String> nullCheckedNames(MethodModel method) {
+        String names = method.annotationAttribute(MethodModel.NULL_CHECKED_ANNOTATION, "names").orElse("");
+        return names.isBlank() ? Set.of() : Set.of(names.split(","));
+    }
+
     /** Names of the method's parameters, as exposed by the parsers; empty when unknown or none. */
     static Set<String> parameterNames(MethodModel method) {
         String names = method.annotationAttribute("ParameterNames", "names").orElse("");
@@ -106,8 +140,10 @@ final class RuleSupport {
      * the value from the request object. Used to rank confidence, not to suppress.
      */
     static boolean carriesRequestData(MethodModel method, String expression) {
-        for (String name : parameterNames(method)) {
-            if (Pattern.compile("(?<![\\w.])" + Pattern.quote(name) + "(?!\\w)").matcher(expression).find()) return true;
+        Set<String> names = parameterNames(method);
+        if (!names.isEmpty()) {
+            String alternatives = names.stream().map(Pattern::quote).collect(java.util.stream.Collectors.joining("|"));
+            if (Pattern.compile("(?<![\\w.])(?:" + alternatives + ")(?!\\w)").matcher(expression).find()) return true;
         }
         return method.invocations().stream().anyMatch(call -> REQUEST_ACCESSORS.contains(call.methodName()));
     }

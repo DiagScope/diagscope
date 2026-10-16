@@ -96,7 +96,7 @@ public final class MissingTransactionAnnotationRule implements DiagnosticRule {
 
     private static boolean isWriteOperation(InvocationEvidence inv) {
         if (!WRITE_METHOD.matcher(inv.methodName()).matches()) return false;
-        String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
         return WRITE_RECEIVER.matcher(hint).matches()
                 || hint.contains("entitymanager") || hint.contains("em")
                 || hint.contains("repo") || hint.contains("dao");

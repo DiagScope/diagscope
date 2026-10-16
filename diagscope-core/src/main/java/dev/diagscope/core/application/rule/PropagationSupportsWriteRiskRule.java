@@ -116,7 +116,7 @@ public final class PropagationSupportsWriteRiskRule implements ProjectRule {
     private static String findWriteCall(MethodModel method) {
         for (InvocationEvidence inv : method.invocations()) {
             if (!WRITE_METHODS.contains(inv.methodName())) continue;
-            String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+            String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
             if (REPO_TYPE.matcher(hint).matches()
                     || hint.contains("entitymanager") || hint.contains("session")
                     || hint.contains("template")) {

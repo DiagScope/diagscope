@@ -59,6 +59,9 @@ public final class FlowExceptionNotCaughtRule implements ProjectRule {
     }
 
     private static void checkMethod(MethodModel method, List<Finding> findings) {
+        // kotlinx.coroutines Flow only exists in Kotlin sources. Java code has no 'collect' on a Flow, and its
+        // Stream.collect(Collectors...) is unrelated, so Java methods are never candidates.
+        if (!method.location().file().toString().endsWith(".kt")) return;
         List<InvocationEvidence> invocations = method.invocations();
 
         // Pre-check: does the method have any .catch invocation at all?
@@ -70,6 +73,9 @@ public final class FlowExceptionNotCaughtRule implements ProjectRule {
 
         for (InvocationEvidence inv : invocations) {
             if (!TERMINAL_OPS.contains(inv.methodName())) continue;
+
+            // Suppressor 0: java.util.stream collect(Collectors.toList()) written in a Kotlin file
+            if (inv.arguments().stream().anyMatch(argument -> argument.contains("Collectors."))) continue;
 
             // Suppressor 1: inline chain — the scope of collect already contains .catch
             // e.g. someFlow.catch { ex -> ... }.collect { item -> ... }

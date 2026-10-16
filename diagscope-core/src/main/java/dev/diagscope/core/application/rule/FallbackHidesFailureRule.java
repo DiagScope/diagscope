@@ -46,9 +46,15 @@ public final class FallbackHidesFailureRule implements DiagnosticRule {
 
     private static boolean isFallback(MethodModel method) {
         if (DiagnosticSignals.hasAnnotation(method, "Recover")) return true;
-        String name = method.id().displayName().toLowerCase(Locale.ROOT);
-        int separator = name.lastIndexOf('#');
-        String simpleName = separator < 0 ? name : name.substring(separator + 1);
-        return simpleName.startsWith("fallback") || simpleName.contains("fallback");
+        // The method's own name, never the display name: that starts with the declaring class, so every method of
+        // a class called "...Fallback..." would otherwise count as a fallback.
+        String name = method.id().name().toLowerCase(Locale.ROOT);
+        if (name.startsWith("fallback")) return true;
+        // A name that only contains "fallback" (isFallback, hasFallbackMethod) is a fallback when, like the
+        // Resilience4j contract requires, it receives the failure as its last parameter.
+        var parameters = method.id().parameterTypes();
+        if (!name.contains("fallback") || parameters.isEmpty()) return false;
+        String last = ExecutionContexts.simpleTypeName(parameters.get(parameters.size() - 1));
+        return last.endsWith("Exception") || last.equals("Throwable") || last.equals("Error");
     }
 }

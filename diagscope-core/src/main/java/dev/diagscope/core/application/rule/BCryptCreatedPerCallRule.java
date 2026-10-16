@@ -10,7 +10,6 @@ import dev.diagscope.core.domain.Severity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Reports {@code new BCryptPasswordEncoder(...)} inside ordinary methods instead of a shared bean.

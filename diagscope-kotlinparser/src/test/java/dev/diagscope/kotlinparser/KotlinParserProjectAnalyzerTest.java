@@ -508,6 +508,97 @@ class KotlinParserProjectAnalyzerTest {
                 .containsExactlyInAnyOrder(7, 22);
     }
 
+    @Test
+    void measures_cyclomatic_complexity_and_marks_receivers_declared_inside_the_function() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("complexity"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Shared.kt"), """
+                package sample
+
+                class Shared {
+                    private val cache = HashMap<String, String>()
+
+                    fun branches(code: Int, strict: Boolean): Int {
+                        var total = 0
+                        for (i in 0 until code) {
+                            if (i % 2 == 0 && strict) {
+                                total += i
+                            }
+                        }
+                        try {
+                            total += if (code > 0) 1 else 2
+                        } catch (e: RuntimeException) {
+                            total = 0
+                        }
+                        val label = when (code) {
+                            1 -> "a"
+                            2 -> "b"
+                            else -> "c"
+                        }
+                        return total + label.length
+                    }
+
+                    fun local(key: String) {
+                        val seen = HashSet<String>()
+                        if (!seen.contains(key)) {
+                            seen.add(key)
+                        }
+                    }
+
+                    fun shared(key: String) {
+                        if (!cache.containsKey(key)) {
+                            cache.put(key, key)
+                        }
+                    }
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(analyzed.parseFailures()).isEmpty();
+        // 1 + for + if + && + if-expression + catch + two when branches (else does not count)
+        assertThat(method(analyzed, "Shared", "branches").cyclomaticComplexity()).contains(8);
+        assertThat(method(analyzed, "Shared", "local").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("contains") || invocation.methodName().equals("add"))
+                .isNotEmpty().allMatch(invocation -> invocation.localReceiver());
+        assertThat(method(analyzed, "Shared", "shared").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("containsKey") || invocation.methodName().equals("put"))
+                .isNotEmpty().noneMatch(invocation -> invocation.localReceiver());
+    }
+
+    @Test
+    void records_the_variables_a_function_compares_with_null_or_calls_safely() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("nullchecks"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Guards.kt"), """
+                package sample
+
+                class Guards {
+                    fun compared(map: Map<String, String>, key: String): Int {
+                        val value = map[key]
+                        if (value == null) return 0
+                        return value.length
+                    }
+
+                    fun safeCall(map: Map<String, String>, key: String): Int {
+                        val value = map[key]
+                        return value?.length ?: 0
+                    }
+
+                    fun unguarded(map: Map<String, String>, key: String): Int = map.getValue(key).length
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "Guards", "compared").annotationAttribute("NullChecked", "names")).contains("value");
+        assertThat(method(analyzed, "Guards", "safeCall").annotationAttribute("NullChecked", "names")).hasValueSatisfying(
+                names -> assertThat(names).contains("value"));
+        assertThat(method(analyzed, "Guards", "unguarded").annotationAttribute("NullChecked", "names")).isEmpty();
+    }
+
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {
         return project.methods().values().stream()
                 .filter(method -> method.id().declaringType().endsWith(type) && method.id().name().equals(name))

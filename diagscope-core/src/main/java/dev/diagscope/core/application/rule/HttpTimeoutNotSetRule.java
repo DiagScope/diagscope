@@ -104,7 +104,7 @@ public final class HttpTimeoutNotSetRule implements DiagnosticRule {
 
     private static boolean isHttpCallWithoutTimeout(InvocationEvidence inv) {
         String name = inv.methodName();
-        String hint = (inv.scope() + ' ' + inv.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
         if (BLOCK_METHODS.contains(name) && looksHttp(hint)) return true;
         if (REST_TEMPLATE_METHODS.contains(name) && hint.contains("resttemplate")) return true;
         return false;

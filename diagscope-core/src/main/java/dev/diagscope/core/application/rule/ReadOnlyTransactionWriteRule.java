@@ -93,7 +93,7 @@ public final class ReadOnlyTransactionWriteRule implements DiagnosticRule {
 
     private static boolean isPersistenceWrite(InvocationEvidence invocation) {
         if (!WRITE_METHODS.contains(invocation.methodName())) return false;
-        String hint = (invocation.scope() + ' ' + invocation.receiverType()).toLowerCase(Locale.ROOT);
+        String hint = (RuleSupport.hintText(invocation)).toLowerCase(Locale.ROOT);
         return WRITE_RECEIVER.matcher(hint).matches()
                 || hint.contains("repo") || hint.contains("entitymanager") || hint.contains("jdbc");
     }

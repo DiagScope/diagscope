@@ -29,6 +29,16 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Dogfooding-driven false-positive fixes: naming hints no longer read text inside lambda bodies
+  (`RuleSupport.hintText`); `FLOW_EXCEPTION_NOT_CAUGHT` only applies to Kotlin and ignores `Collectors.*`
+  (1.0.1); `FALLBACK_HIDES_FAILURE` detects fallbacks by method name and exception parameter (1.0.1);
+  `CHECK_THEN_ACT_ON_MAP` ignores method-local maps (1.0.1); `MAP_GET_DEREFERENCED_WITHOUT_CHECK` and
+  `ENTITY_MANAGER_FIND_DEREFERENCE` honour explicit null checks.
+- `HIGH_METHOD_COMPLEXITY` 2.0.0 now uses McCabe cyclomatic complexity (threshold 15) instead of call counts;
+  fingerprints of this rule change. Both adapters expose `Cyclomatic` and `NullChecked` synthetic annotations and
+  `InvocationEvidence.localReceiver`.
+- Removed unused imports, constants and helper methods.
+
 - `BLOCKING_CALL_IN_REACTIVE_CONTEXT` (1.1.0) now also covers methods whose return type is `Uni`, `Multi`,
   `Mono` or `Flux`, follows blocking helpers reached from an event-loop handler, stops at `@Blocking` /
   `@RunOnVirtualThread` boundaries, and reports blocking I/O as `WARNING`. Evidence keys are unchanged, so

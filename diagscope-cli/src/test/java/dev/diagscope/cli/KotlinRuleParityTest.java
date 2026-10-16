@@ -205,6 +205,24 @@ class KotlinRuleParityTest {
         assertThat(methodsFor("REFLECTIVE_ACCESS_IN_PRODUCTION")).anyMatch(method -> method.contains("injectKotlinStyle"));
     }
 
+    @Test
+    void check_then_act_is_reported_on_shared_collections_but_not_on_ones_local_to_the_method() {
+        assertThat(methodsFor("CHECK_THEN_ACT_ON_MAP"))
+                .anyMatch(method -> method.contains("registerIfAbsent("))
+                .anyMatch(method -> method.contains("addIfNotPresent("))
+                .noneMatch(method -> method.contains("LocalOnly"))
+                .noneMatch(method -> method.contains("registerIfAbsentSafe"));
+    }
+
+    @Test
+    void reports_cyclomatic_complexity_only_above_the_threshold() {
+        assertThat(methodsFor("HIGH_METHOD_COMPLEXITY"))
+                .anyMatch(method -> method.contains("ComplexityController.classify("))
+                .noneMatch(method -> method.contains("classifySimple"));
+        assertThat(evidenceValues("HIGH_METHOD_COMPLEXITY", "complexityScore"))
+                .anyMatch(score -> Integer.parseInt(score) > 15);
+    }
+
     private Set<String> ruleIds() {
         return ruleIds(result);
     }

@@ -34,7 +34,7 @@ public final class AsyncResultUnobservedRule implements DiagnosticRule {
             for (var invocation : method.invocations()) {
                 if (!ASYNC_STARTERS.contains(invocation.methodName())) continue;
                 if (invocation.resultUsage() != InvocationResultUsage.IGNORED) continue;
-                if (!looksAsync(invocation.scope() + ' ' + invocation.receiverType()
+                if (!looksAsync(RuleSupport.hintText(invocation)
                         + ' ' + invocation.methodName())) continue;
                 var instrumentation = DiagnosticSignals.instrumentationAnnotation(method);
                 var confidence = Confidence.min(
