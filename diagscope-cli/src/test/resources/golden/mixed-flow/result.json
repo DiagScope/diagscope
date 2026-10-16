@@ -44,7 +44,7 @@
     "AOP_SELF_INVOCATION" : "1.0.0",
     "AOP_UNMANAGED_ADVICE_TARGET" : "1.0.0",
     "APPLICATION_CONTEXT_LOCATOR" : "1.0.0",
-    "ASYNC_DEFAULT_EXECUTOR" : "1.0.0",
+    "ASYNC_DEFAULT_EXECUTOR" : "1.1.0",
     "ASYNC_ON_PRIVATE_METHOD" : "1.0.0",
     "ASYNC_RESULT_UNOBSERVED" : "1.0.0",
     "ASYNC_VOID_RETURN" : "1.0.0",
@@ -147,7 +147,7 @@
     "RETRY_ON_ALL_EXCEPTIONS" : "1.0.0",
     "RETRY_WITHOUT_DIAGNOSTICS" : "1.0.0",
     "RUNBLOCKING_IN_SUSPEND" : "1.0.0",
-    "SCHEDULED_EXCEPTION_NOT_HANDLED" : "1.0.0",
+    "SCHEDULED_EXCEPTION_NOT_HANDLED" : "2.0.0",
     "SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE" : "1.0.0",
     "SCHEDULED_NON_VOID_RETURN" : "1.0.0",
     "SCHEDULED_NO_INITIAL_DELAY" : "1.0.0",
@@ -225,8 +225,8 @@
     "totalFindings" : 9,
     "bySeverity" : {
       "ERROR" : 3,
-      "WARNING" : 5,
-      "INFO" : 1
+      "WARNING" : 4,
+      "INFO" : 2
     },
     "byConfidence" : {
       "HIGH" : 6,
@@ -287,7 +287,7 @@
       "ruleId" : "SCHEDULED_EXCEPTION_NOT_HANDLED",
       "title" : "@Scheduled method has no exception boundary",
       "count" : 1,
-      "highestSeverity" : "WARNING",
+      "highestSeverity" : "INFO",
       "byConfidence" : {
         "HIGH" : 0,
         "MEDIUM" : 1,
@@ -984,19 +984,19 @@
     "fingerprint" : "sha256:693f99bbb716939c6aeb941e64c2c34edffe39e42ed9cc19644143a3bf94a04c",
     "fingerprintVersion" : 2,
     "ruleId" : "SCHEDULED_EXCEPTION_NOT_HANDLED",
-    "severity" : "WARNING",
+    "severity" : "INFO",
     "confidence" : "MEDIUM",
     "location" : {
       "file" : "src/main/java/example/ReconciliationJob.java",
       "startLine" : 4,
       "endLine" : 5
     },
-    "message" : "@Scheduled method has no exception boundary. An uncaught exception may stop future executions or be silently discarded by the scheduler.",
-    "recommendation" : "Wrap the method body in a try/catch that logs the exception with context (job name, last input), or configure a TaskScheduler with a custom ErrorHandler that records all scheduler failures centrally.",
+    "message" : "@Scheduled method has no exception boundary or instrumentation. The scheduler logs a failure and runs the task again, but the only trace is a generic framework log line: no metric, no alert and no context about what the job was doing.",
+    "recommendation" : "Record failures with job context: catch, log the job name and input and rethrow or count it, annotate the method with @Timed/@Observed, or configure the TaskScheduler with an ErrorHandler that reports every scheduler failure centrally.",
     "explanation" : {
       "title" : "@Scheduled method has no exception boundary",
       "whatItMeans" : "A @Scheduled method has no try/catch block and no instrumentation annotation, leaving any exception to propagate directly to the scheduler.",
-      "whyItMatters" : "Before Spring 6, an uncaught exception from a @Scheduled method causes the scheduler to permanently cancel future executions of that task — silently. In Spring 6+ future executions continue but the exception is swallowed at the scheduler boundary with only a generic log entry and no job-level context.",
+      "whyItMatters" : "The scheduler logs the exception and runs the task again, so the failure is not lost. But the only trace is a generic framework log line: no metric, no alert and no job-level context. A job that fails on every run looks the same as a quiet one until someone reads the logs. (A task that really stops after one exception is a java.util.Timer, reported by TIMER_TASK_EXCEPTION_KILLS_TIMER.)",
       "howDetected" : "A @Scheduled method that has no catch blocks, carries no instrumentation annotation, and makes at least one external method call."
     },
     "confidenceRationale" : "MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.",

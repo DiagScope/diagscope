@@ -777,15 +777,15 @@ public final class RuleCatalog {
         // ── Resilience: scheduler error boundary ──────────────────────────────
         put(catalog, ScheduledExceptionNotHandledRule.ID,
                 "@Scheduled method has no exception boundary",
-                "resilience", Severity.WARNING, ALL_LANGUAGES,
-                "Spring applications using @Scheduled",
+                "resilience", Severity.INFO, ALL_LANGUAGES,
+                "Spring and Quarkus applications using @Scheduled",
                 "A @Scheduled method has no try/catch block and no instrumentation annotation,"
                         + " leaving any exception to propagate directly to the scheduler.",
-                "Before Spring 6, an uncaught exception from a @Scheduled method causes the"
-                        + " scheduler to permanently cancel future executions of that task —"
-                        + " silently. In Spring 6+ future executions continue but the exception"
-                        + " is swallowed at the scheduler boundary with only a generic log entry"
-                        + " and no job-level context.",
+                "The scheduler logs the exception and runs the task again, so the failure is not lost."
+                        + " But the only trace is a generic framework log line: no metric, no alert and no"
+                        + " job-level context. A job that fails on every run looks the same as a quiet one"
+                        + " until someone reads the logs. (A task that really stops after one exception is a"
+                        + " java.util.Timer, reported by TIMER_TASK_EXCEPTION_KILLS_TIMER.)",
                 "A @Scheduled method that has no catch blocks, carries no instrumentation"
                         + " annotation, and makes at least one external method call.",
                 "A global TaskScheduler ErrorHandler configured elsewhere is not visible here"
@@ -1302,22 +1302,23 @@ public final class RuleCatalog {
                         + " perform any write operations.");
 
         put(catalog, AsyncDefaultExecutorRule.ID,
-                "@Async without a named executor uses SimpleAsyncTaskExecutor",
+                "@Async without a named executor relies on a shared default",
                 "performance", Severity.WARNING, ALL_LANGUAGES,
                 "Spring applications using @Async",
-                "An @Async method specifies no executor name. Spring falls back to"
-                        + " SimpleAsyncTaskExecutor, which spawns a new OS thread for every"
-                        + " method invocation with no pooling or reuse.",
-                "Each call creates one OS thread, consuming stack memory (256KB–1MB), file"
-                        + " descriptors, and OS scheduling slots. Under any meaningful load the"
-                        + " thread count grows without bound. The failure surface as gradual"
-                        + " heap growth and increasing thread count in JMX, culminating in"
-                        + " OutOfMemoryError: unable to create new native thread during spikes.",
+                "An @Async method specifies no executor name, so it runs on the application's default"
+                        + " executor. Plain Spring falls back to SimpleAsyncTaskExecutor (a new thread per"
+                        + " call); Spring Boot auto-configures a shared ThreadPoolTaskExecutor with an"
+                        + " unbounded queue.",
+                "Without a named executor the work has no limits of its own. On plain Spring the thread"
+                        + " count grows with the call rate until the JVM cannot create threads; on Boot the"
+                        + " queue grows instead, and slow async work can delay unrelated async work sharing"
+                        + " the pool. Both show up late, as memory or latency growth under load.",
                 "The method carries @Async and its annotation attribute map has no 'value'"
                         + " key (the executor bean name).",
-                "A globally-configured AsyncConfigurer that replaces the default executor is"
-                        + " not visible at the call site and will not suppress this finding."
-                        + " If a central async configuration is in place, suppress per-method.");
+                "Confidence is LOW because the default executor is often replaced: an AsyncConfigurer or a"
+                        + " TaskExecutor bean (JHipster ships one) is not visible at the call site and does"
+                        + " not suppress this finding. If a central async configuration is in place, suppress"
+                        + " per-method.");
 
         put(catalog, MissingResponseStatusRule.ID,
                 "@ExceptionHandler without @ResponseStatus returns HTTP 200 on errors",

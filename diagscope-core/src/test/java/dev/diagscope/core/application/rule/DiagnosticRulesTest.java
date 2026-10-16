@@ -382,8 +382,12 @@ class DiagnosticRulesTest {
 
         assertThat(new ScheduledExceptionNotHandledRule().evaluate(flow(method, Confidence.HIGH)))
                 .singleElement()
-                .satisfies(finding -> assertThat(finding.ruleId())
-                        .isEqualTo(ScheduledExceptionNotHandledRule.ID));
+                .satisfies(finding -> {
+                    assertThat(finding.ruleId()).isEqualTo(ScheduledExceptionNotHandledRule.ID);
+                    // The scheduler logs the failure and carries on, so this is about missing context.
+                    assertThat(finding.severity()).isEqualTo(Severity.INFO);
+                    assertThat(finding.message()).doesNotContain("stop future executions");
+                });
     }
 
     @Test
@@ -1356,6 +1360,8 @@ class DiagnosticRulesTest {
         assertThat(findings).singleElement().satisfies(f -> {
             assertThat(f.ruleId()).isEqualTo(AsyncDefaultExecutorRule.ID);
             assertThat(f.severity()).isEqualTo(Severity.WARNING);
+            // Whether the default is replaced by an AsyncConfigurer or Executor bean is not visible here.
+            assertThat(f.confidence()).isEqualTo(Confidence.LOW);
             assertThat(f.evidence()).containsEntry("missingExecutor", "true");
         });
     }

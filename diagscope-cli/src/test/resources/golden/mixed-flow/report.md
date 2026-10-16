@@ -7,8 +7,8 @@
 | Build system | Maven |
 | Findings | 9 |
 | Errors | 3 |
-| Warnings | 5 |
-| Info | 1 |
+| Warnings | 4 |
+| Info | 2 |
 | Flows | 3 |
 | Source files | 6 |
 | Methods | 7 |
@@ -33,7 +33,7 @@
 
 ## Executive summary
 
-9 finding(s): 3 error(s), 5 warning(s), 1 info. 6 are high confidence and worth triaging first.
+9 finding(s): 3 error(s), 4 warning(s), 2 info. 6 are high confidence and worth triaging first.
 
 ### Findings by rule
 
@@ -44,7 +44,7 @@
 | `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` | Kafka listener swallows the failure | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_SEND_RESULT_IGNORED` | Kafka send result ignored | 1 | `WARNING` | 1 | 0 | 0 |
 | `KAFKA_TOPIC_HARDCODED` | Kafka listener topic name is a hardcoded string literal | 1 | `INFO` | 1 | 0 | 0 |
-| `SCHEDULED_EXCEPTION_NOT_HANDLED` | @Scheduled method has no exception boundary | 1 | `WARNING` | 0 | 1 | 0 |
+| `SCHEDULED_EXCEPTION_NOT_HANDLED` | @Scheduled method has no exception boundary | 1 | `INFO` | 0 | 1 | 0 |
 | `SILENT_CATCH` | Exception caught and ignored | 1 | `ERROR` | 1 | 0 | 0 |
 | `SILENT_FAILURE_CONVERSION` | Failure converted into a normal value | 1 | `ERROR` | 1 | 0 | 0 |
 | `SYSTEM_OUTPUT` | Diagnostics written to standard output | 1 | `WARNING` | 1 | 0 | 0 |
@@ -343,19 +343,19 @@ Exception is converted to a normal return value without preserving diagnostic ev
 
 </details>
 
-### ⚠️ SCHEDULED_EXCEPTION_NOT_HANDLED — `src/main/java/example/ReconciliationJob.java:4`
+### ℹ️ SCHEDULED_EXCEPTION_NOT_HANDLED — `src/main/java/example/ReconciliationJob.java:4`
 
-@Scheduled method has no exception boundary. An uncaught exception may stop future executions or be silently discarded by the scheduler.
+@Scheduled method has no exception boundary or instrumentation. The scheduler logs a failure and runs the task again, but the only trace is a generic framework log line: no metric, no alert and no context about what the job was doing.
 
 **What this means:** A @Scheduled method has no try/catch block and no instrumentation annotation, leaving any exception to propagate directly to the scheduler.
 
-**Why it matters:** Before Spring 6, an uncaught exception from a @Scheduled method causes the scheduler to permanently cancel future executions of that task — silently. In Spring 6+ future executions continue but the exception is swallowed at the scheduler boundary with only a generic log entry and no job-level context.
+**Why it matters:** The scheduler logs the exception and runs the task again, so the failure is not lost. But the only trace is a generic framework log line: no metric, no alert and no job-level context. A job that fails on every run looks the same as a quiet one until someone reads the logs. (A task that really stops after one exception is a java.util.Timer, reported by TIMER_TASK_EXCEPTION_KILLS_TIMER.)
 
 **How it was detected:** A @Scheduled method that has no catch blocks, carries no instrumentation annotation, and makes at least one external method call.
 
-**Suggested action:** Wrap the method body in a try/catch that logs the exception with context (job name, last input), or configure a TaskScheduler with a custom ErrorHandler that records all scheduler failures centrally.
+**Suggested action:** Record failures with job context: catch, log the job name and input and rethrow or count it, annotate the method with @Timed/@Observed, or configure the TaskScheduler with an ErrorHandler that reports every scheduler failure centrally.
 
-- Severity: `WARNING` · Confidence: `MEDIUM`
+- Severity: `INFO` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: Scheduled cron=0 */5 * * * * (`MEDIUM`, depth 0)
 - Fingerprint: `sha256:693f99bbb716939c6aeb941e64c2c34edffe39e42ed9cc19644143a3bf94a04c`

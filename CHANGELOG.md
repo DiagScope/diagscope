@@ -45,6 +45,11 @@ All notable project changes are recorded in this file.
   - `jakarta`/`javax` `@Transactional` is no longer treated as Spring's: `TRANSACTIONAL_READONLY_MISSING`,
     `AOP_SELF_INVOCATION` and `AOP_UNMANAGED_ADVICE_TARGET` skip it, and CDI/JAX-RS classes count as container managed.
   - Kotlin interface members are no longer marked final (`TRANSACTIONAL_ON_FINAL_METHOD`).
+- `SCHEDULED_EXCEPTION_NOT_HANDLED` 2.0.0 is now INFO and says what actually happens: Spring and Quarkus log the
+  failure and run the task again, so nothing stops; what is missing is job context, a metric or an alert. The
+  "stops future executions" claim now belongs only to `TIMER_TASK_EXCEPTION_KILLS_TIMER`. `ASYNC_DEFAULT_EXECUTOR`
+  1.1.0 drops to LOW confidence and describes both defaults (Spring's thread-per-call executor and Boot's shared pool
+  with an unbounded queue), since a central `AsyncConfigurer` or `Executor` bean is not visible at the call site.
 - A scan of a monorepo no longer aborts with "diagnosticCoverage must contain exactly one score per flow" when two
   modules declare the same type and entrypoint.
 - The adapters expose `ParameterAnnotations` and `JakartaTransactional` synthetic annotations, and mark interfaces

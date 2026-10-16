@@ -26,7 +26,9 @@ import java.util.Map;
  * <ol>
  *   <li>Find methods annotated with {@code @Async}.</li>
  *   <li>Check that the annotation has no {@code value} attribute (the executor name).</li>
- *   <li>Emit WARNING — the default executor is rarely appropriate for production load.</li>
+ *   <li>Emit WARNING with LOW confidence: whether the default is a thread-per-call executor (plain Spring) or
+ *       Boot's shared pool, and whether an {@code AsyncConfigurer} or {@code Executor} bean replaces it, is not
+ *       visible at the call site.</li>
  * </ol>
  *
  * <p><b>Fix:</b> Declare a named {@code ThreadPoolTaskExecutor} bean and reference it:
@@ -64,10 +66,11 @@ public final class AsyncDefaultExecutorRule implements ProjectRule {
 
         String methodDisplay = method.id().displayName();
         findings.add(new Finding(
-                ID, Severity.WARNING, Confidence.HIGH, method.location(),
-                "'" + methodDisplay + "' is @Async without a named executor. Spring uses"
-                        + " SimpleAsyncTaskExecutor by default, which creates a new OS thread"
-                        + " for every invocation — no pooling, no reuse, no backpressure.",
+                ID, Severity.WARNING, Confidence.LOW, method.location(),
+                "'" + methodDisplay + "' is @Async without a named executor, so it runs on whichever default"
+                        + " executor the application has. Plain Spring falls back to"
+                        + " SimpleAsyncTaskExecutor (one new thread per call); Spring Boot supplies a shared"
+                        + " pool with an unbounded queue. Neither gives this work its own limits or backpressure.",
                 "Declare a ThreadPoolTaskExecutor @Bean and reference it by name:"
                         + " @Async(\"myTaskExecutor\"). Configure corePoolSize, maxPoolSize,"
                         + " queueCapacity, and a RejectedExecutionHandler that suits the workload."

@@ -18,11 +18,11 @@ import java.util.Map;
  * catch block is present but swallows the exception. This rule fires when there is no catch block
  * at all, leaving any exception to propagate directly to the scheduler.</p>
  *
- * <p>In Spring versions before 6, an uncaught exception from a {@code @Scheduled} method causes
- * the scheduler to cancel all future executions of that task. The scheduler itself keeps running
- * (other tasks are unaffected), but the failed task is permanently stopped — silently.
- * In Spring 6+ the behavior changed: future executions continue, but the exception is still
- * swallowed at the scheduler boundary with only a generic log entry and no method-level context.</p>
+ * <p>The failure is <em>not</em> lost: Spring's scheduler logs an exception from a repeating task and keeps
+ * running it, and Quarkus does the same. What is missing is job-level context. The only trace is a generic
+ * framework log line, with no metric, no alert and no record of the input, so a task that fails on every run looks
+ * like a quiet one. A task that really stops after one exception is a {@code java.util.Timer}, covered by
+ * {@code TIMER_TASK_EXCEPTION_KILLS_TIMER}.</p>
  *
  * <p>A method is suppressed from this rule when:</p>
  * <ul>
@@ -61,13 +61,13 @@ public final class ScheduledExceptionNotHandledRule implements DiagnosticRule {
 
             var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
             findings.add(new Finding(
-                    ID, Severity.WARNING, confidence, method.location(),
-                    "@Scheduled method has no exception boundary."
-                            + " An uncaught exception may stop future executions or be silently"
-                            + " discarded by the scheduler.",
-                    "Wrap the method body in a try/catch that logs the exception with context"
-                            + " (job name, last input), or configure a TaskScheduler with a"
-                            + " custom ErrorHandler that records all scheduler failures centrally.",
+                    ID, Severity.INFO, confidence, method.location(),
+                    "@Scheduled method has no exception boundary or instrumentation. The scheduler logs a"
+                            + " failure and runs the task again, but the only trace is a generic framework"
+                            + " log line: no metric, no alert and no context about what the job was doing.",
+                    "Record failures with job context: catch, log the job name and input and rethrow or count"
+                            + " it, annotate the method with @Timed/@Observed, or configure the TaskScheduler"
+                            + " with an ErrorHandler that reports every scheduler failure centrally.",
                     List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                     Map.of("method", method.id().displayName())
             ));
