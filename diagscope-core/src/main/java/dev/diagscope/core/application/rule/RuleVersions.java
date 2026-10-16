@@ -74,7 +74,6 @@ public final class RuleVersions {
         // different methods are reported.
         overrides.put(HighMethodComplexityRule.ID, "2.0.0");
         // The flow-only Kotlin Flow rule no longer reports Java Stream.collect(...) calls.
-        overrides.put(FlowExceptionNotCaughtRule.ID, "1.0.1");
         // Fallback detection matches the method name, not the declaring class name.
         overrides.put(FallbackHidesFailureRule.ID, "1.0.1");
         // Collections declared inside the method are no longer reported.
@@ -91,6 +90,13 @@ public final class RuleVersions {
         // The scheduler logs and continues, so the finding is about missing job context; Async confidence is LOW.
         overrides.put(ScheduledExceptionNotHandledRule.ID, "2.0.0");
         overrides.put(AsyncDefaultExecutorRule.ID, "1.1.0");
+        // Spring 5+ source review: a private listener fails at start-up on proxied beans only.
+        overrides.put(EventListenerOnPrivateMethodRule.ID, "2.0.0");
+        // Claims checked against the Spring, kotlinx.coroutines and JEP 491 documentation: severity and text corrected.
+        overrides.put(VirtualThreadWithSynchronizedRule.ID, "2.0.0");
+        overrides.put(CoroutineExceptionNotHandledRule.ID, "1.1.0");
+        overrides.put(FlowExceptionNotCaughtRule.ID, "1.1.0");
+        overrides.put(TransactionIsolationDangerousRule.ID, "1.1.0");
         // A variable the method goes on to compare with null is an explicit absent case, not a leaked null.
         overrides.put(OptionalOrElseNullRule.ID, "1.1.0");
         return Map.copyOf(overrides);

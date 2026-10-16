@@ -1,7 +1,7 @@
 package example.java.parity;
 
 /**
- * Fixture: covers SCHEDULED_NON_VOID_RETURN, AOP_ADVICE_ON_PRIVATE_METHOD,
+ * Fixture: covers SCHEDULED_NON_VOID_RETURN,
  * FEIGN_CLIENT_NO_FALLBACK, MULTIPLE_SCHEDULED_NO_THREAD_POOL,
  * OBJECT_MAPPER_CREATED_PER_REQUEST.
  */
@@ -18,20 +18,6 @@ class JavaWave5ReportService {
     /** Safe: void return type — Spring scheduler ignores nothing. */
     @Scheduled(cron = "0 30 * * * *")
     void cleanupTempFiles() {} // safe — void
-}
-
-// ── AOP_ADVICE_ON_PRIVATE_METHOD ──────────────────────────────────────────────
-
-@Service
-class JavaWave5LoggingAspect {
-
-    /** AOP_ADVICE_ON_PRIVATE_METHOD: @Around on private method — proxy cannot intercept it. */
-    @Around
-    private Object logExecutionTime(Object joinPoint) { return null; } // → AOP_ADVICE_ON_PRIVATE_METHOD
-
-    /** Safe: public visibility — proxy can intercept and execute the advice. */
-    @Around
-    public Object logPublicMethod(Object joinPoint) { return null; } // safe — public
 }
 
 // ── FEIGN_CLIENT_NO_FALLBACK ──────────────────────────────────────────────────

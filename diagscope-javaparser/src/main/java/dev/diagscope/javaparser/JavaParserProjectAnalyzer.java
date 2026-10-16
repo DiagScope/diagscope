@@ -502,7 +502,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static List<AnnotationDescriptor> methodAnnotationsOf(MethodDeclaration method) {
         var annotations = new ArrayList<>(annotations(method.getAnnotations()));
         // Synthesise a "Synchronized" annotation for the Java 'synchronized' keyword so that
-        // SYNCHRONIZED_ON_SPRING_BEAN can detect it the same way it detects Kotlin's @Synchronized.
+        // VIRTUAL_THREAD_WITH_SYNCHRONIZED can detect it the same way it detects Kotlin's @Synchronized.
         if (method.isSynchronized()) annotations.add(new AnnotationDescriptor("Synchronized", Map.of()));
         // Synthesise a "Final" annotation for the Java 'final' keyword so that
         // TRANSACTIONAL_ON_FINAL_METHOD can detect it without a MethodModel change.

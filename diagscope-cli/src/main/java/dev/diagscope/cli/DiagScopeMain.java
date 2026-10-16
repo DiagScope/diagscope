@@ -25,7 +25,6 @@ import dev.diagscope.core.application.rule.KafkaTopicHardcodedRule;
 import dev.diagscope.core.application.rule.MassAssignmentRiskRule;
 import dev.diagscope.core.application.rule.RetryOnAllExceptionsRule;
 import dev.diagscope.core.application.rule.ScheduledNoInitialDelayRule;
-import dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule;
 import dev.diagscope.core.application.rule.FieldInjectionUsedRule;
 import dev.diagscope.core.application.rule.TransactionalReadOnlyMissingRule;
 import dev.diagscope.core.application.rule.AsyncDefaultExecutorRule;
@@ -33,7 +32,6 @@ import dev.diagscope.core.application.rule.MissingResponseStatusRule;
 import dev.diagscope.core.application.rule.CacheEvictMissingRule;
 import dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule;
 import dev.diagscope.core.application.rule.ScheduledNonVoidReturnRule;
-import dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule;
 import dev.diagscope.core.application.rule.FeignClientNoFallbackRule;
 import dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule;
 import dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule;
@@ -310,7 +308,6 @@ public final class DiagScopeMain {
                 // Configuration: @Scheduled without initialDelay
                 new ScheduledNoInitialDelayRule(),
                 // AOP: synchronized method on Spring bean
-                new SynchronizedOnSpringBeanRule(),
                 // Spring: field injection instead of constructor injection
                 new FieldInjectionUsedRule(),
                 // Wave 4
@@ -321,7 +318,6 @@ public final class DiagScopeMain {
                 new TransactionalOnFinalMethodRule(),
                 // Wave 5
                 new ScheduledNonVoidReturnRule(),
-                new AopAdviceOnPrivateMethodRule(),
                 new FeignClientNoFallbackRule(),
                 new MultipleScheduledNoThreadPoolRule(),
                 new ObjectMapperCreatedPerRequestRule(),
@@ -508,7 +504,6 @@ public final class DiagScopeMain {
                 // Configuration: @Scheduled without initialDelay
                 dev.diagscope.core.application.rule.ScheduledNoInitialDelayRule.ID,
                 // AOP: synchronized method on Spring bean
-                dev.diagscope.core.application.rule.SynchronizedOnSpringBeanRule.ID,
                 // Spring: field injection
                 dev.diagscope.core.application.rule.FieldInjectionUsedRule.ID,
                 // Wave 4
@@ -519,7 +514,6 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.TransactionalOnFinalMethodRule.ID,
                 // Wave 5
                 dev.diagscope.core.application.rule.ScheduledNonVoidReturnRule.ID,
-                dev.diagscope.core.application.rule.AopAdviceOnPrivateMethodRule.ID,
                 dev.diagscope.core.application.rule.FeignClientNoFallbackRule.ID,
                 dev.diagscope.core.application.rule.MultipleScheduledNoThreadPoolRule.ID,
                 dev.diagscope.core.application.rule.ObjectMapperCreatedPerRequestRule.ID,

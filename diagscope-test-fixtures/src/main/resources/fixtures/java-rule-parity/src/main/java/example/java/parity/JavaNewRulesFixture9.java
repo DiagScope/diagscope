@@ -257,15 +257,16 @@ class JavaWave10ProductService {
 // ── EVENT_LISTENER_ON_PRIVATE_METHOD ─────────────────────────────────────────
 
 @Service
+@Transactional
 class JavaWave10AuditService {
 
-    /** EVENT_LISTENER_ON_PRIVATE_METHOD: @EventListener on a private method — event never dispatched. */
+    /** EVENT_LISTENER_ON_PRIVATE_METHOD: private @EventListener on a proxied bean fails the context at start-up. */
     @EventListener
     private void onOrderPlaced(Object event) { // → EVENT_LISTENER_ON_PRIVATE_METHOD
-        // silently never called — event is published, listener never runs
+        // Spring cannot delegate this call from the proxy to the target
     }
 
-    /** Safe: @EventListener on a public method — proxy dispatches the event correctly. */
+    /** Safe: a public listener works on a proxied bean. */
     @EventListener
     public void onOrderPlacedSafe(Object event) {
         // listener is invoked when the event is published

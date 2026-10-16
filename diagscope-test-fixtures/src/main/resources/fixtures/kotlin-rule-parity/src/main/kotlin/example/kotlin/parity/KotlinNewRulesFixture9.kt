@@ -238,12 +238,13 @@ open class KotlinWave10ProductService {
 // ── EVENT_LISTENER_ON_PRIVATE_METHOD ─────────────────────────────────────────
 
 @Service
+@Transactional
 open class KotlinWave10AuditService {
 
-    /** EVENT_LISTENER_ON_PRIVATE_METHOD: @EventListener on a private method — event never dispatched. */
+    /** EVENT_LISTENER_ON_PRIVATE_METHOD: private @EventListener on a proxied bean fails the context at start-up. */
     @EventListener
     private fun onOrderPlaced(event: Any) { // → EVENT_LISTENER_ON_PRIVATE_METHOD
-        // silently never called
+        // Spring cannot delegate this call from the proxy to the target
     }
 
     /** Safe: @EventListener on an open method — proxy dispatches the event correctly. */

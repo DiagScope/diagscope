@@ -94,9 +94,15 @@ public final class RuleLifecycle {
 
     private static Map<String, Entry> retired() {
         var entries = new LinkedHashMap<String, Entry>();
-        // No rule has been deprecated or removed yet. Retirements are appended here as, for example:
-        // entries.put("OLD_RULE_ID", new Entry("OLD_RULE_ID", Status.DEPRECATED, "1.1.0",
-        //         "NEW_RULE_ID", "Superseded by NEW_RULE_ID, which reports the same evidence."));
+        // Rules whose premise turned out to be wrong are removed without the usual deprecation period: keeping a
+        // detection that reports a non-existent problem does more harm than a one-release configuration error.
+        entries.put("AOP_ADVICE_ON_PRIVATE_METHOD", new Entry("AOP_ADVICE_ON_PRIVATE_METHOD", Status.REMOVED, "0.1.2",
+                null, "Spring AOP invokes @Around/@Before/... advice methods reflectively after making them"
+                + " accessible, so a private advice method does run. The rule confused the advice method with the"
+                + " advised method; AOP_ADVICE_NOT_APPLIED covers advice that cannot reach a private target."));
+        entries.put("SYNCHRONIZED_ON_SPRING_BEAN", new Entry("SYNCHRONIZED_ON_SPRING_BEAN", Status.REMOVED, "0.1.2",
+                null, "A Spring proxy delegates to the target object, so a synchronized method locks the target"
+                + " instance, not the proxy. For a singleton bean the synchronisation works as written."));
         var sorted = new TreeMap<String, Entry>(entries);
         return Map.copyOf(sorted);
     }

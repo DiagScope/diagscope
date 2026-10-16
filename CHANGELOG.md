@@ -40,6 +40,22 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- **Audit of the ERROR rules against the framework documentation and source.** Six of the 42 ERROR rules made claims
+  that do not hold, and the detections were corrected:
+  - Removed `AOP_ADVICE_ON_PRIVATE_METHOD`: Spring AOP makes an advice method accessible and invokes it by reflection
+    (`AbstractAspectJAdvice`), so a private `@Around`/`@Before` method does run. The rule confused the advice method
+    with the advised method. Removed without the usual deprecation period because the detection is wrong in principle;
+    the id stays reserved, and a `diagscope.yml` that names it now fails with an explanation.
+  - Removed `SYNCHRONIZED_ON_SPRING_BEAN`: a Spring proxy delegates to the target, so a `synchronized` method locks the
+    target instance and works as written for a singleton bean. Same removal path.
+  - `EVENT_LISTENER_ON_PRIVATE_METHOD` 2.0.0: a private listener works on an ordinary bean. It only fails, loudly and
+    at start-up (`AopUtils.selectInvocableMethod`), when the bean is proxied, so the rule reports exactly that.
+  - `VIRTUAL_THREAD_WITH_SYNCHRONIZED` 2.0.0: JEP 491 (JDK 24) removed monitor pinning, so the finding is INFO with
+    MEDIUM confidence and explains that it only applies to JDK 21 to 23.
+  - `COROUTINE_EXCEPTION_NOT_HANDLED` 1.1.0 and `FLOW_EXCEPTION_NOT_CAUGHT` 1.1.0: now WARNING. An uncaught coroutine
+    exception reaches the thread's uncaught exception handler (stderr) instead of being "silently lost".
+  - `TRANSACTION_ISOLATION_DANGEROUS` 1.1.0: now WARNING; the text no longer calls READ_COMMITTED "the database default"
+    and notes that PostgreSQL upgrades READ_UNCOMMITTED to READ_COMMITTED.
 - `TRANSACTIONAL_ON_INTERFACE` 2.0.0: the claim that CGLIB proxies ignore `@Transactional` on interface methods was
   wrong. The Spring reference says it works for interface-based and class-based proxies since 5.0, and is only lost in
   AspectJ mode or before 5.0. The rule is now INFO with LOW confidence and recommends annotating the implementation.

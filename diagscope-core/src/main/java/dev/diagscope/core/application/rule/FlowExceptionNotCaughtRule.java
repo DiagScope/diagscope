@@ -91,10 +91,10 @@ public final class FlowExceptionNotCaughtRule implements ProjectRule {
 
             String terminal = inv.methodName();
             findings.add(new Finding(
-                    ID, Severity.ERROR, Confidence.MEDIUM, inv.location(),
+                    ID, Severity.WARNING, Confidence.MEDIUM, inv.location(),
                     "Flow terminal operator '" + terminal + "()' called without a preceding '.catch {}' operator."
-                            + " Exceptions emitted by the flow will propagate uncaught to the coroutine,"
-                            + " potentially crashing it silently.",
+                            + " An exception emitted by the flow is rethrown at the terminal and fails the"
+                            + " collecting coroutine, ending the collection with no logging or recovery here.",
                     "Add a '.catch' operator before the terminal: flow.catch { ex -> logger.error(\"...\", ex) }"
                             + ".collect { item -> … }."
                             + " Alternatively, wrap the collect call in a try/catch block. Never swallow the"

@@ -66,16 +66,18 @@ public final class CoroutineExceptionNotHandledRule implements ProjectRule {
         if (hasExceptionHandler(inv)) return;
 
         boolean isGlobalScope = "GlobalScope".equalsIgnoreCase(inv.scope());
-        Severity severity = isGlobalScope ? Severity.ERROR : Severity.WARNING;
+        Severity severity = Severity.WARNING;
         String scopeDesc = inv.scope().isBlank() ? "a coroutine scope" : "'" + inv.scope() + "'";
 
         findings.add(new Finding(
                 ID, severity, Confidence.MEDIUM, inv.location(),
                 "Coroutine '" + inv.methodName() + "' launched on " + scopeDesc
-                        + " without a CoroutineExceptionHandler. Uncaught exceptions are"
+                        + " without a CoroutineExceptionHandler. An uncaught exception is"
                         + (isGlobalScope
-                        ? " silently lost — GlobalScope has no structured parent to absorb failures."
-                        : " delivered to the parent scope's exception handler, which may not be set."),
+                        ? " only printed by the thread's uncaught exception handler: GlobalScope has no parent to"
+                        + " report it to, and it bypasses the application's logging."
+                        : " delivered to the parent scope's exception handler, which may not be set; without one"
+                        + " it falls back to the thread's uncaught exception handler (stderr)."),
                 "Add a CoroutineExceptionHandler to the coroutine context:"
                         + " launch(CoroutineExceptionHandler { _, ex -> logger.error(\"...\", ex) }) { … }."
                         + " For GlobalScope, prefer a structured scope (lifecycleScope, viewModelScope, or"

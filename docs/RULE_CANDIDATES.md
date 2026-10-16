@@ -588,6 +588,8 @@ Three new rules requiring minor domain extensions (synthetic annotations in pars
 ---
 
 ### SYNCHRONIZED_ON_SPRING_BEAN
+
+> **Removed in 0.1.2 after the ERROR-rule audit:** a Spring proxy delegates to the target, so a `synchronized` method locks the target instance and works for a singleton bean. The text below is the original, incorrect premise.
 **Status:** `done`
 **Severity:** ERROR
 **Category:** AOP
@@ -746,6 +748,8 @@ The developer's intent — computing and returning a result — is silently igno
 ---
 
 ### AOP_ADVICE_ON_PRIVATE_METHOD
+
+> **Removed in 0.1.2 after the ERROR-rule audit:** Spring AOP makes an advice method accessible and invokes it reflectively, so a private advice method runs; the rule confused the advice method with the advised one. The text below is the original, incorrect premise.
 **Status:** `done`  
 **Severity:** ERROR  
 **Category:** AOP / Proxy bypass
@@ -1236,6 +1240,7 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | Wave 11 | 2026-10-14 | +28 | 150 |
 | Wave 12 | 2026-10-16 | +1 | 151 |
 | Wave 13 | 2026-10-16 | +5 | 156 |
-| Wave 14 | 2026-10-16 | +1 | **157** |
+| Wave 14 | 2026-10-16 | +1 | 157 |
+| Audit | 2026-10-16 | −2 (removed) | **155** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.

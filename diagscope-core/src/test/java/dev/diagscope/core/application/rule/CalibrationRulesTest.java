@@ -181,6 +181,29 @@ class CalibrationRulesTest {
         assertThat(new OptionalOrElseNullRule().evaluate(flow(checked))).isEmpty();
     }
 
+    // ── EVENT_LISTENER_ON_PRIVATE_METHOD ─────────────────────────────────────
+
+    @Test
+    void privateEventListener_isReportedOnlyOnAProxiedBean() {
+        var proxied = new ProxyProfile(MethodVisibility.PRIVATE, false, false, false, true, false,
+                Set.of("Transactional"), List.of());
+        var plain = new ProxyProfile(MethodVisibility.PRIVATE, false, false, false, true, false, Set.of(), List.of());
+        var isStatic = new ProxyProfile(MethodVisibility.PRIVATE, true, false, false, true, false,
+                Set.of("Transactional"), List.of());
+        var publicListener = new ProxyProfile(MethodVisibility.PUBLIC, false, false, false, true, false,
+                Set.of("Transactional"), List.of());
+
+        var rule = new EventListenerOnPrivateMethodRule();
+        assertThat(rule.evaluate(project(listener("onProxied", proxied)))).singleElement().satisfies(f -> {
+            assertThat(f.severity()).isEqualTo(Severity.ERROR);
+            assertThat(f.confidence()).isEqualTo(Confidence.MEDIUM);
+            assertThat(f.message()).contains("start-up").doesNotContain("silently");
+        });
+        assertThat(rule.evaluate(project(listener("onPlain", plain)))).isEmpty();
+        assertThat(rule.evaluate(project(listener("onStatic", isStatic)))).isEmpty();
+        assertThat(rule.evaluate(project(listener("onPublic", publicListener)))).isEmpty();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static MethodModel controllerPost(String name, List<String> parameterTypes, Map<String, String> parameters,
@@ -209,6 +232,12 @@ class CalibrationRulesTest {
         return new MethodModel(new MethodId(type, name, List.of()), location(1), annotations, List.of(), List.of(),
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(), CallableShape.fixed(0),
                 returnType, false);
+    }
+
+    private static MethodModel listener(String name, ProxyProfile proxy) {
+        return new MethodModel(new MethodId("example.AuditService", name, List.of("Object")), location(1),
+                Set.of("EventListener"), List.of(), List.of(), List.of(), List.of(), List.of(), proxy, Map.of(),
+                CallableShape.fixed(1), "void", false);
     }
 
     private static MethodModel managedMethod(Set<String> annotations, ProxyProfile proxy) {

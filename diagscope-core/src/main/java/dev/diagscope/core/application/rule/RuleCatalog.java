@@ -920,17 +920,16 @@ public final class RuleCatalog {
         // ── Kotlin coroutines: unhandled exceptions ───────────────────────────
         put(catalog, CoroutineExceptionNotHandledRule.ID,
                 "Coroutine launched without a CoroutineExceptionHandler",
-                "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
+                "kotlin-coroutines", Severity.WARNING, Set.of("kotlin"),
                 "Kotlin applications using kotlinx.coroutines",
                 "A 'launch' or 'async' coroutine builder call has no CoroutineExceptionHandler"
-                        + " in its context. Exceptions thrown inside the coroutine body do not"
-                        + " propagate to the caller — they travel to the nearest exception handler"
-                        + " in the scope hierarchy, or are silently dropped for GlobalScope.",
-                "Without a visible handler the application loses all diagnostic context for the"
-                        + " failure: no structured log entry, no MDC, no metric increment, and no"
-                        + " retry. For GlobalScope the failure is completely invisible — the"
-                        + " coroutine simply stops executing. In production this surfaces as missing"
-                        + " data or unanswered requests with no observable cause.",
+                        + " in its context. An exception thrown inside a launched coroutine does not reach the"
+                        + " caller: it goes to the parent scope, and from there to a CoroutineExceptionHandler.",
+                "With no handler anywhere, kotlinx.coroutines passes the exception to the thread's uncaught"
+                        + " exception handler, which by default prints a stack trace to stderr. The failure is not"
+                        + " invisible, but it bypasses the application's logging: no structured entry, no MDC, no"
+                        + " metric, no retry. A GlobalScope coroutine has no parent to cancel or report, so its"
+                        + " failure ends only that coroutine. An async coroutine keeps its exception until await.",
                 "DiagScope detects calls to 'launch' or 'async' on a receiver whose name ends"
                         + " with 'Scope', equals 'GlobalScope', or is blank (implicit this). The"
                         + " finding is suppressed when any argument to the builder contains the"
@@ -943,16 +942,16 @@ public final class RuleCatalog {
         // ── Kotlin coroutines: uncaught Flow exceptions ───────────────────────
         put(catalog, FlowExceptionNotCaughtRule.ID,
                 "Kotlin Flow collected without a .catch operator",
-                "kotlin-coroutines", Severity.ERROR, Set.of("kotlin"),
+                "kotlin-coroutines", Severity.WARNING, Set.of("kotlin"),
                 "Kotlin applications using kotlinx.coroutines Flow",
                 "A Flow terminal operator ('collect' or 'launchIn') is called without a"
                         + " preceding '.catch {}' operator in the same expression chain or"
                         + " method body, and the call is not enclosed in a try/catch block.",
-                "An uncaught exception inside a Flow operator propagates to the collecting"
-                        + " coroutine and cancels it. Because Flow is cold, exceptions surface only"
-                        + " at the terminal and are invisible to callers. In production this"
-                        + " typically causes silent data loss — items stop arriving, the coroutine"
-                        + " cancels, and no error entry appears in the log.",
+                "An exception inside a Flow operator is rethrown at the terminal operator, in the collecting"
+                        + " coroutine. If nothing there catches it, the coroutine fails like any other: a launch"
+                        + " reaches the scope's exception handler (by default the stack trace goes to stderr), and"
+                        + " an exception can cancel the whole scope. The failure is not silent, but the collection"
+                        + " stops for good, with no logging or recovery at this call site.",
                 "DiagScope inspects the scope text of every 'collect' / 'launchIn' invocation."
                         + " If the scope contains '.catch' the chain already includes the catch"
                         + " operator and the finding is suppressed. The rule also suppresses when"
@@ -962,7 +961,7 @@ public final class RuleCatalog {
                         + " A '.catch' applied to a different flow in the same method suppresses the"
                         + " finding even if the collected flow is distinct.");
 
-        // ── AOP / Proxy: @Transactional on interface ─────────────────────────
+        // ── Test sources (--include-tests) ───────────────────────────────────
         put(catalog, TestWithoutAssertionRule.ID,
                 "Test runs code but asserts nothing",
                 "testing", Severity.WARNING, ALL_LANGUAGES,
@@ -1302,27 +1301,6 @@ public final class RuleCatalog {
                         + " time. Single-instance startup jobs that are intentionally designed to"
                         + " run at boot should use ApplicationRunner or CommandLineRunner instead.");
 
-        put(catalog, SynchronizedOnSpringBeanRule.ID,
-                "synchronized method on a Spring-managed bean",
-                "aop", Severity.ERROR, ALL_LANGUAGES,
-                "Spring applications using @Component, @Service, @Repository, or @Controller",
-                "A method uses the 'synchronized' keyword (Java) or @Synchronized (Kotlin)"
-                        + " on a class managed by Spring. Spring proxies the bean; the"
-                        + " 'synchronized' lock is acquired on the proxy, not the bean instance.",
-                "Two threads can execute the method simultaneously on the same logical bean"
-                        + " because each acquires the lock on a different proxy object. The"
-                        + " synchronisation silently does nothing, leaving shared mutable state"
-                        + " exposed to data races that appear only under concurrent load.",
-                "The method's effective annotation set (after class-level merging) contains the"
-                        + " Spring stereotype annotation AND the 'Synchronized' signal. For Java"
-                        + " the parser synthesises this signal from the 'synchronized' keyword"
-                        + " modifier; for Kotlin the @Synchronized annotation is already present"
-                        + " as a real annotation entry.",
-                "A final class with no AOP annotations and no Spring proxy involvement would not"
-                        + " be wrapped by CGLIB, making synchronization safe — but DiagScope"
-                        + " cannot confirm the absence of proxying at the static analysis level,"
-                        + " so those cases are still flagged.");
-
         put(catalog, FieldInjectionUsedRule.ID,
                 "Field injection instead of constructor injection",
                 "spring", Severity.WARNING, ALL_LANGUAGES,
@@ -1463,25 +1441,6 @@ public final class RuleCatalog {
                 "The method carries @Scheduled and its declared return type is anything other"
                         + " than void (Java) or Unit (Kotlin).",
                 null);
-
-        put(catalog, AopAdviceOnPrivateMethodRule.ID,
-                "AOP advice on private method — advice is registered but never executes",
-                "aop-proxy", Severity.ERROR, ALL_LANGUAGES,
-                "Spring applications using Spring AOP (@Around, @Before, @After, @AfterReturning, @AfterThrowing)",
-                "An AOP advice annotation (@Around, @Before, @After, @AfterReturning, or"
-                        + " @AfterThrowing) is placed on a private method. Spring AOP works"
-                        + " through a proxy; private methods cannot be overridden by the proxy,"
-                        + " so the advice never executes.",
-                "The pointcut registers successfully at startup and produces no error, but no"
-                        + " advice logic runs at the call site. Security audits, performance"
-                        + " monitoring, and transactional boundaries that depend on the advice"
-                        + " are silently non-functional. This is identical in nature to"
-                        + " ASYNC_ON_PRIVATE_METHOD — proxy-based AOP cannot intercept private"
-                        + " methods in any framework configuration.",
-                "The method's visibility is PRIVATE (from ProxyProfile) and it carries at"
-                        + " least one of the five standard Spring AOP advice annotations.",
-                "AspectJ load-time weaving (LTW) can advise private methods. Projects using"
-                        + " LTW will see false positives. Suppress if LTW is configured.");
 
         put(catalog, FeignClientNoFallbackRule.ID,
                 "@FeignClient without fallback — remote failures propagate with no degradation",
@@ -1636,17 +1595,16 @@ public final class RuleCatalog {
 
         put(catalog, TransactionIsolationDangerousRule.ID,
                 "@Transactional(isolation = READ_UNCOMMITTED) enables dirty reads",
-                "transactions", Severity.ERROR, ALL_LANGUAGES,
+                "transactions", Severity.WARNING, ALL_LANGUAGES,
                 "Spring applications using @Transactional with explicit isolation levels",
                 "A method sets the transaction isolation to READ_UNCOMMITTED, the weakest level."
                         + " The method can observe rows written by concurrent transactions that have"
                         + " not yet committed — including data that will be rolled back.",
-                "Application state is built on phantom data that may never have legally existed."
-                        + " In financial systems this is a data-integrity defect. In any system it"
-                        + " is a concurrency time bomb: invisible in development (no concurrent"
-                        + " writers), catastrophic in production (concurrent writes under load)."
-                        + " READ_COMMITTED (the database default) prevents dirty reads at minimal"
-                        + " overhead.",
+                "Decisions can be built on data that was never committed and may be rolled back. The"
+                        + " effect depends on the database: PostgreSQL treats READ_UNCOMMITTED as READ_COMMITTED,"
+                        + " Oracle does not offer it, while MySQL/InnoDB and SQL Server do allow dirty reads. It is"
+                        + " an explicit choice, so the finding asks for a documented reason, not for a rollback."
+                        + " READ_COMMITTED prevents dirty reads at minimal overhead.",
                 "The method carries @Transactional and the isolation attribute resolves to"
                         + " READ_UNCOMMITTED or its numeric equivalent 1. Detection is deterministic"
                         + " via annotationAttributes.",
@@ -1923,21 +1881,20 @@ public final class RuleCatalog {
         // ── Wave 9: virtual threads, reactive context, events, Kafka, testability ────
 
         put(catalog, VirtualThreadWithSynchronizedRule.ID,
-                "synchronized method on a virtual-thread-executed bean",
-                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "synchronized method run on a virtual thread (pins the carrier before JDK 24)",
+                "concurrency", Severity.INFO, ALL_LANGUAGES,
                 "Quarkus or Spring applications using Java 21+ virtual threads (@RunOnVirtualThread)",
-                "A method executed on a virtual thread uses the synchronized keyword or"
-                        + " @Synchronized. Synchronized blocks pin the carrier thread for the"
-                        + " entire duration of the critical section.",
-                "Virtual threads achieve scalability by unmounting from the carrier thread"
-                        + " whenever they block. Synchronized prevents unmounting — the carrier"
-                        + " thread is fully occupied. Under concurrency, if all virtual threads"
-                        + " pin their carriers simultaneously, the effective thread pool degrades"
-                        + " to the carrier pool size (typically CPU count), defeating the purpose"
-                        + " of virtual threads entirely.",
+                "A method executed on a virtual thread uses the synchronized keyword or @Synchronized."
+                        + " On JDK 21 to 23 a virtual thread that blocks inside synchronized stays pinned to its"
+                        + " carrier thread.",
+                "Up to JDK 23, blocking inside a synchronized block or method pins the carrier thread: when"
+                        + " enough virtual threads pin at once, the effective parallelism drops to the carrier"
+                        + " pool size (typically the CPU count). JEP 491 removed this in JDK 24: virtual threads"
+                        + " now unmount while holding or waiting for a monitor, and only native frames and class"
+                        + " initialisation still pin. On JDK 24 and later (including 25) the finding is moot.",
                 "The method's effective annotation set contains 'RunOnVirtualThread' or"
-                        + " 'StartVirtualThread' AND the synthetic 'Synchronized' signal."
-                        + " Confidence HIGH — both are read directly from the AST.",
+                        + " 'StartVirtualThread' AND the synthetic 'Synchronized' signal. Confidence MEDIUM:"
+                        + " the JDK version that runs the code is not visible in source.",
                 "Carrier pinning can also occur inside synchronized blocks in helper methods"
                         + " called from a virtual-thread context; those are not reported here"
                         + " because the synchronized modifier is on the helper, not the"
@@ -2290,20 +2247,21 @@ public final class RuleCatalog {
                         + " diagscope:ignore when AspectJ weaving is configured.");
 
         put(catalog, EventListenerOnPrivateMethodRule.ID,
-                "@EventListener on non-interceptable method — event never dispatched to listener",
+                "Private @EventListener on a proxied bean fails the application at start-up",
                 "aop", Severity.ERROR, ALL_LANGUAGES,
                 "Spring beans with @EventListener or @TransactionalEventListener",
-                "An @EventListener or @TransactionalEventListener method is private, static,"
-                        + " or final — the Spring proxy cannot dispatch events to it.",
-                "The listener is registered at startup without error but is silently never invoked."
-                        + " Events are published, the publisher receives no error, and the listener's"
-                        + " work is simply never done. Teams typically discover this only when"
-                        + " business logic dependent on the event stops executing.",
-                "Methods carrying @EventListener or @TransactionalEventListener where"
-                        + " proxy().interceptable() returns false. Confidence HIGH.",
-                "Subclasses inheriting a private @EventListener method via super — the event"
-                        + " dispatching still fails. AspectJ weaving configurations may not trigger"
-                        + " this problem; suppress with diagscope:ignore in those setups.");
+                "A private, non-static @EventListener or @TransactionalEventListener method sits on a bean that"
+                        + " Spring proxies (it carries @Transactional, @Async, @Cacheable or matching aspect advice).",
+                "Spring calls the listener reflectively on the target bean. On a proxied bean it cannot delegate a"
+                        + " private method from the proxy and fails the context with an IllegalStateException"
+                        + " (\"Switch its visibility to package or protected\"). The application does not start"
+                        + " until the visibility is widened; on a bean without a proxy a private listener works.",
+                "Methods carrying @EventListener or @TransactionalEventListener that are private and non-static,"
+                        + " where the method or its class carries a proxy-dependent annotation or matching advice."
+                        + " Confidence MEDIUM.",
+                "A bean proxied for a reason the scan cannot see (configuration, another module) is not reported."
+                        + " Final and static listener methods are not covered. The failure is loud at start-up,"
+                        + " so it is caught the first time the application runs.");
 
         put(catalog, TimedOnPrivateMethodRule.ID,
                 "@Timed/@Counted/@Observed on non-interceptable method — metrics never recorded",

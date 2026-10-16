@@ -1,7 +1,7 @@
 package example.kotlin.parity
 
 /**
- * Fixture: covers SCHEDULED_NON_VOID_RETURN, AOP_ADVICE_ON_PRIVATE_METHOD,
+ * Fixture: covers SCHEDULED_NON_VOID_RETURN,
  * FEIGN_CLIENT_NO_FALLBACK, MULTIPLE_SCHEDULED_NO_THREAD_POOL,
  * OBJECT_MAPPER_CREATED_PER_REQUEST.
  */
@@ -18,20 +18,6 @@ open class KotlinWave5ReportService {
     /** Safe: Unit (void) return type — Spring scheduler ignores nothing. */
     @Scheduled(cron = "0 30 * * * *")
     open fun cleanupTempFiles() {} // safe — Unit (void)
-}
-
-// ── AOP_ADVICE_ON_PRIVATE_METHOD ──────────────────────────────────────────────
-
-@Service
-open class KotlinWave5LoggingAspect {
-
-    /** AOP_ADVICE_ON_PRIVATE_METHOD: @Around on private method — proxy cannot intercept it. */
-    @Around
-    private fun logExecutionTime(joinPoint: Any): Any? = null // → AOP_ADVICE_ON_PRIVATE_METHOD
-
-    /** Safe: public (default) visibility — proxy can intercept and execute the advice. */
-    @Around
-    open fun logPublicMethod(joinPoint: Any): Any? = null // safe — public open
 }
 
 // ── FEIGN_CLIENT_NO_FALLBACK ──────────────────────────────────────────────────

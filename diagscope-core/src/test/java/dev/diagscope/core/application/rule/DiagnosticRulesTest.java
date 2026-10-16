@@ -647,7 +647,7 @@ class DiagnosticRulesTest {
                 .hasSize(1)
                 .allSatisfy(f -> {
                     assertThat(f.ruleId()).isEqualTo(CoroutineExceptionNotHandledRule.ID);
-                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(f.severity()).isEqualTo(Severity.WARNING);
                 });
     }
 
@@ -690,7 +690,7 @@ class DiagnosticRulesTest {
                 .hasSize(1)
                 .allSatisfy(f -> {
                     assertThat(f.ruleId()).isEqualTo(FlowExceptionNotCaughtRule.ID);
-                    assertThat(f.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(f.severity()).isEqualTo(Severity.WARNING);
                 });
     }
 
@@ -1230,42 +1230,6 @@ class DiagnosticRulesTest {
         assertThat(new ScheduledNoInitialDelayRule().evaluate(project(m))).isEmpty();
     }
 
-    // ── SYNCHRONIZED_ON_SPRING_BEAN ────────────────────────────────────────────
-
-    @Test
-    void synchronizedOnSpringBean_synchronizedService_reported() {
-        var m = new MethodModel(
-                new MethodId("example.CounterService", "increment", List.of()),
-                location(10), Set.of("Synchronized", "Service"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
-                CallableShape.fixed(0), "void", false);
-        var findings = new SynchronizedOnSpringBeanRule().evaluate(project(m));
-        assertThat(findings).singleElement().satisfies(f -> {
-            assertThat(f.ruleId()).isEqualTo(SynchronizedOnSpringBeanRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.ERROR);
-        });
-    }
-
-    @Test
-    void synchronizedOnSpringBean_notSpringBean_notReported() {
-        var m = new MethodModel(
-                new MethodId("example.PlainCounter", "increment", List.of()),
-                location(10), Set.of("Synchronized"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
-                CallableShape.fixed(0), "void", false);
-        assertThat(new SynchronizedOnSpringBeanRule().evaluate(project(m))).isEmpty();
-    }
-
-    @Test
-    void synchronizedOnSpringBean_springBeanNotSynchronized_notReported() {
-        var m = new MethodModel(
-                new MethodId("example.CounterService", "increment", List.of()),
-                location(10), Set.of("Service"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
-                CallableShape.fixed(0), "void", false);
-        assertThat(new SynchronizedOnSpringBeanRule().evaluate(project(m))).isEmpty();
-    }
-
     // ── FIELD_INJECTION_USED ──────────────────────────────────────────────────
 
     @Test
@@ -1541,46 +1505,6 @@ class DiagnosticRulesTest {
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(0), "String", false);
         assertThat(new ScheduledNonVoidReturnRule().evaluate(project(m))).isEmpty();
-    }
-
-    // ── AOP_ADVICE_ON_PRIVATE_METHOD ──────────────────────────────────────────
-
-    @Test
-    void aopAdviceOnPrivateMethod_aroundOnPrivate_reported() {
-        var privateProfile = new ProxyProfile(
-                MethodVisibility.PRIVATE, false, false, false, true, false, Set.of(), List.of());
-        var m = new MethodModel(
-                new MethodId("example.LoggingAspect", "logTime", List.of("Object")),
-                location(10), Set.of("Around"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), privateProfile, Map.of(),
-                CallableShape.fixed(1), "Object", false);
-        var findings = new AopAdviceOnPrivateMethodRule().evaluate(project(m));
-        assertThat(findings).singleElement().satisfies(f -> {
-            assertThat(f.ruleId()).isEqualTo(AopAdviceOnPrivateMethodRule.ID);
-            assertThat(f.severity()).isEqualTo(Severity.ERROR);
-        });
-    }
-
-    @Test
-    void aopAdviceOnPrivateMethod_aroundOnPublic_notReported() {
-        var m = new MethodModel(
-                new MethodId("example.LoggingAspect", "logTime", List.of("Object")),
-                location(10), Set.of("Around"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
-                CallableShape.fixed(1), "Object", false);
-        assertThat(new AopAdviceOnPrivateMethodRule().evaluate(project(m))).isEmpty();
-    }
-
-    @Test
-    void aopAdviceOnPrivateMethod_privateNoAdvice_notReported() {
-        var privateProfile = new ProxyProfile(
-                MethodVisibility.PRIVATE, false, false, false, true, false, Set.of(), List.of());
-        var m = new MethodModel(
-                new MethodId("example.LoggingAspect", "helper", List.of()),
-                location(10), Set.of("Service"), List.of(), List.of(),
-                List.of(), List.of(), List.of(), privateProfile, Map.of(),
-                CallableShape.fixed(0), "void", false);
-        assertThat(new AopAdviceOnPrivateMethodRule().evaluate(project(m))).isEmpty();
     }
 
     // ── FEIGN_CLIENT_NO_FALLBACK ──────────────────────────────────────────────
@@ -1906,7 +1830,7 @@ class DiagnosticRulesTest {
                 .singleElement()
                 .satisfies(finding -> {
                     assertThat(finding.ruleId()).isEqualTo(TransactionIsolationDangerousRule.ID);
-                    assertThat(finding.severity()).isEqualTo(Severity.ERROR);
+                    assertThat(finding.severity()).isEqualTo(Severity.WARNING);
                     assertThat(finding.confidence()).isEqualTo(Confidence.HIGH);
                     assertThat(finding.evidence()).containsEntry("isolation", "READ_UNCOMMITTED");
                 });

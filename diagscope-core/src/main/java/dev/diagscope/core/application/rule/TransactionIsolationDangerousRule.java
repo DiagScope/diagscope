@@ -50,11 +50,11 @@ public final class TransactionIsolationDangerousRule implements DiagnosticRule {
 
                 var confidence = Confidence.min(Confidence.HIGH, flowMethod.confidence());
                 findings.add(new Finding(
-                        ID, Severity.ERROR, confidence, method.location(),
+                        ID, Severity.WARNING, confidence, method.location(),
                         "@Transactional(isolation = READ_UNCOMMITTED) enables dirty reads.",
-                        "Remove the isolation override or set isolation = READ_COMMITTED."
-                                + " Dirty reads allow the method to observe uncommitted, in-flight,"
-                                + " and rolled-back data from concurrent transactions.",
+                        "Remove the isolation override or set isolation = READ_COMMITTED. Where the database"
+                                + " honours READ_UNCOMMITTED (MySQL, SQL Server) the method can observe uncommitted"
+                                + " and later rolled-back data; PostgreSQL silently upgrades it to READ_COMMITTED.",
                         List.of(RelatedFlow.from(flow.entrypoint(), flowMethod, confidence)),
                         Map.of(
                                 "method", method.id().displayName(),

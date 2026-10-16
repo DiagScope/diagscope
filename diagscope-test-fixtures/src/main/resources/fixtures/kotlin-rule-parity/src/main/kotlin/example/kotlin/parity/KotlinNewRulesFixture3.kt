@@ -1,7 +1,7 @@
 package example.kotlin.parity
 
 /**
- * Fixture: covers SCHEDULED_NO_INITIAL_DELAY, SYNCHRONIZED_ON_SPRING_BEAN, FIELD_INJECTION_USED.
+ * Fixture: covers SCHEDULED_NO_INITIAL_DELAY, FIELD_INJECTION_USED.
  */
 
 // ── SCHEDULED_NO_INITIAL_DELAY ─────────────────────────────────────────────────
@@ -29,49 +29,6 @@ class KotlinReportScheduler {
      */
     @Scheduled(cron = "0 0 2 * * *")
     fun generateNightlyReport() {} // safe — cron, not rate/delay based
-}
-
-// ── SYNCHRONIZED_ON_SPRING_BEAN ────────────────────────────────────────────────
-
-/**
- * Service demonstrating @Synchronized on a Spring bean.
- */
-@Service
-class KotlinCounterService {
-
-    private var counter = 0
-
-    /**
-     * SYNCHRONIZED_ON_SPRING_BEAN: @Synchronized on a Spring bean acquires the lock on the
-     * CGLIB proxy, not the bean — two threads can run this simultaneously.
-     */
-    @Synchronized
-    fun increment() { // → SYNCHRONIZED_ON_SPRING_BEAN
-        counter++
-    }
-
-    /**
-     * Safe: regular function without synchronization concern.
-     */
-    fun incrementUnsafe() {
-        counter++
-    }
-}
-
-/**
- * A plain Kotlin class — not a Spring bean — where @Synchronized is valid.
- */
-class KotlinPlainCounter {
-
-    private var counter = 0
-
-    /**
-     * Safe: not a Spring bean, so @Synchronized works as expected.
-     */
-    @Synchronized
-    fun increment() { // safe — not a Spring bean
-        counter++
-    }
 }
 
 // ── FIELD_INJECTION_USED ──────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 package example.java.parity;
 
 /**
- * Fixture: covers SCHEDULED_NO_INITIAL_DELAY, SYNCHRONIZED_ON_SPRING_BEAN, FIELD_INJECTION_USED.
+ * Fixture: covers SCHEDULED_NO_INITIAL_DELAY, FIELD_INJECTION_USED.
  */
 
 // ── SCHEDULED_NO_INITIAL_DELAY ─────────────────────────────────────────────────
@@ -29,47 +29,6 @@ class JavaReportScheduler {
      */
     @Scheduled(cron = "0 0 2 * * *")
     void generateNightlyReport() {} // safe — cron, not rate/delay based
-}
-
-// ── SYNCHRONIZED_ON_SPRING_BEAN ────────────────────────────────────────────────
-
-/**
- * Service demonstrating synchronized methods on a Spring bean.
- */
-@Service
-class JavaCounterService {
-
-    private int counter = 0;
-
-    /**
-     * SYNCHRONIZED_ON_SPRING_BEAN: synchronized on a Spring bean acquires the lock on the
-     * CGLIB proxy, not the bean — two threads can run this simultaneously.
-     */
-    synchronized void increment() { // → SYNCHRONIZED_ON_SPRING_BEAN
-        counter++;
-    }
-
-    /**
-     * Safe: not annotated with a Spring stereotype, so the class is not proxy-managed.
-     */
-    void incrementUnsafe() {
-        counter++;
-    }
-}
-
-/**
- * A plain Java class — not a Spring bean — where synchronized is valid.
- */
-class JavaPlainCounter {
-
-    private int counter = 0;
-
-    /**
-     * Safe: not a Spring bean, so synchronized keyword works as expected.
-     */
-    synchronized void increment() { // safe — not a Spring bean
-        counter++;
-    }
 }
 
 // ── FIELD_INJECTION_USED ──────────────────────────────────────────────────────
