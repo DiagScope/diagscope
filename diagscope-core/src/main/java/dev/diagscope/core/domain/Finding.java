@@ -10,6 +10,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 public record Finding(
@@ -23,7 +24,16 @@ public record Finding(
         Map<String, String> evidence
 ) {
     /** Increment whenever the fingerprint inputs change, so stored baselines can be migrated. */
-    public static final int FINGERPRINT_VERSION = 1;
+    public static final int FINGERPRINT_VERSION = 2;
+
+    /**
+     * Evidence keys shown to the reader but excluded from identity because their values drift with
+     * unrelated edits (counts, thresholds, line numbers). Including them would turn a finding into
+     * a "new" one every time a method gains a branch or a class gains a method.
+     */
+    public static final Set<String> NON_IDENTITY_EVIDENCE_KEYS = Set.of(
+            "invocationCount", "catchCount", "complexityScore", "paramCount", "publicMethodCount",
+            "scheduledMethodCount", "maxAllowed", "contextKeySetAtLine");
 
     private static final String FINGERPRINT_NAMESPACE = "diagscope.finding";
 
@@ -64,6 +74,9 @@ public record Finding(
             update(digest, ruleId);
             update(digest, normalizedPath(location));
             for (var entry : evidence.entrySet()) {
+                if (NON_IDENTITY_EVIDENCE_KEYS.contains(entry.getKey())) {
+                    continue;
+                }
                 update(digest, entry.getKey());
                 update(digest, entry.getValue());
             }

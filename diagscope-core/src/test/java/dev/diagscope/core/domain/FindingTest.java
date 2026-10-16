@@ -75,4 +75,19 @@ class FindingTest {
                 relatedFlows,
                 evidence);
     }
+
+    @Test
+    void volatile_evidence_keys_do_not_change_identity_but_stable_ones_do() {
+        var location = new SourceLocation(Path.of("src/main/Example.java"), 10, 12);
+        var before = finding(location, List.of(), java.util.Map.of(
+                "method", "Example.run()", "complexityScore", "16", "invocationCount", "30"));
+        var after = finding(location, List.of(), java.util.Map.of(
+                "method", "Example.run()", "complexityScore", "21", "invocationCount", "44"));
+        var otherMethod = finding(location, List.of(), java.util.Map.of(
+                "method", "Example.other()", "complexityScore", "16", "invocationCount", "30"));
+
+        assertThat(after.fingerprint()).isEqualTo(before.fingerprint());
+        assertThat(otherMethod.fingerprint()).isNotEqualTo(before.fingerprint());
+        assertThat(after.evidence()).containsEntry("complexityScore", "21");
+    }
 }

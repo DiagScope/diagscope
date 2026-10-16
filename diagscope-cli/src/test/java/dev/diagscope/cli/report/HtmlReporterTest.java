@@ -8,6 +8,7 @@ import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.rule.RuleEngine;
 import dev.diagscope.core.application.rule.SilentCatchRule;
 import dev.diagscope.core.domain.EntrypointType;
+import dev.diagscope.core.domain.Finding;
 import dev.diagscope.javaparser.JavaParserProjectAnalyzer;
 import dev.diagscope.core.application.LocalFlowBuilder;
 import dev.diagscope.testfixtures.FixtureCatalog;
@@ -61,7 +62,7 @@ class HtmlReporterTest {
         assertThat(findings).isNotEmpty();
         for (var finding : findings) {
             assertThat(finding.path("fingerprint").asText()).matches("sha256:[0-9a-f]{64}");
-            assertThat(finding.path("fingerprintVersion").asInt()).isEqualTo(1);
+            assertThat(finding.path("fingerprintVersion").asInt()).isEqualTo(Finding.FINGERPRINT_VERSION);
 
             var snippet = finding.path("snippet");
             assertThat(snippet.isObject()).as("snippet for %s", finding.path("ruleId").asText()).isTrue();

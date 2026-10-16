@@ -29,6 +29,10 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- **Fingerprint v2:** counts, thresholds and line numbers in evidence (`complexityScore`, `invocationCount`,
+  `catchCount`, `paramCount`, `publicMethodCount`, `scheduledMethodCount`, `maxAllowed`, `contextKeySetAtLine`)
+  no longer participate in identity, so a baseline no longer churns when a method gains a branch. Baselines
+  written at v1 are rejected; run `--update-baseline` once. See `docs/FINGERPRINT_POLICY.md`.
 - Dogfooding-driven false-positive fixes: naming hints no longer read text inside lambda bodies
   (`RuleSupport.hintText`); `FLOW_EXCEPTION_NOT_CAUGHT` only applies to Kotlin and ignores `Collectors.*`
   (1.0.1); `FALLBACK_HIDES_FAILURE` detects fallbacks by method name and exception parameter (1.0.1);

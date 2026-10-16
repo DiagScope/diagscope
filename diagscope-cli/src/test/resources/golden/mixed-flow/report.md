@@ -100,7 +100,7 @@ Score = explicit logging, metric, and instrumentation-annotation signals divided
 - Severity: `WARNING` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: none
-- Fingerprint: `sha256:2c69be804376e4892eb3e404b7465e49ff947ba4d65b4ca0fa819a4667055d7d`
+- Fingerprint: `sha256:759236a1c72d3d4a9371b50d9327305eaff8f2a8cb9ca31ebd614a82cc036742`
 
 <details><summary>Evidence</summary>
 
@@ -124,7 +124,7 @@ Kafka listener has no dead-letter topic configured. Failed messages after retry 
 - Severity: `WARNING` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: Kafka topic=payments (`MEDIUM`, depth 0)
-- Fingerprint: `sha256:b11b1db3a527315eb137662ef8a34d582fb96345a6aa0201ecd5e583e6bd380f`
+- Fingerprint: `sha256:2b0cc76372c5ffa66401c169fd80e1077e5be1ee780813545cba4a4bcbcabf46`
 
 **Copy-ready remediation (review before applying):**
 
@@ -169,7 +169,7 @@ Register the DefaultErrorHandler as a @Bean so all listeners inherit it without 
 - Severity: `INFO` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: none
-- Fingerprint: `sha256:9645adcf1a145325382e54a44363f8727ab42b5e36ade40bd589ff7c24ef7852`
+- Fingerprint: `sha256:64f99fe2018fcf81d71f7d1ce494dbc7bebe9d8b99f280cf4410c5fb2509d6ee`
 
 <details><summary>Evidence</summary>
 
@@ -194,7 +194,7 @@ Listener handles RuntimeException itself and returns normally, so retry, error h
 - Severity: `WARNING` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: Kafka topic=payments (`HIGH`, depth 0)
-- Fingerprint: `sha256:c8d56953ecac47dcca0912b13987e4e345984403db66bf642098eccaa58effcd`
+- Fingerprint: `sha256:ca8b525fe9ba3b47affcae8fbb54f3da6cf5ae169a5ab8ed78bbc475ad4eb621`
 
 <details><summary>Call paths (1)</summary>
 
@@ -227,7 +227,7 @@ Exception is caught and ignored.
 - Severity: `ERROR` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: Kafka topic=payments (`HIGH`, depth 0)
-- Fingerprint: `sha256:da4fb203d531fa0707e88dc1d1c75e5968402376e61d0797a6192acbe740920f`
+- Fingerprint: `sha256:1af8214a79d36b210ba8b7ebcbdba79495bae367a5b6e4b8c3d0e9aafb089dee`
 
 **Copy-ready remediation (review before applying):**
 
@@ -269,7 +269,7 @@ Metric tag may have unbounded cardinality: paymentId
 - Severity: `ERROR` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: POST /payments/{id}/capture (`MEDIUM`, depth 2)
-- Fingerprint: `sha256:619967b3ba07a12c50eab539f93995c4940292c8f9397ba6916b70778ab0a75b`
+- Fingerprint: `sha256:3aec2e88d4983d5e2ca884e3bf3d3bf7d9bf492e1bc5400f2b910c48cc140885`
 
 <details><summary>Call paths (1)</summary>
 
@@ -306,7 +306,7 @@ KafkaTemplate.send() result is ignored by this flow.
 - Severity: `WARNING` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: POST /payments/{id}/capture (`HIGH`, depth 2)
-- Fingerprint: `sha256:cdeb8989de1ccd84a2f232807d8fb5b5c8b39c1c5361dda5523d02ebdda23d9f`
+- Fingerprint: `sha256:487357adfb529ca342bf1d4eaa73b1e83f447e89c6e17e29bfcf6a43e4796187`
 
 **Copy-ready remediation (review before applying):**
 
@@ -352,7 +352,7 @@ Exception is converted to a normal return value without preserving diagnostic ev
 - Severity: `ERROR` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: POST /payments/{id}/capture (`HIGH`, depth 1)
-- Fingerprint: `sha256:9ed6a377b9b7224a3c9e7f257564d66390481e9372fbd338184c11bc18169a49`
+- Fingerprint: `sha256:bdf70fe3787c60619c05b2579edea1c40deda0aaad7471bf6f8772ba4721c35b`
 
 <details><summary>Call paths (1)</summary>
 
@@ -384,7 +384,7 @@ Exception is converted to a normal return value without preserving diagnostic ev
 - Severity: `WARNING` · Confidence: `MEDIUM`
 - Confidence means: MEDIUM — the evidence is explicit, but part of the reasoning depends on resolution that static analysis cannot fully prove (interface or proxy dispatch, framework wiring, or a pointcut approximation). Confirm the runtime wiring before acting.
 - Affected flows: Scheduled cron=0 */5 * * * * (`MEDIUM`, depth 0)
-- Fingerprint: `sha256:64c5a11e16f423829ad99364ac49bbf7807789dd3d56184c646556d0e71d21e3`
+- Fingerprint: `sha256:693f99bbb716939c6aeb941e64c2c34edffe39e42ed9cc19644143a3bf94a04c`
 
 <details><summary>Call paths (1)</summary>
 
@@ -414,7 +414,7 @@ System output is used instead of application logging.
 - Severity: `WARNING` · Confidence: `HIGH`
 - Confidence means: HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.
 - Affected flows: Scheduled cron=0 */5 * * * * (`HIGH`, depth 0)
-- Fingerprint: `sha256:bf2b1ee1ff662367ab21286630a74db2262fb878b501c4ac1b9ad25b006a2483`
+- Fingerprint: `sha256:145a90869697ad5139e4d33a15d3860a411cadd19a336f703b17398a00abb981`
 
 **Copy-ready remediation (review before applying):**
 

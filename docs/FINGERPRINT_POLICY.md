@@ -12,6 +12,11 @@ declaring type, the method signature, and the normalized expression.
 
 Every finding carries its `fingerprintVersion` in `result.json` and in the baseline file.
 
+Evidence keys listed in `Finding.NON_IDENTITY_EVIDENCE_KEYS` (counts, thresholds, line numbers such as
+`complexityScore`, `paramCount`, `publicMethodCount`) are shown in reports but skipped when hashing, because
+their values drift with unrelated edits. A rule that needs a new numeric evidence key must either add it to
+that set or keep it out of identity by other means; a contract test covers the behaviour.
+
 ## What must never change a fingerprint
 
 - line and column numbers, or code moving inside the same file;
@@ -49,3 +54,11 @@ unchanged, and requires a `result.json` schema-version bump when field shapes mo
 Waivers in `diagscope.yml` are pinned to a fingerprint on purpose. After a fingerprint migration, an
 unmatched waiver is reported as unused rather than being auto-migrated, because a waiver asserts a
 human review of a specific piece of evidence and that assertion does not transfer automatically.
+
+## History
+
+- **v2** — volatile evidence keys (`NON_IDENTITY_EVIDENCE_KEYS`) are no longer hashed. Affects
+  `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`, `GOD_CLASS`, `MULTIPLE_SCHEDULED_NO_THREAD_POOL`,
+  `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` and `MDC_CONTEXT_LOST`. The old hashes cannot be mapped
+  deterministically, so baselines written at v1 are rejected with an instruction to run `--update-baseline`.
+- **v1** — initial identity.
