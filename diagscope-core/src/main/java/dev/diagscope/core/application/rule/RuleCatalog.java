@@ -1008,6 +1008,26 @@ public final class RuleCatalog {
                 "assertThrows, isInstanceOf or hasCauseInstanceOf whose first argument is a broad exception class, or @Test(expected = ...) with one.",
                 "Kotlin assertFailsWith<Exception>() carries the type as a generic argument that is not captured, so it is not reported.");
 
+        put(catalog, VertxExecuteBlockingFailureIgnoredRule.ID,
+                "Vert.x executeBlocking whose failure is never observed",
+                "resilience", Severity.WARNING, ALL_LANGUAGES,
+                "Vert.x applications that move blocking work off the event loop with executeBlocking",
+                "A call to executeBlocking whose failure nobody observes: the returned future is discarded, the chain"
+                        + " registers only onSuccess, or the result handler never checks failed() or cause().",
+                "Blocking work is the work that throws: JDBC, file and HTTP clients. When it fails, the exception"
+                        + " lives only in the future (or AsyncResult). If nobody reads it, the request never"
+                        + " answers, the verticle never finishes starting, or the task silently did not run, and"
+                        + " the log shows nothing.",
+                "Three shapes: a discarded future (the call is a statement); a chain that registers no failure"
+                        + " handler (onFailure, onComplete, compose, recover, otherwise, await, ...) and ends as a"
+                        + " statement; and the callback form whose result-handler lambda never mentions failed(),"
+                        + " succeeded() or cause(). A future that is returned, assigned or passed on is the caller's"
+                        + " responsibility and is not reported. Runs on the whole project, so it works without"
+                        + " framework entrypoints.",
+                "A result handler passed as a method reference or variable is not inspected. A failure handled by a"
+                        + " helper the chain hands the future to is not visible. Kotlin coroutine wrappers such as"
+                        + " awaitBlocking are not analysed.");
+
         put(catalog, TransactionalOnInterfaceRule.ID,
                 "@Transactional on interface method ignored by CGLIB proxy",
                 "aop-proxy", Severity.ERROR, ALL_LANGUAGES,

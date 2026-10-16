@@ -110,6 +110,7 @@ import dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
+import dev.diagscope.core.application.rule.VertxExecuteBlockingFailureIgnoredRule;
 import dev.diagscope.core.application.rule.TestWithoutAssertionRule;
 import dev.diagscope.core.application.rule.TestSwallowsExceptionRule;
 import dev.diagscope.core.application.rule.TestDisabledWithoutReasonRule;
@@ -281,6 +282,7 @@ public final class DiagScopeMain {
                 new FlowExceptionNotCaughtRule(),
                 new BlockingCallInCoroutineRule(),
                 new TransactionalOnInterfaceRule(),
+                new VertxExecuteBlockingFailureIgnoredRule(),
                 // Test sources (--include-tests)
                 new TestWithoutAssertionRule(),
                 new TestSwallowsExceptionRule(),
@@ -475,6 +477,7 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.BlockingCallInCoroutineRule.ID,
                 // AOP / Proxy: @Transactional on interface
                 dev.diagscope.core.application.rule.TransactionalOnInterfaceRule.ID,
+                dev.diagscope.core.application.rule.VertxExecuteBlockingFailureIgnoredRule.ID,
                 dev.diagscope.core.application.rule.TestWithoutAssertionRule.ID,
                 dev.diagscope.core.application.rule.TestSwallowsExceptionRule.ID,
                 dev.diagscope.core.application.rule.TestDisabledWithoutReasonRule.ID,

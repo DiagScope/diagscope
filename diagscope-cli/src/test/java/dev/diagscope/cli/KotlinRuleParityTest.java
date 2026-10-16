@@ -103,6 +103,11 @@ class KotlinRuleParityTest {
                 .noneMatch(method -> method.contains("expectsTheSpecificException"));
         assertThat(methodsFor("TEST_DISABLED_WITHOUT_REASON")).anyMatch(method -> method.contains("parked"))
                 .noneMatch(method -> method.contains("parkedWithReason"));
+        assertThat(methodsFor("VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED"))
+                .anyMatch(method -> method.contains("discardsTheFuture"))
+                .anyMatch(method -> method.contains("onlyHandlesSuccess"))
+                .noneMatch(method -> method.contains("handlesTheFailure"))
+                .noneMatch(method -> method.contains("returnsTheFuture"));
         assertThat(methodsFor("AUTOWIRED_REQUIRED_FALSE_UNSAFE"))
                 .anyMatch(method -> method.contains("recordUnsafe")).noneMatch(method -> method.contains("recordSafe"));
         assertThat(methodsFor("ASYNC_RESULT_UNOBSERVED")).noneMatch(method -> method.contains("submitObserved"));

@@ -157,6 +157,10 @@ public final class RuleRemediationCatalog {
                     "// Instead of the broad type:\nassertThrows(Exception.class, () -> service.pay(null));\n// Expect the specific one:\nvar thrown = assertThrows(InvalidPaymentException.class, () -> service.pay(null));\nassertThat(thrown).hasMessageContaining(\"amount\");",
                     "// Instead of the broad type:\nassertFailsWith<Exception> { service.pay(null) }\n// Expect the specific one:\nval thrown = assertFailsWith<InvalidPaymentException> { service.pay(null) }\nassertTrue(thrown.message!!.contains(\"amount\"))",
                     "Expect the specific exception and assert on its message or cause.")),
+            Map.entry(VertxExecuteBlockingFailureIgnoredRule.ID, snippets(
+                    "// Instead of dropping the future:\nvertx.executeBlocking(() -> repository.load(id));\n// Observe the failure:\nvertx.executeBlocking(() -> repository.load(id))\n    .onSuccess(row -> reply(row))\n    .onFailure(err -> { log.error(\"load failed for {}\", id, err); fail(err); });",
+                    "// Instead of dropping the future:\nvertx.executeBlocking<Row> { repository.load(id) }\n// Observe the failure:\nvertx.executeBlocking<Row> { repository.load(id) }\n    .onSuccess { reply(it) }\n    .onFailure { err -> log.error(\"load failed for {}\", id, err); fail(err) }",
+                    "Chain onFailure/onComplete, compose the future into the caller's result, or return it.")),
             Map.entry(AutowiredRequiredFalseUnsafeRule.ID, snippets(
                     "// Instead of calling the optional field directly:\n"
                             + "@Autowired(required = false)\n"

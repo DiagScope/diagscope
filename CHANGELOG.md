@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED` (157th rule): a Vert.x `executeBlocking` whose returned future is discarded,
+  whose chain registers no failure handler, or whose callback never checks `failed()`/`cause()`. It runs on the whole
+  project, since Vert.x code rarely has the entrypoints that start a flow.
 - `scan --include-tests` analyzes `src/test/java` and `src/test/kotlin` with five new test rules (156 in total):
   `TEST_WITHOUT_ASSERTION`, `TEST_SWALLOWS_EXCEPTION`, `TEST_DISABLED_WITHOUT_REASON`, `TEST_THREAD_SLEEP` and
   `TEST_BROAD_EXPECTED_EXCEPTION`. Production rules never see test code and test rules never see production code

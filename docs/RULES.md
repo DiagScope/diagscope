@@ -838,6 +838,18 @@ Known limitation: intentional nullable interop with legacy APIs that expect `nul
 
 Recommended response: replace `orElse(null)` with `orElseThrow()` (forces callers to handle absence), `orElse(defaultValue)` (explicit fallback), or return `Optional<T>` to propagate the absent-case contract.
 
+## `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED`
+
+Detects a Vert.x `executeBlocking` whose failure nobody observes: the returned future is discarded, the chain registers only `onSuccess` (no `onFailure`, `onComplete`, `compose`, `recover`, `otherwise` or `await`) and ends as a statement, or the callback form's result handler never checks `failed()`, `succeeded()` or `cause()`.
+
+- Default severity: `WARNING`.
+- Evidence confidence: `HIGH` for a discarded future, `MEDIUM` for the chain and callback shapes.
+- Runs on the whole project, so it works without REST, Kafka or scheduled entrypoints.
+
+Known limitation: a result handler passed as a method reference, or a future handed to a helper that handles it, is not inspected. A future that is returned or assigned is the caller's responsibility and is not reported.
+
+Recommended response: chain `onFailure`/`onComplete`, compose the future into the caller's result, or return it; with the callback form check `res.failed()` and log `res.cause()` before using `res.result()`.
+
 ## Test-source rules (`--include-tests`)
 
 The `TEST_*` rules read `src/test/java` and `src/test/kotlin` and run only with `scan --include-tests`. Production rules never see test code, and these rules never see production code, so the flag adds findings without changing the production ones. Test code is not an entrypoint: no flow starts in a test.
