@@ -6,6 +6,11 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `scan --include-tests` analyzes `src/test/java` and `src/test/kotlin` with five new test rules (156 in total):
+  `TEST_WITHOUT_ASSERTION`, `TEST_SWALLOWS_EXCEPTION`, `TEST_DISABLED_WITHOUT_REASON`, `TEST_THREAD_SLEEP` and
+  `TEST_BROAD_EXPECTED_EXCEPTION`. Production rules never see test code and test rules never see production code
+  (`ProjectRule.testSourceRule()`), and no flow starts in a test, so the flag adds findings without changing the
+  production ones. Without the flag nothing changes.
 - `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (151st rule): a field injected with `@Autowired(required = false)` is called in a
   method that never compares it with `null`. The adapters expose such fields through an `OptionalAutowired` synthetic
   annotation; `Optional`/`ObjectProvider`/`Provider` fields and nullable Kotlin properties are skipped.

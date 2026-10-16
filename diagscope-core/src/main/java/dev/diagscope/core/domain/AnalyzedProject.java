@@ -47,6 +47,23 @@ public record AnalyzedProject(
         this(name, root, layout, methods, entrypoints, discoveredSourceFiles, parseFailures, List.of());
     }
 
+    /** The same project restricted to production or to test methods; entrypoints follow the methods. */
+    public AnalyzedProject restrictedTo(boolean testSources) {
+        var kept = new LinkedHashMap<MethodId, MethodModel>();
+        methods.forEach((id, method) -> {
+            if (method.testSource() == testSources) kept.put(id, method);
+        });
+        var keptEntrypoints = entrypoints.stream()
+                .filter(entrypoint -> SourceScope.isTestSource(entrypoint.location().file()) == testSources).toList();
+        return new AnalyzedProject(name, root, layout, kept, keptEntrypoints, discoveredSourceFiles, parseFailures,
+                aspects);
+    }
+
+    /** Whether any analyzed method comes from a test source root. */
+    public boolean hasTestSources() {
+        return methods.values().stream().anyMatch(MethodModel::testSource);
+    }
+
     /** Build tool that declares this project. */
     public BuildSystem buildSystem() {
         return layout.buildSystem();

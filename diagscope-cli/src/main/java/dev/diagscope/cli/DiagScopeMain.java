@@ -110,6 +110,11 @@ import dev.diagscope.core.application.rule.TimerTaskExceptionKillsTimerRule;
 import dev.diagscope.core.application.rule.ValueWithoutDefaultRule;
 import dev.diagscope.core.application.rule.MissingPaginationRule;
 import dev.diagscope.core.application.rule.TransactionalOnInterfaceRule;
+import dev.diagscope.core.application.rule.TestWithoutAssertionRule;
+import dev.diagscope.core.application.rule.TestSwallowsExceptionRule;
+import dev.diagscope.core.application.rule.TestDisabledWithoutReasonRule;
+import dev.diagscope.core.application.rule.TestThreadSleepRule;
+import dev.diagscope.core.application.rule.TestBroadExpectedExceptionRule;
 import dev.diagscope.core.application.rule.CoroutineExceptionNotHandledRule;
 import dev.diagscope.core.application.rule.EntityManagerFindDereferenceRule;
 import dev.diagscope.core.application.rule.FlowExceptionNotCaughtRule;
@@ -276,6 +281,12 @@ public final class DiagScopeMain {
                 new FlowExceptionNotCaughtRule(),
                 new BlockingCallInCoroutineRule(),
                 new TransactionalOnInterfaceRule(),
+                // Test sources (--include-tests)
+                new TestWithoutAssertionRule(),
+                new TestSwallowsExceptionRule(),
+                new TestDisabledWithoutReasonRule(),
+                new TestThreadSleepRule(),
+                new TestBroadExpectedExceptionRule(),
                 new MissingPaginationRule(),
                 new KafkaRetryWithoutBackoffRule(),
                 new ExceptionSuppressedInFinallyRule(),
@@ -464,6 +475,11 @@ public final class DiagScopeMain {
                 dev.diagscope.core.application.rule.BlockingCallInCoroutineRule.ID,
                 // AOP / Proxy: @Transactional on interface
                 dev.diagscope.core.application.rule.TransactionalOnInterfaceRule.ID,
+                dev.diagscope.core.application.rule.TestWithoutAssertionRule.ID,
+                dev.diagscope.core.application.rule.TestSwallowsExceptionRule.ID,
+                dev.diagscope.core.application.rule.TestDisabledWithoutReasonRule.ID,
+                dev.diagscope.core.application.rule.TestThreadSleepRule.ID,
+                dev.diagscope.core.application.rule.TestBroadExpectedExceptionRule.ID,
                 // Database / Performance: missing pagination
                 dev.diagscope.core.application.rule.MissingPaginationRule.ID,
                 // Kafka: retry without exponential backoff

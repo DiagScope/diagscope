@@ -22,6 +22,14 @@ public interface ProjectRule {
     String id();
 
     /**
+     * Whether the rule inspects test sources. Production rules never see methods under {@code src/test}, and
+     * test rules see nothing else, so scanning tests with {@code --include-tests} cannot add noise to either.
+     */
+    default boolean testSourceRule() {
+        return false;
+    }
+
+    /**
      * Evaluates the complete analyzed project and returns zero or more findings.
      *
      * @param project the fully analyzed project, including all methods and their metadata

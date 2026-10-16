@@ -963,6 +963,51 @@ public final class RuleCatalog {
                         + " finding even if the collected flow is distinct.");
 
         // ── AOP / Proxy: @Transactional on interface ─────────────────────────
+        put(catalog, TestWithoutAssertionRule.ID,
+                "Test runs code but asserts nothing",
+                "testing", Severity.WARNING, ALL_LANGUAGES,
+                "Projects scanned with --include-tests, using JUnit 4, JUnit 5 or Kotlin test frameworks",
+                "A test method runs code but neither it nor the project methods it calls assert, verify, expect or fail on anything.",
+                "A test with no check passes whatever the code does, so it adds coverage numbers and no safety. A regression that returns the wrong value, or never calls a collaborator, goes unnoticed until production. Such tests tend to survive because they are green.",
+                "A test method (JUnit @Test, @ParameterizedTest, @RepeatedTest, @TestFactory) with at least one call, none of whose calls (or those of the project methods it calls, two levels deep) is named like an assertion, verification, expectation or fail.",
+                "Assertions hidden behind a method outside the project, or a custom DSL with unusual names, are not recognised. Tests whose purpose is \"does not throw\" are reported; make that explicit with assertDoesNotThrow. Empty tests and tests declaring an expected exception are skipped.");
+
+        put(catalog, TestSwallowsExceptionRule.ID,
+                "Test catches a broad exception and carries on",
+                "testing", Severity.WARNING, ALL_LANGUAGES,
+                "Projects scanned with --include-tests, using JUnit 4, JUnit 5 or Kotlin test frameworks",
+                "A test method catches Exception, Throwable, Error or AssertionError and neither rethrows nor asserts or fails afterwards.",
+                "The catch converts a failing check into a passing test. The failure the test was written to expose is swallowed, and the suite stays green while the behaviour is broken.",
+                "A catch of a broad type inside a test method with no rethrow, where no assertion or fail call appears at or after the catch line.",
+                "An assertion later in the method, even one unrelated to the catch, suppresses the finding. Catches of specific exception types are not reported.");
+
+        put(catalog, TestDisabledWithoutReasonRule.ID,
+                "Test disabled without a reason",
+                "testing", Severity.INFO, ALL_LANGUAGES,
+                "Projects scanned with --include-tests, using JUnit 4, JUnit 5 or Kotlin test frameworks",
+                "A test or test class carries @Disabled or @Ignore with no reason text.",
+                "Nobody can tell whether the test waits for a fix, was flaky, or was forgotten. The coverage it gave is gone and nothing says when, or whether, it should return.",
+                "A test method whose effective annotations include @Disabled or @Ignore with no value. A class disabled as a whole is reported once.",
+                "Disabling through conditions (@EnabledIf, @DisabledOnOs) or build configuration is not analysed.");
+
+        put(catalog, TestThreadSleepRule.ID,
+                "Fixed sleep inside a test",
+                "testing", Severity.INFO, ALL_LANGUAGES,
+                "Projects scanned with --include-tests, using JUnit 4, JUnit 5 or Kotlin test frameworks",
+                "A test method calls Thread.sleep or TimeUnit.sleep.",
+                "A fixed wait is either too short, making the test fail on a slow machine, or long enough to be safe, slowing every run. Flaky tests train a team to ignore red builds.",
+                "A call named sleep on Thread or TimeUnit inside a test method.",
+                "Sleeps in helper classes that are not test methods are not reported.");
+
+        put(catalog, TestBroadExpectedExceptionRule.ID,
+                "Test expects a very general exception",
+                "testing", Severity.INFO, ALL_LANGUAGES,
+                "Projects scanned with --include-tests, using JUnit 4, JUnit 5 or Kotlin test frameworks",
+                "A test expects Exception, RuntimeException or Throwable through assertThrows, isInstanceOf or @Test(expected = ...).",
+                "Any exception satisfies the expectation, including a NullPointerException from a bug in the setup. The test keeps passing while the behaviour it describes is no longer there.",
+                "assertThrows, isInstanceOf or hasCauseInstanceOf whose first argument is a broad exception class, or @Test(expected = ...) with one.",
+                "Kotlin assertFailsWith<Exception>() carries the type as a generic argument that is not captured, so it is not reported.");
+
         put(catalog, TransactionalOnInterfaceRule.ID,
                 "@Transactional on interface method ignored by CGLIB proxy",
                 "aop-proxy", Severity.ERROR, ALL_LANGUAGES,

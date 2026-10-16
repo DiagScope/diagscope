@@ -53,9 +53,13 @@ public final class RuleEngine {
         for (var finding : run(flows, policy)) {
             combined.put(finding.fingerprint(), finding);
         }
+        boolean withTests = project.hasTestSources();
+        AnalyzedProject production = withTests ? project.restrictedTo(false) : project;
+        AnalyzedProject tests = withTests ? project.restrictedTo(true) : null;
         for (var rule : projectRules) {
             if (policy.disabledRules().contains(rule.id())) continue;
-            for (var finding : rule.evaluate(project)) {
+            if (rule.testSourceRule() && tests == null) continue;
+            for (var finding : rule.evaluate(rule.testSourceRule() ? tests : production)) {
                 Objects.requireNonNull(finding, () -> "ProjectRule " + rule.id() + " returned a null finding");
                 Finding configured = applySeverityOverride(finding, policy);
                 combined.merge(configured.fingerprint(), configured, RuleEngine::mergeFindings);

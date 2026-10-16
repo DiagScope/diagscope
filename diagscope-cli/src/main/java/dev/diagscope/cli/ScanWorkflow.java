@@ -59,8 +59,21 @@ public final class ScanWorkflow {
             Path configuration,
             List<Path> classpath,
             List<Path> sourceRoots,
-            EnumSet<EntrypointType> entrypointTypes
+            EnumSet<EntrypointType> entrypointTypes,
+            boolean includeTests
     ) {
+        /** Request that analyzes production sources only. */
+        public Request(
+                Path project, Path output, int maxDepth, int parallelism, EnumSet<ReportFormat> formats,
+                FailOn failOn, Path baseline, boolean updateBaseline, List<String> baselineMigrations,
+                boolean pruneRemovedBaseline, String changedSince, Path configuration, List<Path> classpath,
+                List<Path> sourceRoots, EnumSet<EntrypointType> entrypointTypes
+        ) {
+            this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
+                    baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
+                    entrypointTypes, false);
+        }
+
         public Request {
             Objects.requireNonNull(project, "project");
             formats = formats == null || formats.isEmpty()
@@ -100,7 +113,8 @@ public final class ScanWorkflow {
         var loadedConfiguration = loadConfiguration(projectRoot, request.configuration());
         var options = new AnalysisOptions(depth, workers, request.entrypointTypes(),
                 loadedConfiguration.policy(), resolveClasspath(projectRoot, request.classpath()),
-                resolveSourceRoots(projectRoot, request.sourceRoots()));
+                withTestRoots(projectRoot, resolveSourceRoots(projectRoot, request.sourceRoots()),
+                        request.includeTests()));
         Path outputDirectory = resolveOutputDirectory(projectRoot,
                 request.output() != null ? request.output() : defaultOutputFor(projectRoot));
         var rawResult = useCase.scan(new AnalysisRequest(projectRoot, options));
@@ -204,6 +218,25 @@ public final class ScanWorkflow {
             }
             return resolved;
         }).distinct().toList();
+    }
+
+    /** Adds every {@code src/test/java} and {@code src/test/kotlin} directory of the project when asked to. */
+    private static List<Path> withTestRoots(Path projectRoot, List<Path> sourceRoots, boolean includeTests) {
+        if (!includeTests) return sourceRoots;
+        var roots = new java.util.LinkedHashSet<>(sourceRoots);
+        try (var paths = Files.walk(projectRoot, 8)) {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> !projectRoot.relativize(path).toString().matches(
+                            ".*(^|/)(target|build|node_modules|\\.git|\\.gradle|out)(/.*)?$"))
+                    .filter(path -> {
+                        String relative = projectRoot.relativize(path).toString().replace('\\', '/');
+                        return relative.endsWith("src/test/java") || relative.endsWith("src/test/kotlin");
+                    })
+                    .sorted().forEach(roots::add);
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("Unable to look for test sources: " + exception.getMessage());
+        }
+        return List.copyOf(roots);
     }
 
     private static List<Path> resolveSourceRoots(Path projectRoot, List<Path> sourceRoots) {

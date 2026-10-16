@@ -46,6 +46,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
   automatically from the project root when present.
 - `--source-root <path>` — add an existing production source directory inside the project; repeat
   the option or comma-separate entries for dynamic/generated roots;
+- `--include-tests` — also analyze every `src/test/java` and `src/test/kotlin` directory with the `TEST_*` rules. Production rules never see test code and the test rules never see production code, so production findings are unchanged; without the flag test sources are ignored.
 - `--classpath <path>` — opt into Java dependency symbol solving with an existing JAR or classes
   directory; repeat the option or comma-separate entries. No build command is executed.
 

@@ -70,6 +70,11 @@ public final class ScanCommand implements Callable<Integer> {
             description = "Additional production source root inside the project; repeat or comma-separate entries")
     private List<Path> sourceRoots = List.of();
 
+    @Option(names = "--include-tests",
+            description = "Also analyze src/test sources with the test rules (TEST_*). Production rules never see"
+                    + " test code, so this adds findings without changing the production ones.")
+    private boolean includeTests;
+
     @Option(names = "--entrypoint", split = ",", defaultValue = "REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED",
             description = "Entrypoint types: REST, KAFKA_LISTENER, REACTIVE_MESSAGE, SCHEDULED, PUBLIC_METHOD."
                     + " Use PUBLIC_METHOD for library or framework-free projects.")
@@ -89,7 +94,7 @@ public final class ScanCommand implements Callable<Integer> {
             return workflow.run(new ScanWorkflow.Request(
                     project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath,
-                    sourceRoots, entrypointTypes
+                    sourceRoots, entrypointTypes, includeTests
             )).exitCode();
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());

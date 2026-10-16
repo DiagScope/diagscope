@@ -137,6 +137,26 @@ public final class RuleRemediationCatalog {
                             + "    EntityNotFoundException(\"Missing value for $key\")\n"
                             + "}",
                     "Prefer orElseThrow() or orElse(defaultValue). If null is truly required for a legacy API, suppress with an inline comment.")),
+            Map.entry(TestWithoutAssertionRule.ID, snippets(
+                    "// Instead of only running the code:\n@Test void createsOrder() { service.create(request); }\n// Check the outcome:\n@Test void createsOrder() {\n    var order = service.create(request);\n    assertThat(order.status()).isEqualTo(Status.NEW);\n}",
+                    "// Instead of only running the code:\n@Test fun createsOrder() { service.create(request) }\n// Check the outcome:\n@Test fun createsOrder() {\n    val order = service.create(request)\n    assertEquals(Status.NEW, order.status)\n}",
+                    "Assert the outcome, or use assertDoesNotThrow when \"does not throw\" is the point.")),
+            Map.entry(TestSwallowsExceptionRule.ID, snippets(
+                    "// Instead of swallowing the failure:\ntry { service.run(); } catch (Exception e) { }\n// Let it fail the test, or assert on it:\nassertThrows(IllegalStateException.class, () -> service.run());",
+                    "// Instead of swallowing the failure:\ntry { service.run() } catch (e: Exception) { }\n// Let it fail the test, or assert on it:\nassertFailsWith<IllegalStateException> { service.run() }",
+                    "Remove the catch, rethrow, or assert on the specific exception.")),
+            Map.entry(TestDisabledWithoutReasonRule.ID, snippets(
+                    "// Instead of a bare @Disabled:\n@Disabled(\"waiting for PAY-123: gateway sandbox is down\")\n@Test void chargesCard() { }",
+                    "// Instead of a bare @Disabled:\n@Disabled(\"waiting for PAY-123: gateway sandbox is down\")\n@Test fun chargesCard() { }",
+                    "Name what must happen before the test returns, or delete it.")),
+            Map.entry(TestThreadSleepRule.ID, snippets(
+                    "// Instead of Thread.sleep(2000):\nawait().atMost(Duration.ofSeconds(5)).until(() -> repository.count() == 1);",
+                    "// Instead of Thread.sleep(2000):\nawait().atMost(Duration.ofSeconds(5)).until { repository.count() == 1L }",
+                    "Wait for the condition with Awaitility, a latch, or an injected clock.")),
+            Map.entry(TestBroadExpectedExceptionRule.ID, snippets(
+                    "// Instead of the broad type:\nassertThrows(Exception.class, () -> service.pay(null));\n// Expect the specific one:\nvar thrown = assertThrows(InvalidPaymentException.class, () -> service.pay(null));\nassertThat(thrown).hasMessageContaining(\"amount\");",
+                    "// Instead of the broad type:\nassertFailsWith<Exception> { service.pay(null) }\n// Expect the specific one:\nval thrown = assertFailsWith<InvalidPaymentException> { service.pay(null) }\nassertTrue(thrown.message!!.contains(\"amount\"))",
+                    "Expect the specific exception and assert on its message or cause.")),
             Map.entry(AutowiredRequiredFalseUnsafeRule.ID, snippets(
                     "// Instead of calling the optional field directly:\n"
                             + "@Autowired(required = false)\n"

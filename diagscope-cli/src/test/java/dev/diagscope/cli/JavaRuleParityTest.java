@@ -63,6 +63,16 @@ class JavaRuleParityTest {
     @Test
     void keeps_correct_java_variants_silent() {
         assertThat(methodsFor("LOG_WITHOUT_THROWABLE")).noneMatch(method -> method.contains("logFailureProperly"));
+        assertThat(methodsFor("TEST_WITHOUT_ASSERTION")).anyMatch(method -> method.contains("runsWithoutChecking"))
+                .noneMatch(method -> method.contains("checksTheOutcome") || method.contains("checksThroughAHelper")
+                        || method.contains("parkedWithReason"));
+        assertThat(methodsFor("TEST_SWALLOWS_EXCEPTION")).anyMatch(method -> method.contains("swallowsTheFailure"))
+                .noneMatch(method -> method.contains("assertsOnTheSpecificFailure"));
+        assertThat(methodsFor("TEST_THREAD_SLEEP")).anyMatch(method -> method.contains("waitsWithASleep"));
+        assertThat(methodsFor("TEST_BROAD_EXPECTED_EXCEPTION")).anyMatch(method -> method.contains("expectsAnything"))
+                .noneMatch(method -> method.contains("expectsTheSpecificException"));
+        assertThat(methodsFor("TEST_DISABLED_WITHOUT_REASON")).anyMatch(method -> method.contains("parked"))
+                .noneMatch(method -> method.contains("parkedWithReason"));
         assertThat(methodsFor("AUTOWIRED_REQUIRED_FALSE_UNSAFE"))
                 .anyMatch(method -> method.contains("recordUnsafe")).noneMatch(method -> method.contains("recordSafe"));
         assertThat(methodsFor("ASYNC_RESULT_UNOBSERVED")).noneMatch(method -> method.contains("submitObserved"));
@@ -104,11 +114,28 @@ class JavaRuleParityTest {
         Path output = temp.resolve(outputName);
         int exit = DiagScopeMain.createCommandLine().execute(
                 "scan", "--project", project.toString(), "--output", output.toString(),
-                "--format", "JSON", "--parallelism", "1");
+                "--format", "JSON", "--parallelism", "1", "--include-tests");
         assertThat(exit).isZero();
         JsonNode scanned = JSON.readTree(output.resolve("result.json").toFile());
         assertThat(scanned.path("statistics").path("parseFailures").asInt()).isZero();
         return scanned;
+    }
+
+    @Test
+    void test_sources_are_ignored_unless_requested_and_never_change_production_findings() throws Exception {
+        Path project = FixtureCatalog.copyTo(temp, "java-rule-parity");
+        Path output = temp.resolve("without-tests");
+        int exit = DiagScopeMain.createCommandLine().execute(
+                "scan", "--project", project.toString(), "--output", output.toString(),
+                "--format", "JSON", "--parallelism", "1");
+        assertThat(exit).isZero();
+        JsonNode withoutTests = JSON.readTree(output.resolve("result.json").toFile());
+
+        assertThat(ruleIds(withoutTests)).noneMatch(rule -> rule.startsWith("TEST_"));
+        var production = new java.util.TreeSet<>(ruleIds());
+        production.removeIf(rule -> rule.startsWith("TEST_"));
+        assertThat(production).isEqualTo(new java.util.TreeSet<>(ruleIds(withoutTests)));
+        assertThat(ruleIds()).anyMatch(rule -> rule.startsWith("TEST_"));
     }
 
     @Test

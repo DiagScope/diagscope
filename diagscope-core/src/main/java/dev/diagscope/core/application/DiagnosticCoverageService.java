@@ -29,8 +29,11 @@ public final class DiagnosticCoverageService implements ScanProjectUseCase {
         long projectAnalysisNanos = System.nanoTime() - analysisStart;
 
         long flowStart = System.nanoTime();
-        var flows = new ArrayList<Flow>(project.entrypoints().size());
-        for (var entrypoint : project.entrypoints()) {
+        var entrypoints = project.entrypoints().stream()
+                .filter(entrypoint -> !dev.diagscope.core.domain.SourceScope.isTestSource(entrypoint.location().file()))
+                .toList();
+        var flows = new ArrayList<Flow>(entrypoints.size());
+        for (var entrypoint : entrypoints) {
             flows.add(flowBuilder.build(project, entrypoint, request.options().maxFlowDepth()));
         }
         long flowNanos = System.nanoTime() - flowStart;
@@ -41,7 +44,7 @@ public final class DiagnosticCoverageService implements ScanProjectUseCase {
 
         long totalNanos = System.nanoTime() - totalStart;
         var statistics = new AnalysisStatistics(
-                project.discoveredSourceFiles(), project.methods().size(), project.entrypoints().size(),
+                project.discoveredSourceFiles(), project.methods().size(), entrypoints.size(),
                 flows.size(), findings.size(), project.parseFailures().size(),
                 new PhaseMetrics(projectAnalysisNanos, flowNanos, ruleNanos, totalNanos)
         );

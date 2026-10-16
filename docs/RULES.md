@@ -838,6 +838,43 @@ Known limitation: intentional nullable interop with legacy APIs that expect `nul
 
 Recommended response: replace `orElse(null)` with `orElseThrow()` (forces callers to handle absence), `orElse(defaultValue)` (explicit fallback), or return `Optional<T>` to propagate the absent-case contract.
 
+## Test-source rules (`--include-tests`)
+
+The `TEST_*` rules read `src/test/java` and `src/test/kotlin` and run only with `scan --include-tests`. Production rules never see test code, and these rules never see production code, so the flag adds findings without changing the production ones. Test code is not an entrypoint: no flow starts in a test.
+
+## `TEST_WITHOUT_ASSERTION`
+
+A test method runs code but neither it nor a project method it calls (two levels deep) asserts, verifies, expects or fails on anything, so it passes whatever the code does.
+
+- Default severity: `WARNING`. Evidence confidence: `MEDIUM`.
+- Known limitation: a smoke test whose whole point is "does not throw" is reported; make that explicit with `assertDoesNotThrow`. Empty tests, tests declaring an expected exception and disabled tests are skipped. Vert.x `completeNow`/`succeeding`/`checkpoint` and Awaitility `await`/`until` count as checks.
+
+## `TEST_SWALLOWS_EXCEPTION`
+
+A test catches `Exception`, `Throwable`, `Error` or `AssertionError` and neither rethrows nor asserts or fails at or after the catch, turning a failure into a pass.
+
+- Default severity: `WARNING`. Evidence confidence: `MEDIUM`.
+- Known limitation: any assertion after the catch, even an unrelated one, suppresses the finding. Catches of specific exception types are not reported.
+
+## `TEST_DISABLED_WITHOUT_REASON`
+
+A test or test class carries `@Disabled` or `@Ignore` with no reason. A class disabled as a whole is reported once.
+
+- Default severity: `INFO`. Evidence confidence: `HIGH`.
+
+## `TEST_THREAD_SLEEP`
+
+A test calls `Thread.sleep` or `TimeUnit.sleep`: too short and it fails on a slow machine, long enough to be safe and it slows every run. Prefer Awaitility, a latch or an injected clock.
+
+- Default severity: `INFO`. Evidence confidence: `HIGH`.
+
+## `TEST_BROAD_EXPECTED_EXCEPTION`
+
+A test expects `Exception`, `RuntimeException` or `Throwable` through `assertThrows`, `isInstanceOf` or `@Test(expected = ...)`, so any failure, including one in the setup, satisfies it.
+
+- Default severity: `INFO`. Evidence confidence: `HIGH`.
+- Known limitation: Kotlin `assertFailsWith<Exception>()` carries the type as a generic argument that is not captured.
+
 ## `AUTOWIRED_REQUIRED_FALSE_UNSAFE`
 
 Detects a field injected with `@Autowired(required = false)` that a method calls without comparing it with `null`. With `required = false` Spring leaves the field untouched when no bean matches, so it stays `null` and the call throws a `NullPointerException` that points at the call site rather than at the missing bean.

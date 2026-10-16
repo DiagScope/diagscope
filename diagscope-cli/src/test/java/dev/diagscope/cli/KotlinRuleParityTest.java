@@ -36,7 +36,7 @@ class KotlinRuleParityTest {
         Path output = temp.resolve(outputName);
         int exit = DiagScopeMain.createCommandLine().execute(
                 "scan", "--project", project.toString(), "--output", output.toString(),
-                "--format", "JSON", "--parallelism", "1");
+                "--format", "JSON", "--parallelism", "1", "--include-tests");
 
         assertThat(exit).isZero();
         JsonNode scanned = JSON.readTree(output.resolve("result.json").toFile());
@@ -93,6 +93,16 @@ class KotlinRuleParityTest {
     @Test
     void keeps_correct_kotlin_variants_silent() {
         assertThat(methodsFor("LOG_WITHOUT_THROWABLE")).noneMatch(method -> method.contains("logFailureProperly"));
+        assertThat(methodsFor("TEST_WITHOUT_ASSERTION")).anyMatch(method -> method.contains("runsWithoutChecking"))
+                .noneMatch(method -> method.contains("checksTheOutcome") || method.contains("checksThroughAHelper")
+                        || method.contains("parkedWithReason"));
+        assertThat(methodsFor("TEST_SWALLOWS_EXCEPTION")).anyMatch(method -> method.contains("swallowsTheFailure"))
+                .noneMatch(method -> method.contains("assertsOnTheSpecificFailure"));
+        assertThat(methodsFor("TEST_THREAD_SLEEP")).anyMatch(method -> method.contains("waitsWithASleep"));
+        assertThat(methodsFor("TEST_BROAD_EXPECTED_EXCEPTION")).anyMatch(method -> method.contains("expectsAnything"))
+                .noneMatch(method -> method.contains("expectsTheSpecificException"));
+        assertThat(methodsFor("TEST_DISABLED_WITHOUT_REASON")).anyMatch(method -> method.contains("parked"))
+                .noneMatch(method -> method.contains("parkedWithReason"));
         assertThat(methodsFor("AUTOWIRED_REQUIRED_FALSE_UNSAFE"))
                 .anyMatch(method -> method.contains("recordUnsafe")).noneMatch(method -> method.contains("recordSafe"));
         assertThat(methodsFor("ASYNC_RESULT_UNOBSERVED")).noneMatch(method -> method.contains("submitObserved"));

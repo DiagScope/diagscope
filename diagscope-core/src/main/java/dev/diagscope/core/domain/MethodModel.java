@@ -72,6 +72,11 @@ public record MethodModel(
         return names.isEmpty() ? Set.of() : Set.of(names.split(","));
     }
 
+    /** Whether the method is declared in a test source root ({@code src/test}). */
+    public boolean testSource() {
+        return SourceScope.isTestSource(location.file());
+    }
+
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");
