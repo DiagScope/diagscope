@@ -639,9 +639,9 @@ public final class RuleCatalog {
                 "Write operation outside a transaction boundary",
                 "transactions", Severity.WARNING, ALL_LANGUAGES,
                 "Spring Data / JPA / Hibernate applications",
-                "A JPA or Spring Data write operation (save, delete, persist, merge, flush, remove)"
-                        + " is called in a method that carries no @Transactional annotation and whose"
-                        + " class is not declared @Transactional.",
+                "A method performs an EntityManager write (persist, merge, remove, flush), or two or more"
+                        + " Spring Data write calls (save, delete, ...), with no @Transactional on the"
+                        + " method, its class, or any caller on the traced path.",
                 "Without a transaction boundary each write runs in its own auto-commit context."
                         + " If a subsequent operation in the same business action fails, the previously"
                         + " persisted changes cannot be rolled back, leaving data in an inconsistent state.",
@@ -649,9 +649,10 @@ public final class RuleCatalog {
                         + " whose type or scope name suggests a Spring Data repository, DAO,"
                         + " or JPA EntityManager, in a method with no detectable @Transactional"
                         + " annotation on the method or its declaring class.",
-                "The rule uses method-name and receiver-type heuristics, so a custom repository"
-                        + " with an unconventional name may be missed, and a method that calls a"
-                        + " helper that is itself @Transactional will still be flagged.");
+                "A single Spring Data call is not reported: repository methods are transactional on their own,"
+                        + " so one save cannot half-complete. The rule uses method-name and receiver-type"
+                        + " heuristics, so a custom repository with an unconventional name may be missed, and"
+                        + " a transaction opened by a caller outside the traced flow is invisible.");
 
         put(catalog, ReadOnlyTransactionWriteRule.ID,
                 "Write operation inside read-only transaction",
@@ -973,8 +974,9 @@ public final class RuleCatalog {
                         + " silently ignored. The failure is discovered at runtime when a rollback"
                         + " fails or writes appear outside expected transaction boundaries.",
                 "DiagScope detects @Transactional on methods whose declaring type is an"
-                        + " interface (resolved from the AST type declaration kind). Confidence is"
-                        + " HIGH because the AST explicitly records whether a type is an interface.",
+                        + " interface (resolved from the AST type declaration kind). Interfaces that extend a"
+                        + " Spring Data repository are skipped: the container builds their proxy from the"
+                        + " interface, so the annotation is honoured.",
                 "Methods in JDK dynamic proxy mode (proxyTargetClass=false) would correctly"
                         + " pick up the interface annotation, but this mode is not the default"
                         + " and should not be relied upon.");
@@ -991,8 +993,9 @@ public final class RuleCatalog {
                         + " thousands or millions of rows. Manifests as OOM errors or timeouts"
                         + " that appear months after go-live when data grows beyond test sizes.",
                 "DiagScope inspects the return type of repository methods (types matching the"
-                        + " Repository/Dao naming pattern) for collection return types. Methods"
-                        + " with a Pageable parameter, or names containing count/delete/save, are"
+                        + " Repository/Dao naming pattern) for collection return types. Only methods with no"
+                        + " parameters are reported, since a filter argument usually bounds the result."
+                        + " Methods with a Pageable parameter, or names containing count/delete/save, are"
                         + " suppressed.",
                 "The rule matches by type name pattern (ends with Repository); a type with that"
                         + " suffix that is not a Spring Data repository produces a false positive."
@@ -1980,27 +1983,24 @@ public final class RuleCatalog {
 
         // Wave 10
         put(catalog, MissingRequestBodyValidationRule.ID,
-                "Write endpoint on controller without @Validated — request body constraints ignored",
+                "Request body not validated — @RequestBody without @Valid",
                 "rest", Severity.WARNING, ALL_LANGUAGES,
                 "@RestController or @Controller classes with POST/PUT/PATCH methods",
-                "A controller method handling a write operation (POST/PUT/PATCH) has parameters"
-                        + " but the controller class does not carry @Validated. Any @Valid or"
-                        + " field-level constraint annotations on @RequestBody parameters are"
-                        + " silently ignored by Spring MVC.",
+                "A POST/PUT/PATCH controller method takes a @RequestBody payload object that is annotated"
+                        + " with neither @Valid nor @Validated, so the constraints declared on the payload"
+                        + " class (@NotNull, @Size, @Pattern) are never evaluated by Spring MVC.",
                 "Invalid input — nulls, out-of-range values, malformed strings — passes to the"
                         + " service layer unchecked. Validation failures that should be 400 Bad"
                         + " Request instead surface as NullPointerException,"
                         + " DataIntegrityViolationException, or silent data corruption, typically"
                         + " as a generic 500 with no user-facing feedback.",
-                "Controller types with @RestController or @Controller that lack @Validated in"
-                        + " any method's effective annotation set, containing at least one method"
-                        + " with @PostMapping, @PutMapping, or @PatchMapping and non-empty"
-                        + " parameterTypes. Confidence MEDIUM — parameter-level @Valid is not"
-                        + " visible in the method annotation set.",
-                "Controllers that validate inputs programmatically (e.g., manual null checks or"
-                        + " a Validator injected field) will be false positives. Methods without"
-                        + " a @RequestBody parameter (e.g., path-variable-only endpoints) may"
-                        + " also be flagged; suppress with diagscope:ignore.");
+                "Controller methods with @PostMapping, @PutMapping or @PatchMapping that have a"
+                        + " @RequestBody parameter without @Valid/@Validated, read from the per-parameter"
+                        + " annotations the parsers expose. Plain strings, maps, streams and primitives are"
+                        + " ignored. A class-level @Validated does not validate body objects, so it does not"
+                        + " suppress the finding.",
+                "Controllers that validate by hand (an injected Validator) are false positives;"
+                        + " suppress with diagscope:ignore.");
 
         put(catalog, TransactionalOnRestControllerRule.ID,
                 "@Transactional on @RestController — database connection held for full HTTP cycle",

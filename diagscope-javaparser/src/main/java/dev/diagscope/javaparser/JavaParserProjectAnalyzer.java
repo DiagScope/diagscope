@@ -303,6 +303,20 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 syntheticMarkers.add(new AnnotationDescriptor("EagerCollectionFetch", Map.of(
                         "fields", eagerFields, "line", lineOf(eagerMembers.get(0)))));
             }
+            // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's: it has no
+            // readOnly attribute and is not subject to Spring's proxy rules. Record which one the file imports.
+            if (usesJakartaTransactional(unit)) {
+                syntheticMarkers.add(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()));
+            }
+            // An interface extending a Spring Data repository is instantiated by the container, so treat it as a
+            // @Repository bean: its proxy carries the transaction and caching advice declared on it.
+            if (type.isClassOrInterfaceDeclaration() && type.asClassOrInterfaceDeclaration().isInterface()
+                    && typeAnnotations.stream().noneMatch(a -> "Repository".equals(a.name()))
+                    && (type.asClassOrInterfaceDeclaration().getExtendedTypes().stream()
+                            .anyMatch(extended -> extended.getNameAsString().endsWith("Repository"))
+                    || typeAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name())))) {
+                syntheticMarkers.add(new AnnotationDescriptor("Repository", Map.of()));
+            }
             // @Lazy on a constructor parameter: constructors are not mapped as methods, so surface it here.
             var lazyParameter = type.getMembers().stream()
                     .filter(BodyDeclaration::isConstructorDeclaration)
@@ -329,6 +343,23 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
                 List.copyOf(rawMethods), List.copyOf(types), declaresProducerListener(unit));
+    }
+
+    private static boolean usesJakartaTransactional(CompilationUnit unit) {
+        boolean jakarta = false;
+        for (var declaration : unit.getImports()) {
+            String name = declaration.getNameAsString();
+            boolean wildcard = declaration.isAsterisk();
+            if (name.startsWith("org.springframework.transaction.annotation")
+                    || name.equals("org.springframework.transaction.annotation.Transactional")) {
+                return false;
+            }
+            if (name.equals("jakarta.transaction.Transactional") || name.equals("javax.transaction.Transactional")
+                    || wildcard && (name.equals("jakarta.transaction") || name.equals("javax.transaction"))) {
+                jakarta = true;
+            }
+        }
+        return jakarta;
     }
 
     private static MappedProject mergeMappedUnits(List<MappedUnit> units) {
@@ -395,6 +426,19 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             augmented.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()
                     .map(parameter -> parameter.getNameAsString())
                     .collect(java.util.stream.Collectors.joining(",")))));
+            methodAnnotations = List.copyOf(augmented);
+        }
+
+        // Annotations on each parameter (p0, p1, ...), so rules can tell @RequestBody @Valid from a bare parameter.
+        var parameterAnnotations = new LinkedHashMap<String, String>();
+        for (int index = 0; index < method.getParameters().size(); index++) {
+            var names = method.getParameter(index).getAnnotations().stream()
+                    .map(a -> a.getName().getIdentifier()).collect(java.util.stream.Collectors.joining(","));
+            if (!names.isEmpty()) parameterAnnotations.put("p" + index, names);
+        }
+        if (!parameterAnnotations.isEmpty()) {
+            var augmented = new ArrayList<>(methodAnnotations);
+            augmented.add(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, parameterAnnotations));
             methodAnnotations = List.copyOf(augmented);
         }
 

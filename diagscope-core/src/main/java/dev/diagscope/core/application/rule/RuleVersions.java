@@ -79,6 +79,14 @@ public final class RuleVersions {
         overrides.put(FallbackHidesFailureRule.ID, "1.0.1");
         // Collections declared inside the method are no longer reported.
         overrides.put(CheckThenActOnMapRule.ID, "1.0.1");
+        // Calibration against open-source projects: the validation premise was wrong (@Valid on the body is what
+        // counts), single Spring Data calls are already transactional, and MVC model attributes are not REST bodies.
+        overrides.put(MissingRequestBodyValidationRule.ID, "2.0.0");
+        overrides.put(MissingTransactionAnnotationRule.ID, "1.1.0");
+        overrides.put(MassAssignmentRiskRule.ID, "1.1.0");
+        overrides.put(EntityExposedInRestResponseRule.ID, "1.1.0");
+        overrides.put(MissingPaginationRule.ID, "1.1.0");
+        overrides.put(TransactionalOnInterfaceRule.ID, "1.1.0");
         return Map.copyOf(overrides);
     }
 }

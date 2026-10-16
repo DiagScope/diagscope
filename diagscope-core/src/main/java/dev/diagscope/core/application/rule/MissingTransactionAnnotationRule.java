@@ -55,12 +55,22 @@ public final class MissingTransactionAnnotationRule implements DiagnosticRule {
     @Override
     public List<Finding> evaluate(Flow flow) {
         var findings = new ArrayList<Finding>();
+        var byId = new java.util.HashMap<dev.diagscope.core.domain.MethodId, dev.diagscope.core.domain.FlowMethod>();
+        flow.methods().forEach(reached -> byId.put(reached.method().id(), reached));
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
-            if (hasTransactionAnnotation(method.annotations())) continue;
+            if (isTransactional(method)) continue;
+            // A caller on the path may already hold the transaction this method joins.
+            if (flowMethod.path().stream().map(byId::get)
+                    .anyMatch(reached -> reached != null && isTransactional(reached.method()))) continue;
 
-            for (var inv : method.invocations()) {
-                if (!isWriteOperation(inv)) continue;
+            var writes = method.invocations().stream().filter(MissingTransactionAnnotationRule::isWriteOperation).toList();
+            // One Spring Data call is transactional on its own; the risk is several writes that can half-complete.
+            long repositoryWrites = writes.stream().filter(write -> !isEntityManager(write)).count();
+            boolean entityManagerWrite = writes.stream().anyMatch(MissingTransactionAnnotationRule::isEntityManager);
+            if (!entityManagerWrite && repositoryWrites < 2) continue;
+
+            for (var inv : writes) {
 
                 Confidence confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
                 String receiver = inv.scope().isBlank() ? inv.receiverType() : inv.scope();
@@ -83,6 +93,16 @@ public final class MissingTransactionAnnotationRule implements DiagnosticRule {
         return List.copyOf(findings);
     }
 
+    private static boolean isTransactional(dev.diagscope.core.domain.MethodModel method) {
+        return hasTransactionAnnotation(method.annotations())
+                || method.proxy().proxiedAnnotations().contains("Transactional");
+    }
+
+    private static boolean isEntityManager(InvocationEvidence inv) {
+        String hint = RuleSupport.hintText(inv).toLowerCase(Locale.ROOT);
+        return hint.contains("entitymanager") || java.util.Arrays.asList(hint.split("[^a-z0-9]+")).contains("em");
+    }
+
     private static boolean hasTransactionAnnotation(Set<String> annotations) {
         return annotations.stream().anyMatch(annotation -> {
             String normalized = annotation.startsWith("@") ? annotation.substring(1) : annotation;
@@ -97,8 +117,6 @@ public final class MissingTransactionAnnotationRule implements DiagnosticRule {
     private static boolean isWriteOperation(InvocationEvidence inv) {
         if (!WRITE_METHOD.matcher(inv.methodName()).matches()) return false;
         String hint = (RuleSupport.hintText(inv)).toLowerCase(Locale.ROOT);
-        return WRITE_RECEIVER.matcher(hint).matches()
-                || hint.contains("entitymanager") || hint.contains("em")
-                || hint.contains("repo") || hint.contains("dao");
+        return WRITE_RECEIVER.matcher(hint).matches() || isEntityManager(inv);
     }
 }

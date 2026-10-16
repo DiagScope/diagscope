@@ -82,6 +82,12 @@ public final class EntityExposedInRestResponseRule implements ProjectRule {
         boolean hasRestMapping = method.annotations().stream()
                 .anyMatch(REST_MAPPING_ANNOTATIONS::contains);
         if (!hasRestMapping) return;
+        // Model attributes feed a view, and a plain @Controller renders views: neither serialises the entity.
+        if (method.annotations().contains("ModelAttribute") || method.annotations().contains("InitBinder")) return;
+        boolean serialisesBody = method.annotations().contains("RestController")
+                || method.annotations().contains("ResponseBody")
+                || !method.annotations().contains("Controller");
+        if (!serialisesBody) return;
 
         String returnType = method.returnType();
         if (returnType == null || returnType.isBlank() || returnType.equals("void")) return;

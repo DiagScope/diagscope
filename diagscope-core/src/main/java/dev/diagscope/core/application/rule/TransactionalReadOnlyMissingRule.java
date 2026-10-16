@@ -61,6 +61,8 @@ public final class TransactionalReadOnlyMissingRule implements ProjectRule {
 
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.annotations().contains("Transactional")) return;
+        // jakarta/javax @Transactional has no readOnly attribute: the advice would be impossible to follow.
+        if (method.annotations().contains(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION)) return;
 
         Map<String, String> txAttrs = method.annotationAttributes().get("Transactional");
         // If readOnly is explicitly true, the developer has already done the right thing

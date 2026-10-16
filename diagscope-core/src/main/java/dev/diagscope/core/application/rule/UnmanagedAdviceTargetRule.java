@@ -3,6 +3,7 @@ package dev.diagscope.core.application.rule;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
+import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.ProxyProfile;
 import dev.diagscope.core.domain.RelatedFlow;
 import dev.diagscope.core.domain.Severity;
@@ -10,6 +11,7 @@ import dev.diagscope.core.domain.Severity;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Reports proxy-dependent instrumentation declared on a class that does not look Spring managed.
@@ -24,6 +26,10 @@ import java.util.List;
 public final class UnmanagedAdviceTargetRule implements DiagnosticRule {
     public static final String ID = "AOP_UNMANAGED_ADVICE_TARGET";
 
+    private static final Set<String> CONTAINER_MANAGED_ANNOTATIONS = Set.of(
+            "ApplicationScoped", "RequestScoped", "SessionScoped", "Dependent", "Singleton", "Path", "Stateless",
+            "Stateful", "MessageDriven", "Named", "Provider");
+
     @Override
     public String id() {
         return ID;
@@ -36,6 +42,11 @@ public final class UnmanagedAdviceTargetRule implements DiagnosticRule {
             var method = flowMethod.method();
             ProxyProfile proxy = method.proxy();
             if (!proxy.proxied() || proxy.springManagedType()) {
+                continue;
+            }
+            // CDI and JAX-RS classes are container managed too; they just do not use Spring stereotypes.
+            if (method.annotations().contains(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION)
+                    || method.annotations().stream().anyMatch(CONTAINER_MANAGED_ANNOTATIONS::contains)) {
                 continue;
             }
 

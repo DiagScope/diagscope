@@ -7,42 +7,39 @@ import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.Severity;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Reports REST controller types that accept write-operation parameters without enabling Bean
- * Validation via {@code @Validated} at the class level.
+ * Reports write endpoints whose {@code @RequestBody} parameter is never validated.
  *
- * <p><b>Why it matters:</b> A {@code @RequestBody} parameter annotated with {@code @Valid} or
- * field-level JSR-380 constraints ({@code @NotNull}, {@code @Size}, {@code @Pattern}) is only
- * validated when the controller class itself carries {@code @Validated}. Without it, Spring MVC
- * accepts any input, including nulls, oversized strings, and malformed data, and passes it
- * directly to the service layer. Validation failures that should return 400 Bad Request instead
- * surface as NullPointerException, DataIntegrityViolationException, or silent data corruption
- * — all at a later stage, often with a generic 500 response and no user-facing feedback.</p>
+ * <p><b>Why it matters:</b> Spring MVC validates a {@code @RequestBody} argument only when the parameter is
+ * annotated {@code @Valid} or {@code @Validated}. Without either, constraint annotations on the payload class
+ * ({@code @NotNull}, {@code @Size}, {@code @Pattern}) are never evaluated: nulls, oversized strings and malformed
+ * data reach the service layer and surface later as a {@code NullPointerException}, a constraint violation from the
+ * database, or silently corrupted data, instead of a 400 response at the boundary. A class-level
+ * {@code @Validated} does <em>not</em> change this for body objects.</p>
  *
- * <p><b>Detection strategy:</b> Group methods by declaring type.
- * Pass 1 — collect controller types that already have {@code Validated} in any method's effective
- * annotation set (class-level annotations are merged in, so a class-level {@code @Validated}
- * appears on every method). Pass 2 — for controller types without {@code Validated}, flag
- * methods that use {@code PostMapping}, {@code PutMapping}, or {@code PatchMapping} and have
- * at least one parameter type (non-empty parameterTypes list). One finding per method is emitted
- * with MEDIUM confidence because the parser does not expose parameter-level annotations.</p>
+ * <p><b>Detection strategy:</b> for every method with {@code @PostMapping}, {@code @PutMapping} or
+ * {@code @PatchMapping} on a controller, read the per-parameter annotations exposed by the parsers and report the
+ * method when a {@code @RequestBody} parameter of a payload type (not a plain string, map, stream or primitive)
+ * carries neither {@code @Valid} nor {@code @Validated}. Confidence is MEDIUM because validation can also be done by
+ * hand with a {@code Validator}.</p>
  */
 public final class MissingRequestBodyValidationRule implements ProjectRule {
 
     public static final String ID = "MISSING_REQUEST_BODY_VALIDATION";
 
-    private static final Set<String> CONTROLLER_ANNOTATIONS = Set.of(
-            "RestController", "Controller"
-    );
-    private static final Set<String> WRITE_MAPPING_ANNOTATIONS = Set.of(
-            "PostMapping", "PutMapping", "PatchMapping"
-    );
+    private static final Set<String> CONTROLLER_ANNOTATIONS = Set.of("RestController", "Controller");
+    private static final Set<String> WRITE_MAPPING_ANNOTATIONS = Set.of("PostMapping", "PutMapping", "PatchMapping");
+    private static final Set<String> VALIDATION_ANNOTATIONS = Set.of("Valid", "Validated");
+
+    /** Types that carry no constraints of their own, so {@code @Valid} would add nothing. */
+    private static final Set<String> UNVALIDATABLE_BODY_TYPES = Set.of(
+            "String", "Object", "Map", "HashMap", "LinkedHashMap", "JsonNode", "ObjectNode", "byte[]", "InputStream",
+            "Resource", "boolean", "Boolean", "int", "Integer", "long", "Long", "double", "Double", "float", "Float",
+            "short", "Short", "byte", "Byte", "char", "Character", "BigDecimal", "BigInteger");
 
     @Override
     public String id() {
@@ -51,62 +48,50 @@ public final class MissingRequestBodyValidationRule implements ProjectRule {
 
     @Override
     public List<Finding> evaluate(AnalyzedProject project) {
-        // Pass 1: collect controller types and those that have @Validated
-        var controllerTypes = new HashSet<String>();
-        var validatedTypes = new HashSet<String>();
-        var methodsByType = new HashMap<String, List<MethodModel>>();
-
-        for (MethodModel method : project.methods().values()) {
-            boolean isController = method.annotations().stream().anyMatch(CONTROLLER_ANNOTATIONS::contains);
-            if (!isController) continue;
-
-            String type = method.id().declaringType();
-            controllerTypes.add(type);
-            methodsByType.computeIfAbsent(type, k -> new ArrayList<>()).add(method);
-
-            if (method.annotations().contains("Validated")) {
-                validatedTypes.add(type);
-            }
-        }
-
-        // Pass 2: for controller types without @Validated, flag write methods with parameters
         var findings = new ArrayList<Finding>();
-        for (String type : controllerTypes) {
-            if (validatedTypes.contains(type)) continue;
-            List<MethodModel> methods = methodsByType.getOrDefault(type, List.of());
-            for (MethodModel method : methods) {
-                if (!hasWriteMapping(method)) continue;
-                if (method.id().parameterTypes().isEmpty()) continue;
+        for (MethodModel method : project.methods().values()) {
+            if (method.annotations().stream().noneMatch(CONTROLLER_ANNOTATIONS::contains)) continue;
+            if (method.annotations().stream().noneMatch(WRITE_MAPPING_ANNOTATIONS::contains)) continue;
+            String unvalidated = unvalidatedBodyType(method);
+            if (unvalidated == null) continue;
 
-                String display = method.id().displayName();
-                findings.add(new Finding(
-                        ID, Severity.WARNING, Confidence.MEDIUM, method.location(),
-                        "'" + display + "' is a write endpoint on a controller without"
-                                + " @Validated. @Valid/@Constraint annotations on @RequestBody"
-                                + " parameters are silently ignored — invalid input passes to the"
-                                + " service layer unchecked.",
-                        "Annotate the controller class with @Validated:"
-                                + " @RestController @Validated public class "
-                                + simpleTypeName(type) + ". Then annotate each @RequestBody"
-                                + " parameter with @Valid to activate field-level constraint"
-                                + " validation, returning 400 Bad Request automatically on"
-                                + " constraint violations.",
-                        List.of(),
-                        Map.of(
-                                "method", display,
-                                "declaringType", type
-                        )));
-            }
+            String display = method.id().displayName();
+            findings.add(new Finding(
+                    ID, Severity.WARNING, Confidence.MEDIUM, method.location(),
+                    "'" + display + "' takes a @RequestBody '" + unvalidated + "' without @Valid or @Validated."
+                            + " Constraint annotations on the payload are never evaluated, so invalid input"
+                            + " reaches the service layer unchecked.",
+                    "Annotate the @RequestBody parameter with @Valid (or @Validated) so constraint violations are"
+                            + " rejected with 400 Bad Request at the boundary, and declare the constraints on '"
+                            + unvalidated + "'.",
+                    List.of(),
+                    Map.of(
+                            "method", display,
+                            "declaringType", method.id().declaringType()
+                    )));
         }
         return List.copyOf(findings);
     }
 
-    private static boolean hasWriteMapping(MethodModel method) {
-        return method.annotations().stream().anyMatch(WRITE_MAPPING_ANNOTATIONS::contains);
+    private static String unvalidatedBodyType(MethodModel method) {
+        var parameterTypes = method.id().parameterTypes();
+        for (int index = 0; index < parameterTypes.size(); index++) {
+            var annotations = method.parameterAnnotations(index);
+            if (!annotations.contains("RequestBody")) continue;
+            if (annotations.stream().anyMatch(VALIDATION_ANNOTATIONS::contains)) continue;
+            String simple = simpleTypeName(stripGenerics(parameterTypes.get(index)));
+            if (UNVALIDATABLE_BODY_TYPES.contains(simple)) continue;
+            return simple;
+        }
+        return null;
+    }
+
+    private static String stripGenerics(String typeName) {
+        int lt = typeName.indexOf('<');
+        return lt > 0 ? typeName.substring(0, lt) : typeName;
     }
 
     private static String simpleTypeName(String qualified) {
-        if (qualified == null || qualified.isBlank()) return qualified;
         int dot = qualified.lastIndexOf('.');
         return dot >= 0 ? qualified.substring(dot + 1) : qualified;
     }

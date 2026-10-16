@@ -42,8 +42,12 @@ public final class MassAssignmentRiskRule implements ProjectRule {
     public static final String ID = "MASS_ASSIGNMENT_RISK";
 
     private static final Set<String> WRITE_MAPPING_ANNOTATIONS = Set.of(
-            "PostMapping", "PutMapping", "PatchMapping", "RequestMapping"
+            "PostMapping", "PutMapping", "PatchMapping"
     );
+
+    /** Parameters filled from the URL or headers, not from a bound payload. */
+    private static final Set<String> NON_PAYLOAD_PARAMETER_ANNOTATIONS = Set.of(
+            "PathVariable", "RequestParam", "RequestHeader", "CookieValue", "RequestAttribute", "SessionAttribute");
 
     private static final Set<String> CONTROLLER_ANNOTATIONS = Set.of(
             "RestController", "Controller"
@@ -69,9 +73,16 @@ public final class MassAssignmentRiskRule implements ProjectRule {
         }
         if (entitySimpleNames.isEmpty()) return List.of();
 
+        // A controller that restricts data binding with an @InitBinder method has dealt with the risk.
+        var guardedControllers = new HashSet<String>();
+        for (MethodModel method : project.methods().values()) {
+            if (method.annotations().contains("InitBinder")) guardedControllers.add(method.id().declaringType());
+        }
+
         // Pass 2: find controller write-endpoint methods whose params include entity types
         var findings = new ArrayList<Finding>();
         for (MethodModel method : project.methods().values()) {
+            if (guardedControllers.contains(method.id().declaringType())) continue;
             check(method, entitySimpleNames, findings);
         }
         return List.copyOf(findings);
@@ -86,15 +97,18 @@ public final class MassAssignmentRiskRule implements ProjectRule {
         if (!hasWriteMapping) return; // controller but no write endpoint annotation
 
         // Check each parameter type
-        for (String paramType : method.id().parameterTypes()) {
+        var parameterTypes = method.id().parameterTypes();
+        for (int index = 0; index < parameterTypes.size(); index++) {
+            String paramType = parameterTypes.get(index);
+            if (method.parameterAnnotations(index).stream().anyMatch(NON_PAYLOAD_PARAMETER_ANNOTATIONS::contains)) continue;
             String simpleName = simpleTypeName(stripGenerics(paramType));
             if (entitySimpleNames.contains(simpleName)) {
                 findings.add(new Finding(
                         ID, Severity.WARNING, Confidence.MEDIUM, method.location(),
                         "Controller method '" + method.id().displayName()
-                                + "' accepts '" + simpleName + "' (a JPA entity) as a request body"
-                                + " parameter. Jackson will populate any matching JSON key,"
-                                + " including server-controlled fields like 'id', 'role', or"
+                                + "' binds request data onto '" + simpleName + "' (a JPA entity)."
+                                + " Any matching JSON key or form field is populated, including"
+                                + " server-controlled fields like 'id', 'role', or"
                                 + " 'createdAt' — a mass-assignment vulnerability.",
                         "Replace the entity parameter with a dedicated DTO / request class that"
                                 + " declares only the fields the caller is allowed to supply."

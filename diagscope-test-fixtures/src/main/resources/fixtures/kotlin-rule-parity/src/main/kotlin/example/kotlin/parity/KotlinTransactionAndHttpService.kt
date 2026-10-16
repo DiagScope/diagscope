@@ -10,6 +10,7 @@ class KotlinTransactionAndHttpService(
     // TRIGGERS: MISSING_TRANSACTION_ANNOTATION — write op with no @Transactional
     fun saveWithoutTransaction(entity: Any) {
         userRepository.save(entity)
+        userRepository.save(entity)
     }
 
     // SAFE: @Transactional provides the boundary

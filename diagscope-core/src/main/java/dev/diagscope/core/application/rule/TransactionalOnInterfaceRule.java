@@ -48,6 +48,8 @@ public final class TransactionalOnInterfaceRule implements ProjectRule {
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.declaringTypeIsInterface()) return;
         if (!hasTransactionalAnnotation(method)) return;
+        // Spring Data repositories are JDK proxies built from the interface, which honours its @Transactional.
+        if (method.annotations().contains("Repository")) return;
 
         findings.add(new Finding(
                 ID, Severity.ERROR, Confidence.HIGH, method.location(),

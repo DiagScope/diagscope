@@ -29,6 +29,26 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Calibration against seven open-source projects (Spring Petclinic Java/Kotlin/microservices, JHipster, Quarkus
+  quickstarts, Vert.x and Spring Data examples; see `scripts/calibrate.sh`) cut default-mode findings from 2,611 to
+  349, mostly false positives:
+  - `MISSING_REQUEST_BODY_VALIDATION` 2.0.0: the old premise was wrong, since Spring validates a `@RequestBody`
+    only when the parameter carries `@Valid`/`@Validated`, and a class-level `@Validated` does not change that.
+    It now reports `@RequestBody` parameters without either annotation.
+  - `MISSING_TRANSACTION_ANNOTATION` 1.1.0: a single Spring Data call is transactional on its own, so only
+    `EntityManager` writes or two or more repository writes are reported; a transactional caller on the traced path
+    suppresses it; the substring match on `em` is gone.
+  - `MASS_ASSIGNMENT_RISK` 1.1.0 skips URL/header parameters and controllers with an `@InitBinder`;
+    `ENTITY_EXPOSED_IN_REST_RESPONSE` 1.1.0 skips `@ModelAttribute` methods and view controllers;
+    `MISSING_PAGINATION` 1.1.0 reports only parameterless queries; `TRANSACTIONAL_ON_INTERFACE` 1.1.0 skips Spring
+    Data repository interfaces.
+  - `jakarta`/`javax` `@Transactional` is no longer treated as Spring's: `TRANSACTIONAL_READONLY_MISSING`,
+    `AOP_SELF_INVOCATION` and `AOP_UNMANAGED_ADVICE_TARGET` skip it, and CDI/JAX-RS classes count as container managed.
+  - Kotlin interface members are no longer marked final (`TRANSACTIONAL_ON_FINAL_METHOD`).
+- A scan of a monorepo no longer aborts with "diagnosticCoverage must contain exactly one score per flow" when two
+  modules declare the same type and entrypoint.
+- The adapters expose `ParameterAnnotations` and `JakartaTransactional` synthetic annotations, and mark interfaces
+  extending a Spring Data repository as `Repository`.
 - **Fingerprint v2:** counts, thresholds and line numbers in evidence (`complexityScore`, `invocationCount`,
   `catchCount`, `paramCount`, `publicMethodCount`, `scheduledMethodCount`, `maxAllowed`, `contextKeySetAtLine`)
   no longer participate in identity, so a baseline no longer churns when a method gains a branch. Baselines

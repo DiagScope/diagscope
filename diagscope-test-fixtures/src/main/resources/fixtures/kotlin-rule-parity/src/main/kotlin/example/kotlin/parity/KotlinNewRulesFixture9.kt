@@ -16,18 +16,19 @@ import java.util.concurrent.CompletableFuture
 @RestController
 open class KotlinWave10OrderController {
 
-    /** MISSING_REQUEST_BODY_VALIDATION: no @Validated on the controller class, write endpoint with params. */
+    /** MISSING_REQUEST_BODY_VALIDATION: the @RequestBody payload is not annotated with @Valid. */
     @PostMapping("/wave10/orders")
-    open fun createOrder(requestBody: Any): Any? = null // → MISSING_REQUEST_BODY_VALIDATION
+    open fun createOrder(@RequestBody order: OrderPayload): Any? = null // → MISSING_REQUEST_BODY_VALIDATION
 }
 
+open class OrderPayload
+
 @RestController
-@Validated
 open class KotlinWave10OrderControllerSafe {
 
-    /** Safe: controller has @Validated — @Valid on @RequestBody parameters is active. */
+    /** Safe: @Valid on the @RequestBody parameter activates constraint validation. */
     @PostMapping("/wave10/orders/safe")
-    open fun createOrderSafe(requestBody: Any): Any? = null
+    open fun createOrderSafe(@Valid @RequestBody order: OrderPayload): Any? = null
 }
 
 // ── TRANSACTIONAL_ON_REST_CONTROLLER ─────────────────────────────────────────

@@ -77,7 +77,12 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             }
         }
 
+        // A method dropped as a duplicate (same type name in two modules or languages) must not keep a second
+        // entrypoint of its own: flows are identified by entrypoint type and method, so the copy would collide.
+        var seenFlowIdentities = new java.util.HashSet<String>();
         var orderedEntrypoints = entrypoints.stream()
+                .filter(item -> methods.containsKey(item.method()))
+                .filter(item -> seenFlowIdentities.add(item.type().name() + ':' + item.method().displayName()))
                 .sorted(Comparator.comparing((Entrypoint item) -> item.type().name())
                         .thenComparing(Entrypoint::displayName)
                         .thenComparing(item -> item.method().displayName()))

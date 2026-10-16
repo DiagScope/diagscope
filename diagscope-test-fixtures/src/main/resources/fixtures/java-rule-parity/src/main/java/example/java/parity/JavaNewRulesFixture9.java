@@ -17,9 +17,9 @@ import javax.persistence.EntityManager;
 @RestController
 class JavaWave10OrderController {
 
-    /** MISSING_REQUEST_BODY_VALIDATION: no @Validated on the controller class, write endpoint with params. */
+    /** MISSING_REQUEST_BODY_VALIDATION: the @RequestBody payload is not annotated with @Valid. */
     @PostMapping("/wave10/orders")
-    public Object createOrder(Object requestBody) { // → MISSING_REQUEST_BODY_VALIDATION
+    public Object createOrder(@RequestBody OrderPayload order) { // → MISSING_REQUEST_BODY_VALIDATION
         return null;
     }
 
@@ -30,13 +30,15 @@ class JavaWave10OrderController {
     }
 }
 
+class OrderPayload {
+}
+
 @RestController
-@Validated
 class JavaWave10OrderControllerSafe {
 
-    /** Safe: controller has @Validated — @Valid on @RequestBody parameters is active. */
+    /** Safe: @Valid on the @RequestBody parameter activates constraint validation. */
     @PostMapping("/wave10/orders/safe")
-    public Object createOrderSafe(Object requestBody) {
+    public Object createOrderSafe(@Valid @RequestBody OrderPayload order) {
         return null;
     }
 }

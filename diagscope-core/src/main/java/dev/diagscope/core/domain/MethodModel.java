@@ -52,6 +52,20 @@ public record MethodModel(
      */
     public static final String CYCLOMATIC_ANNOTATION = "Cyclomatic";
 
+    /**
+     * Synthetic annotation listing, per parameter index ({@code p0}, {@code p1}, ...), the simple names of the
+     * annotations on that parameter, comma separated. Parameters without annotations are absent.
+     */
+    public static final String JAKARTA_TRANSACTIONAL_ANNOTATION = "JakartaTransactional";
+
+    public static final String PARAMETER_ANNOTATIONS = "ParameterAnnotations";
+
+    /** Names of the annotations on the parameter at {@code index}, or an empty set. */
+    public Set<String> parameterAnnotations(int index) {
+        String names = annotationAttributes.getOrDefault(PARAMETER_ANNOTATIONS, Map.of()).getOrDefault("p" + index, "");
+        return names.isEmpty() ? Set.of() : Set.of(names.split(","));
+    }
+
     public MethodModel {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(location, "location");

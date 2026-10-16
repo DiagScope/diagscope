@@ -18,6 +18,7 @@ class JavaTransactionAndHttpService {
     // TRIGGERS: MISSING_TRANSACTION_ANNOTATION — write op with no @Transactional
     void saveWithoutTransaction(Object entity) {
         userRepository.save(entity);
+        userRepository.save(entity);
     }
 
     // SAFE: @Transactional provides the boundary

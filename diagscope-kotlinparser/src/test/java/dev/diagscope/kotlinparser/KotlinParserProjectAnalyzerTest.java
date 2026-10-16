@@ -599,6 +599,42 @@ class KotlinParserProjectAnalyzerTest {
         assertThat(method(analyzed, "Guards", "unguarded").annotationAttribute("NullChecked", "names")).isEmpty();
     }
 
+    @Test
+    void exposes_parameter_annotations_repository_interfaces_and_never_marks_interface_members_final() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("calibration"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Orders.kt"), """
+                package sample
+
+                import jakarta.transaction.Transactional
+
+                class OrderController {
+                    @PostMapping("/orders")
+                    @Transactional
+                    fun create(@Valid @RequestBody order: Order, note: String, @PathVariable id: Long) {
+                    }
+                }
+
+                interface OrderRepository : JpaRepository<Order, Long> {
+                    @Transactional
+                    fun findAllOrders(): List<Order>
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        var create = method(analyzed, "OrderController", "create");
+        assertThat(create.parameterAnnotations(0)).containsExactlyInAnyOrder("Valid", "RequestBody");
+        assertThat(create.parameterAnnotations(1)).isEmpty();
+        assertThat(create.parameterAnnotations(2)).containsExactly("PathVariable");
+        assertThat(create.annotations()).contains("JakartaTransactional", "Final");
+        var repository = method(analyzed, "OrderRepository", "findAllOrders");
+        assertThat(repository.annotations()).contains("Repository").doesNotContain("Final");
+        assertThat(repository.proxy().finalMethod()).isFalse();
+    }
+
+
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {
         return project.methods().values().stream()
                 .filter(method -> method.id().declaringType().endsWith(type) && method.id().name().equals(name))

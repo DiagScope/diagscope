@@ -84,6 +84,28 @@ class CompositeProjectAnalyzerTest {
                 .containsExactly("sample.AuditAspect.audit @Around");
     }
 
+    @Test
+    void keeps_one_entrypoint_when_two_modules_declare_the_same_type() throws Exception {
+        Path root = java.nio.file.Files.createDirectories(temp.resolve("monorepo"));
+        java.nio.file.Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        ProjectLayout layout = new ProjectLayout(BuildSystem.MAVEN, root, List.of(Path.of("")), List.of(root));
+        MethodId id = new MethodId("acme.FruitResource", "get", List.of());
+        var javaEntry = new dev.diagscope.core.domain.Entrypoint(dev.diagscope.core.domain.EntrypointType.REST, id,
+                "GET /fruits", new SourceLocation(Path.of("java-module/FruitResource.java"), 3, 3));
+        var kotlinEntry = new dev.diagscope.core.domain.Entrypoint(dev.diagscope.core.domain.EntrypointType.REST, id,
+                "GET /fruits", new SourceLocation(Path.of("kotlin-module/FruitResource.kt"), 3, 3));
+        ProjectAnalyzer java = analyzer(new AnalyzedProject("mixed", root, layout,
+                new LinkedHashMap<>(Map.of(id, method(id, List.of(), List.of()))), List.of(javaEntry), 1,
+                List.of(), List.of()));
+        ProjectAnalyzer kotlin = analyzer(new AnalyzedProject("mixed", root, layout,
+                new LinkedHashMap<>(Map.of(id, method(id, List.of(), List.of()))), List.of(kotlinEntry), 1,
+                List.of(), List.of()));
+
+        var combined = new CompositeProjectAnalyzer(List.of(java, kotlin)).analyze(root, AnalysisOptions.defaults());
+
+        assertThat(combined.entrypoints()).containsExactly(javaEntry);
+    }
+
     private static ProjectAnalyzer analyzer(AnalyzedProject project) {
         return (directory, options) -> project;
     }

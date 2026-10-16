@@ -269,6 +269,16 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     function.getValueParameters().stream().map(KtParameter::getName)
                             .filter(Objects::nonNull).collect(java.util.stream.Collectors.joining(",")))));
         }
+        var parameterAnnotations = new LinkedHashMap<String, String>();
+        var valueParameters = function.getValueParameters();
+        for (int index = 0; index < valueParameters.size(); index++) {
+            var names = annotations(valueParameters.get(index)).stream().map(AnnotationDescriptor::name)
+                    .collect(java.util.stream.Collectors.joining(","));
+            if (!names.isEmpty()) parameterAnnotations.put("p" + index, names);
+        }
+        if (!parameterAnnotations.isEmpty()) {
+            methodAnnotations.add(new AnnotationDescriptor(MethodModel.PARAMETER_ANNOTATIONS, parameterAnnotations));
+        }
         // McCabe cyclomatic complexity: one path plus one per decision point (lambdas count towards their function).
         int cyclomatic = 1
                 + countOwned(function, org.jetbrains.kotlin.psi.KtIfExpression.class, element -> true)
@@ -729,9 +739,20 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             invocations = enrichReceiverTypes(raw, invocations, project.types(), typesBySimpleName);
             TypeInfo declaringTypeInfo = project.types().get(raw.id().declaringType());
             boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
-            result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(annotationNames), raw.catches(),
+            // Interface members are abstract and the kotlin-spring plugin opens managed classes: neither is final.
+            var effectiveNames = new LinkedHashSet<>(annotationNames);
+            ProxyProfile proxy = proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations);
+            if (isInterface || !proxy.finalMethod()) {
+                effectiveNames.remove("Final");
+            }
+            if (isInterface && proxy.finalMethod()) {
+                proxy = new ProxyProfile(proxy.visibility(), proxy.staticMethod(), false, proxy.finalDeclaringType(),
+                        proxy.springManagedType(), proxy.beanFactoryCandidate(), proxy.proxiedAnnotations(),
+                        proxy.matchingAdvice());
+            }
+            result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(effectiveNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
-                    proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations),
+                    proxy,
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(), raw.varargIndex(),
                             raw.typeParameters()),
@@ -1384,6 +1405,30 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             declaredAnnotations.add(new AnnotationDescriptor("LazyConstructorParameter",
                     Map.of("line", Integer.toString(lines.lineOf(parameter.getTextRange().getStartOffset())))));
             break;
+        }
+        // @Transactional from jakarta/javax.transaction is a CDI interceptor binding, not Spring's.
+        boolean springTransactional = false;
+        boolean jakartaTransactional = false;
+        for (var directive : type.getContainingKtFile().getImportDirectives()) {
+            var imported = directive.getImportedFqName();
+            if (imported == null) continue;
+            String name = imported.asString();
+            if (name.startsWith("org.springframework.transaction.annotation")) springTransactional = true;
+            if (name.equals("jakarta.transaction.Transactional") || name.equals("javax.transaction.Transactional")
+                    || directive.isAllUnder() && (name.equals("jakarta.transaction") || name.equals("javax.transaction"))) {
+                jakartaTransactional = true;
+            }
+        }
+        if (jakartaTransactional && !springTransactional) {
+            declaredAnnotations.add(new AnnotationDescriptor(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION, Map.of()));
+        }
+        // An interface extending a Spring Data repository is instantiated by the container: treat it as @Repository.
+        if (type instanceof KtClass repositoryCandidate && repositoryCandidate.isInterface()
+                && declaredAnnotations.stream().noneMatch(a -> "Repository".equals(a.name()))
+                && (declaredAnnotations.stream().anyMatch(a -> "RepositoryDefinition".equals(a.name()))
+                || type.getSuperTypeListEntries().stream().map(PsiElement::getText)
+                        .map(KotlinParserProjectAnalyzer::baseTypeName).anyMatch(name -> name.endsWith("Repository")))) {
+            declaredAnnotations.add(new AnnotationDescriptor("Repository", Map.of()));
         }
         declaredAnnotations = List.copyOf(declaredAnnotations);
         boolean springManaged = declaredAnnotations.stream().map(AnnotationDescriptor::name)

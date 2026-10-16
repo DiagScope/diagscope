@@ -697,6 +697,45 @@ class JavaParserProjectAnalyzerTest {
         assertThat(method(analyzed, "sample.Guards", "unguarded").annotationAttribute("NullChecked", "names")).isEmpty();
     }
 
+    @Test
+    void exposes_parameter_annotations_repository_interfaces_and_the_jakarta_transactional_import() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("calibration"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/java/sample"));
+        Files.writeString(sourceRoot.resolve("OrderController.java"), """
+                package sample;
+
+                import jakarta.transaction.Transactional;
+
+                class OrderController {
+                    @PostMapping("/orders")
+                    @Transactional
+                    void create(@Valid @RequestBody Order order, String note, @PathVariable long id) {
+                    }
+                }
+                """);
+        Files.writeString(sourceRoot.resolve("OrderRepository.java"), """
+                package sample;
+
+                interface OrderRepository extends JpaRepository<Order, Long> {
+                    java.util.List<Order> findAll();
+                }
+                """);
+
+        var analyzed = new JavaParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        var create = method(analyzed, "sample.OrderController", "create");
+        assertThat(create.parameterAnnotations(0)).containsExactlyInAnyOrder("Valid", "RequestBody");
+        assertThat(create.parameterAnnotations(1)).isEmpty();
+        assertThat(create.parameterAnnotations(2)).containsExactly("PathVariable");
+        assertThat(create.annotations()).contains("JakartaTransactional");
+        var findAll = method(analyzed, "sample.OrderRepository", "findAll");
+        assertThat(findAll.annotations()).contains("Repository");
+        assertThat(findAll.proxy().springManagedType()).isTrue();
+        assertThat(findAll.annotations()).doesNotContain("JakartaTransactional");
+    }
+
+
     private static MethodModel method(AnalyzedProject project, String declaringType, String name) {
         return project.methods().values().stream()
                 .filter(method -> declaringType.equals(method.id().declaringType()) && name.equals(method.id().name()))

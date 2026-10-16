@@ -85,6 +85,8 @@ public final class MissingPaginationRule implements ProjectRule {
         if (!isRepositoryType(method)) return;
         if (!returnsCollection(method.returnType())) return;
         if (hasPageableParam(method)) return;
+        // A method that takes filter arguments is bounded by them as often as not; flag the ones with no filter.
+        if (!method.id().parameterTypes().isEmpty()) return;
         if (NON_QUERY_NAME.matcher(method.id().name()).matches()) return;
 
         findings.add(new Finding(

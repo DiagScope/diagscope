@@ -57,6 +57,10 @@ public final class SelfInvocationProxyBypassRule implements DiagnosticRule {
                 if (!proxy.proxied()) {
                     continue;
                 }
+                // CDI interceptors (Quarkus ArC) also intercept self-invocation, unlike Spring's proxies.
+                if (target.method().annotations().contains(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION)) {
+                    continue;
+                }
 
                 Confidence confidence = Confidence.min(confidenceFor(proxy), flowMethod.confidence());
                 var evidence = new LinkedHashMap<String, String>();
