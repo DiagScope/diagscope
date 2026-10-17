@@ -37,8 +37,12 @@ public final class ScanCommand implements Callable<Integer> {
             description = "MARKDOWN, JSON, HTML, SARIF, or any combination")
     private EnumSet<ReportFormat> formats;
 
-    @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE", defaultValue = "NONE")
+    @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE. Overrides the gate: section of diagscope.yml")
     private FailOn failOn;
+
+    @Option(names = "--gate-profile",
+            description = "Named profile from the gate: section of diagscope.yml; replaces the default gate")
+    private String gateProfile;
 
     @Option(names = "--baseline", arity = "0..1", fallbackValue = FindingBaseline.DEFAULT_FILE_NAME,
             description = "Suppress findings recorded in this baseline (default path when omitted: ${FALLBACK-VALUE})")
@@ -94,7 +98,7 @@ public final class ScanCommand implements Callable<Integer> {
             return workflow.run(new ScanWorkflow.Request(
                     project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath,
-                    sourceRoots, entrypointTypes, includeTests
+                    sourceRoots, entrypointTypes, includeTests, gateProfile
             )).exitCode();
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());

@@ -17,7 +17,8 @@ tasks.register('diagscopeScan', JavaExec) {
 
     def reportDir = project.findProperty('diagscope.output') ?: 'build/diagscope'
     def formats = project.findProperty('diagscope.formats') ?: 'MARKDOWN,JSON,HTML,SARIF'
-    def failOn = project.findProperty('diagscope.failOn') ?: 'NONE'
+    def failOn = project.findProperty('diagscope.failOn')
+    def gateProfile = project.findProperty('diagscope.gateProfile')
     def baseline = project.findProperty('diagscope.baseline')
     def changedSince = project.findProperty('diagscope.changedSince')
     def config = project.findProperty('diagscope.config')
@@ -37,8 +38,9 @@ tasks.register('diagscopeScan', JavaExec) {
     def scanArgs = ['scan',
                     '--project', projectDir.absolutePath,
                     '--output', reportDir,
-                    '--format', formats,
-                    '--fail-on', failOn]
+                    '--format', formats]
+    if (failOn) scanArgs += ['--fail-on', failOn]
+    if (gateProfile) scanArgs += ['--gate-profile', gateProfile]
     if (baseline) scanArgs += ['--baseline', baseline]
     if (changedSince) scanArgs += ['--changed-since', changedSince]
     if (config) scanArgs += ['--config', config]
@@ -50,7 +52,7 @@ tasks.register('diagscopeScan', JavaExec) {
     doLast {
         def result = executionResult.get()
         if (result.exitValue == 1) {
-            throw new GradleException("DiagScope severity gate failed (--fail-on ${failOn}). " +
+            throw new GradleException("DiagScope gate failed (see the log for the breached conditions). " +
                     "See ${reportDir}/report.html.")
         }
         if (result.exitValue != 0) {

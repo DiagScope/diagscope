@@ -32,7 +32,8 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
 - `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, and `SCHEDULED`;
 - `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, and/or `SARIF`;
-- `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`);
+- `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`); overrides the `gate:` section of `diagscope.yml`, and `NONE` disables it;
+- `--gate-profile` — named profile from the `gate:` section of `diagscope.yml` (see [CONFIGURATION.md](CONFIGURATION.md#gate));
 - `--baseline [path]` — suppress findings whose stable fingerprint is in the selected baseline; when
   the option has no path, `<project>/diagscope-baseline.json` is used;
 - `--update-baseline` — atomically rewrite the selected baseline, or the default baseline when
@@ -173,11 +174,11 @@ and referencing a removed rule fails with the removal release and its replacemen
 ## Exit codes
 
 - `0` — scan and all requested report writes completed successfully;
-- `1` — scan completed, but at least one finding met the configured `--fail-on` threshold;
+- `1` — scan completed, but the gate failed: a finding met `--fail-on` or a `gate:` condition, or a `maxFindings` limit was exceeded;
 - `2` — invalid scan configuration or scanner/reporting failure;
 - `3` — unsupported project structure or project input.
 
-Without `--fail-on`, a successful Alpha 1 scan remains informational and exit code `0` does not mean “no findings.”
+Without `--fail-on` or a `gate:` section, a successful Alpha 1 scan remains informational and exit code `0` does not mean “no findings.”
 
 The compatibility and version-bump rules for `result.json` are documented in
 [RESULT_JSON_SCHEMA.md](RESULT_JSON_SCHEMA.md).

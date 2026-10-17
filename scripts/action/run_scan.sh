@@ -18,8 +18,11 @@ else
 fi
 
 args=(scan --project "${PROJECT}" --output "${OUTPUT:?}"
-      --format "${DIAGSCOPE_FORMATS:-MARKDOWN,JSON,HTML,SARIF}"
-      --fail-on "${DIAGSCOPE_FAIL_ON:-NONE}")
+      --format "${DIAGSCOPE_FORMATS:-MARKDOWN,JSON,HTML,SARIF}")
+
+# An explicit severity overrides the gate: section of diagscope.yml, so it is passed only when set.
+[[ -n "${DIAGSCOPE_FAIL_ON:-}" ]] && args+=(--fail-on "${DIAGSCOPE_FAIL_ON}")
+[[ -n "${DIAGSCOPE_GATE_PROFILE:-}" ]] && args+=(--gate-profile "${DIAGSCOPE_GATE_PROFILE}")
 
 [[ -n "${DIAGSCOPE_BASELINE:-}" ]] && args+=(--baseline "${DIAGSCOPE_BASELINE}")
 [[ -n "${DIAGSCOPE_CHANGED_SINCE:-}" ]] && args+=(--changed-since "${DIAGSCOPE_CHANGED_SINCE}")

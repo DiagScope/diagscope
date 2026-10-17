@@ -55,7 +55,7 @@ class ScanWorkflowTest {
         assertThat(outcome.result().findings()).isNotEmpty();
         assertThat(outcome.exitCode()).isEqualTo(1);
         assertThat(outcome.gateBreached()).isTrue();
-        assertThat(errors.toString(StandardCharsets.UTF_8)).contains("Failing:");
+        assertThat(errors.toString(StandardCharsets.UTF_8)).contains("Gate failed:");
         assertThat(output.toString(StandardCharsets.UTF_8)).contains("Findings:");
     }
 

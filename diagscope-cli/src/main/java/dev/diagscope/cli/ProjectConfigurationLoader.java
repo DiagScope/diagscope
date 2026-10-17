@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import dev.diagscope.core.application.AnalysisPolicy;
 import dev.diagscope.core.application.rule.RuleCatalog;
+import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.core.domain.Severity;
 
@@ -77,6 +78,7 @@ final class ProjectConfigurationLoader {
             customEntrypoints.put(type, Set.copyOf(simpleAnnotations));
         });
 
+        var gate = gate(file, document.gate());
         try {
             var policy = new AnalysisPolicy(
                     Set.copyOf(values(document.ignoredPaths())),
@@ -86,14 +88,14 @@ final class ProjectConfigurationLoader {
                     disabledRules,
                     severities
             );
-            return new LoadedConfiguration(policy, file, waivers(file, document.suppressions()));
+            return new LoadedConfiguration(policy, file, waivers(file, document.suppressions()), gate);
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw invalid(file, exception.getMessage());
         }
     }
 
     static LoadedConfiguration defaults() {
-        return new LoadedConfiguration(AnalysisPolicy.defaults(), null, List.of());
+        return new LoadedConfiguration(AnalysisPolicy.defaults(), null, List.of(), GateConfiguration.NONE);
     }
 
     private static List<FindingSuppressions.Waiver> waivers(Path file, List<SuppressionEntry> entries) {
@@ -120,6 +122,38 @@ final class ProjectConfigurationLoader {
         return List.copyOf(waivers);
     }
 
+    private static GateConfiguration gate(Path file, GateDocument document) {
+        if (document == null) return GateConfiguration.NONE;
+        var profiles = new TreeMap<String, GatePolicy>();
+        values(document.profiles()).forEach((name, body) -> {
+            if (name == null || name.isBlank()) throw invalid(file, "gate profile name must not be blank");
+            if (body == null) throw invalid(file, "gate profile must not be empty: " + name);
+            profiles.put(name, gatePolicy(file, body.failOn(), body.maxFindings()));
+        });
+        return new GateConfiguration(gatePolicy(file, document.failOn(), document.maxFindings()), profiles);
+    }
+
+    private static GatePolicy gatePolicy(Path file, List<ConditionEntry> conditions, Map<Severity, Integer> limits) {
+        var parsed = new java.util.ArrayList<GatePolicy.Condition>();
+        for (ConditionEntry entry : values(conditions)) {
+            if (entry == null || entry.severity() == null) {
+                throw invalid(file, "gate failOn condition requires a severity");
+            }
+            var rules = new TreeSet<String>();
+            for (String rule : values(entry.rules())) {
+                if (!RuleCatalog.all().containsKey(rule)) throw invalid(file, "unknown rule id in gate: " + rule);
+                rules.add(rule);
+            }
+            parsed.add(new GatePolicy.Condition(entry.severity(),
+                    entry.confidence() == null ? Confidence.LOW : entry.confidence(), rules));
+        }
+        try {
+            return new GatePolicy(parsed, values(limits));
+        } catch (IllegalArgumentException exception) {
+            throw invalid(file, exception.getMessage());
+        }
+    }
+
     private static String simpleName(String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("custom entrypoint annotation must not be blank");
@@ -141,7 +175,23 @@ final class ProjectConfigurationLoader {
         return new IllegalArgumentException("Invalid configuration " + file + ": " + detail);
     }
 
-    record LoadedConfiguration(AnalysisPolicy policy, Path source, List<FindingSuppressions.Waiver> waivers) {
+    record LoadedConfiguration(AnalysisPolicy policy, Path source, List<FindingSuppressions.Waiver> waivers,
+                               GateConfiguration gate) {
+    }
+
+    /** The project's default gate plus optional named profiles that replace it entirely. */
+    record GateConfiguration(GatePolicy defaultPolicy, Map<String, GatePolicy> profiles) {
+        static final GateConfiguration NONE = new GateConfiguration(GatePolicy.NONE, Map.of());
+
+        GatePolicy select(String profile) {
+            if (profile == null) return defaultPolicy;
+            GatePolicy selected = profiles.get(profile);
+            if (selected == null) {
+                throw new IllegalArgumentException("Unknown gate profile: " + profile
+                        + (profiles.isEmpty() ? " (diagscope.yml defines none)" : "; defined: " + profiles.keySet()));
+            }
+            return selected;
+        }
     }
 
     private record ConfigurationDocument(
@@ -151,8 +201,22 @@ final class ProjectConfigurationLoader {
             List<String> sensitiveFields,
             List<String> customLoggerTypes,
             Map<String, List<String>> customEntrypointAnnotations,
-            List<SuppressionEntry> suppressions
+            List<SuppressionEntry> suppressions,
+            GateDocument gate
     ) {
+    }
+
+    private record GateDocument(
+            List<ConditionEntry> failOn,
+            Map<Severity, Integer> maxFindings,
+            Map<String, GateBody> profiles
+    ) {
+    }
+
+    private record GateBody(List<ConditionEntry> failOn, Map<Severity, Integer> maxFindings) {
+    }
+
+    private record ConditionEntry(Severity severity, Confidence confidence, List<String> rules) {
     }
 
     private record SuppressionEntry(String fingerprint, String reason, String expires) {

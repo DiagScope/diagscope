@@ -53,7 +53,8 @@ jobs:
 | `project` | `.` | Maven or Gradle project directory |
 | `output` | `build/diagscope` (Gradle) or `target/diagscope` (Maven) | Report directory |
 | `formats` | `MARKDOWN,JSON,HTML,SARIF` | Report formats to produce |
-| `fail-on` | `NONE` | Severity gate: `ERROR`, `WARNING`, `INFO`, `NONE` |
+| `fail-on` | *(empty)* | Severity gate: `ERROR`, `WARNING`, `INFO`, `NONE`. Empty defers to the `gate:` section of `diagscope.yml` |
+| `gate-profile` | *(empty)* | Named profile of the `gate:` section; not combinable with `fail-on` |
 | `baseline` | *(empty)* | Baseline file used to hide already-known findings |
 | `changed-since` | *(empty)* | Restrict findings to files changed since this revision |
 | `config` | *(empty)* | Policy file; `diagscope.yml` is picked up automatically |
@@ -84,7 +85,7 @@ Apply `gradle/diagscope.gradle` and run the generated task:
 ```
 
 Supported properties: `diagscope.jar`, `diagscope.output`, `diagscope.formats`,
-`diagscope.failOn`, `diagscope.baseline`, `diagscope.changedSince`, `diagscope.config`.
+`diagscope.failOn`, `diagscope.gateProfile`, `diagscope.baseline`, `diagscope.changedSince`, `diagscope.config`.
 
 ## Any other CI
 
@@ -105,7 +106,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 | Code | Meaning |
 | --- | --- |
 | `0` | Scan completed, gate not breached |
-| `1` | Findings at or above `--fail-on` |
+| `1` | The gate failed (`--fail-on` or the `gate:` section) |
 | `2` | Invalid configuration or unexpected failure |
 | `3` | Unsupported project layout |
 
@@ -114,7 +115,8 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 1. Start with `fail-on: NONE` and publish reports as artifacts.
 2. Record the current state: `scan --update-baseline`, commit `diagscope-baseline.json`.
 3. Switch to `fail-on: ERROR` with `changed-since` so only new code is gated.
-4. Tighten the gate as the baseline shrinks; waive intentional cases in `diagscope.yml`.
+4. Move the policy into `diagscope.yml` (`gate:`) so it is versioned with the code and reviewed in pull requests, e.g. a stricter profile for release branches.
+5. Tighten the gate as the baseline shrinks; waive intentional cases in `diagscope.yml`.
 
 ## Embedding the engine
 

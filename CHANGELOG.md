@@ -4,6 +4,19 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Added
+
+- `gate:` section in `diagscope.yml`: `failOn` conditions combining minimum severity, minimum confidence and an
+  optional rule list, `maxFindings` limits per severity, and named `profiles` selected with `--gate-profile`. An
+  explicit `--fail-on` still wins. See [CONFIGURATION.md](docs/CONFIGURATION.md#gate).
+
+### Changed
+
+- `--fail-on` no longer defaults to `NONE` on the command line, so a project gate can apply. The GitHub Action
+  `fail-on` input and the Gradle `diagscope.failOn` property follow: they pass the flag only when set. Behaviour is
+  unchanged for anyone who sets them, or who has no `gate:` section.
+- A failed gate prints every breached condition with its count instead of a single line.
+
 ## 0.1.2 — 2026-10-17
 
 ### Changed

@@ -20,9 +20,13 @@ inputs:
     required: false
     default: MARKDOWN,JSON,HTML,SARIF
   fail-on:
-    description: Severity gate; the job fails when a finding is at or above it (ERROR, WARNING, INFO, NONE).
+    description: Severity gate; the job fails when a finding is at or above it (ERROR, WARNING, INFO, NONE). Empty defers to the gate section of diagscope.yml.
     required: false
-    default: NONE
+    default: ''
+  gate-profile:
+    description: Named profile from the gate section of diagscope.yml. Mutually exclusive with fail-on.
+    required: false
+    default: ''
   baseline:
     description: Baseline file used to suppress already-known findings. Empty disables the baseline.
     required: false
@@ -92,6 +96,7 @@ runs:
         DIAGSCOPE_OUTPUT: ${{ inputs.output }}
         DIAGSCOPE_FORMATS: ${{ inputs.formats }}
         DIAGSCOPE_FAIL_ON: ${{ inputs['fail-on'] }}
+        DIAGSCOPE_GATE_PROFILE: ${{ inputs['gate-profile'] }}
         DIAGSCOPE_BASELINE: ${{ inputs.baseline }}
         DIAGSCOPE_CHANGED_SINCE: ${{ inputs['changed-since'] }}
         DIAGSCOPE_CONFIG: ${{ inputs.config }}

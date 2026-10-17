@@ -72,9 +72,41 @@ Waivers differ from a baseline: a baseline accepts the current state in bulk, wh
 per-finding reviewed decision. Expired and unused waivers are counted in the terminal summary and in
 `configuration.scanScope`, which keeps the file from accumulating obsolete entries.
 
+## Gate
+
+The gate decides whether a scan breaks the build (exit code `1`). It reads the findings that remain after
+baseline, changed-file filtering and waivers, and it never changes what the reports contain.
+
+```yaml
+gate:
+  failOn:                      # a finding breaches the gate when it matches ANY entry
+    - severity: ERROR          # minimum severity (required)
+    - severity: WARNING
+      confidence: HIGH         # minimum confidence, default LOW
+    - severity: INFO
+      rules: [SILENT_CATCH]    # optional: only these rules
+  maxFindings:                 # tolerate up to N visible findings of a severity
+    WARNING: 20
+  profiles:                    # alternatives that REPLACE the gate above, chosen with --gate-profile
+    lenient:
+      failOn:
+        - severity: ERROR
+          confidence: HIGH
+```
+
+- `severity` and `confidence` are minimums: `WARNING` also matches `ERROR`, `HIGH` matches only `HIGH`.
+- `maxFindings` breaches only when the count is strictly greater than the limit; `ERROR: 0` means none allowed.
+- A profile replaces the default gate entirely; nothing is merged, so a profile reads the same alone.
+- Unknown keys, unknown rule ids, a missing `severity` and negative limits are rejected like the rest of the file.
+- Without a `gate:` section and without `--fail-on`, the scan is informational and exits `0`.
+- A gate that fails prints each breached condition with its finding count on standard error.
+
+The gate is a decision about the result, not part of it, so `result.json` is unchanged. The ratchet is the baseline:
+findings recorded there are invisible to the gate, so a gate on a baselined project only judges new findings.
+
 ## Precedence
 
-1. Explicit CLI input wins: `--config` overrides automatic `diagscope.yml` discovery, and scan
+1. Explicit CLI input wins: `--fail-on` replaces the `gate:` section, `--gate-profile` selects one of its profiles (the two together are an error), `--config` overrides automatic `diagscope.yml` discovery, and scan
    options such as `--entrypoint`, `--max-depth`, and `--parallelism` remain authoritative.
 2. Project policy augments or overrides built-in rule policy.
 3. Built-in defaults apply when no configuration file or matching entry exists.

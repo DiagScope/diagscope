@@ -9,7 +9,6 @@ import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.BuildSystem;
 import dev.diagscope.core.domain.EntrypointType;
-import dev.diagscope.core.domain.Severity;
 import dev.diagscope.jvmanalysis.ProjectLayoutDetector;
 
 import java.io.IOException;
@@ -60,7 +59,8 @@ public final class ScanWorkflow {
             List<Path> classpath,
             List<Path> sourceRoots,
             EnumSet<EntrypointType> entrypointTypes,
-            boolean includeTests
+            boolean includeTests,
+            String gateProfile
     ) {
         /** Request that analyzes production sources only. */
         public Request(
@@ -71,7 +71,19 @@ public final class ScanWorkflow {
         ) {
             this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
-                    entrypointTypes, false);
+                    entrypointTypes, false, null);
+        }
+
+        /** Request without a gate profile. */
+        public Request(
+                Path project, Path output, int maxDepth, int parallelism, EnumSet<ReportFormat> formats,
+                FailOn failOn, Path baseline, boolean updateBaseline, List<String> baselineMigrations,
+                boolean pruneRemovedBaseline, String changedSince, Path configuration, List<Path> classpath,
+                List<Path> sourceRoots, EnumSet<EntrypointType> entrypointTypes, boolean includeTests
+        ) {
+            this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
+                    baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
+                    entrypointTypes, includeTests, null);
         }
 
         public Request {
@@ -79,7 +91,6 @@ public final class ScanWorkflow {
             formats = formats == null || formats.isEmpty()
                     ? EnumSet.of(ReportFormat.MARKDOWN, ReportFormat.JSON, ReportFormat.HTML)
                     : EnumSet.copyOf(formats);
-            failOn = failOn == null ? FailOn.NONE : failOn;
             baselineMigrations = baselineMigrations == null ? List.of() : List.copyOf(baselineMigrations);
             classpath = classpath == null ? List.of() : List.copyOf(classpath);
             sourceRoots = sourceRoots == null ? List.of() : List.copyOf(sourceRoots);
@@ -168,22 +179,28 @@ public final class ScanWorkflow {
         printSummary(out, new RunSummary(result, outputDirectory, request.changedSince(),
                 changeScope.excludedFindings(), baselineApplication.suppressedFindings(), updatedBaseline,
                 baselineLifecycle, suppressionApplication));
-        return new Outcome(result, outputDirectory, exitCode(result, request.failOn(), err));
+        var gate = selectGate(request, loadedConfiguration.gate());
+        return new Outcome(result, outputDirectory, exitCode(result, gate, err));
     }
 
-    private static int exitCode(AnalysisResult result, FailOn failOn, PrintStream err) {
-        Severity threshold = failOn.threshold();
-        if (threshold == null) {
+    /** An explicit {@code --fail-on} wins over the project gate, like every other scan option. */
+    private static GatePolicy selectGate(Request request, ProjectConfigurationLoader.GateConfiguration configured) {
+        if (request.failOn() != null) {
+            if (request.gateProfile() != null) {
+                throw new IllegalArgumentException("--fail-on and --gate-profile are mutually exclusive");
+            }
+            return GatePolicy.ofSeverity(request.failOn());
+        }
+        return configured.select(request.gateProfile());
+    }
+
+    private static int exitCode(AnalysisResult result, GatePolicy gate, PrintStream err) {
+        var breaches = gate.evaluate(result.findings());
+        if (breaches.isEmpty()) {
             return 0;
         }
-        long breaching = result.findings().stream()
-                .filter(finding -> finding.severity().compareTo(threshold) >= 0)
-                .count();
-        if (breaching == 0) {
-            return 0;
-        }
-        err.printf("Failing: %d finding(s) at or above %s (--fail-on %s).%n",
-                breaching, threshold, failOn);
+        err.println("Gate failed:");
+        breaches.forEach(breach -> err.printf("  - %d finding(s): %s%n", breach.findings(), breach.description()));
         return 1;
     }
 
