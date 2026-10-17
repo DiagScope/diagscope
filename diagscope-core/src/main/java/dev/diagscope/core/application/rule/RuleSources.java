@@ -36,6 +36,7 @@ public final class RuleSources {
             "CANCELLATION_EXCEPTION_SWALLOWED",
             "COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED",
             "COROUTINE_EXCEPTION_NOT_HANDLED",
+            "CACHE_NAME_MISMATCH",
             "COUNT_DOWN_LATCH_NOT_IN_FINALLY",
             "DB_RESOURCE_CLOSE_NOT_GUARDED",
             "EXCEPTION_SUPPRESSED_IN_FINALLY",
@@ -149,6 +150,23 @@ public final class RuleSources {
                 "https://docs.spring.io/spring-boot/reference/features/external-config.html"));
         SOURCED.put("CACHEABLE_ON_VOID_METHOD", List.of(
                 "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/cache/concurrent/ConcurrentMapCacheManager.java"));
+        SOURCED.put("PROPAGATION_SUPPORTS_WRITE_RISK", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-tx/src/main/java/org/springframework/transaction/annotation/Propagation.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-orm/src/main/java/org/springframework/orm/jpa/SharedEntityManagerCreator.java"));
+        SOURCED.put("TRANSACTIONAL_READONLY_MISSING", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-orm/src/main/java/org/springframework/orm/jpa/vendor/HibernateJpaDialect.java"));
+        SOURCED.put("ENTITY_MANAGER_CLEAR_IN_TRANSACTION", List.of(
+                "https://github.com/jakartaee/persistence/blob/main/api/src/main/java/jakarta/persistence/EntityManager.java"));
+        SOURCED.put("ENTITY_MANAGER_FIND_DEREFERENCE", List.of(
+                "https://github.com/jakartaee/persistence/blob/main/api/src/main/java/jakarta/persistence/EntityManager.java"));
+        SOURCED.put("CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/cache/interceptor/SimpleKeyGenerator.java"));
+        SOURCED.put("CACHE_EVICT_MISSING", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/cache/concurrent/ConcurrentMapCacheManager.java"));
+        SOURCED.put("TRANSACTION_WITH_HTTP_CALL", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-jdbc/src/main/java/org/springframework/jdbc/datasource/DataSourceTransactionManager.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-orm/src/main/java/org/springframework/orm/jpa/vendor/HibernateJpaDialect.java",
+                "https://github.com/hibernate/hibernate-orm/blob/main/hibernate-core/src/main/java/org/hibernate/resource/transaction/backend/jdbc/internal/JdbcResourceLocalTransactionCoordinatorBuilderImpl.java"));
     }
 
     private RuleSources() {

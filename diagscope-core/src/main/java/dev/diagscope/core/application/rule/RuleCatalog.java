@@ -1193,8 +1193,9 @@ public final class RuleCatalog {
                 "HTTP call inside a @Transactional method holds DB connection",
                 "performance", Severity.WARNING, ALL_LANGUAGES,
                 "Spring applications combining @Transactional with REST or HTTP clients",
-                "A @Transactional method makes an outbound HTTP call. The database connection"
-                        + " is held open for the full duration of the HTTP roundtrip.",
+                "A @Transactional method makes an outbound HTTP call. The transaction, and the"
+                        + " database connection once the method has used it, stay open for the full"
+                        + " duration of the HTTP roundtrip.",
                 "HTTP roundtrips typically take 100–500 ms under normal conditions and can take"
                         + " seconds or minutes under degradation. The held connection cannot be"
                         + " used by other requests. Under concurrent load this exhausts the"
@@ -1206,7 +1207,12 @@ public final class RuleCatalog {
                         + " WebClient, OkHttpClient, HttpClient, CloseableHttpClient, Feign.",
                 "HTTP clients configured at a lower layer as fields or injected beans are"
                         + " matched by receiver type name. A custom HTTP client wrapper with an"
-                        + " unconventional type name will not be detected.");
+                        + " unconventional type name will not be detected. Whether a connection is held"
+                        + " also depends on the transaction manager: DataSourceTransactionManager takes it"
+                        + " when the transaction starts, while with JPA and Hibernate it is taken at the"
+                        + " first statement (at the start only for a read-only transaction or one with an"
+                        + " explicit isolation level), so a call made before any query holds the"
+                        + " transaction but not yet a connection.");
 
         // ── Performance: HTTP client created per request ───────────────────────
         put(catalog, HttpClientCreatedPerRequestRule.ID,
@@ -1669,9 +1675,11 @@ public final class RuleCatalog {
                         + " write operations on a persistence API (repository, EntityManager,"
                         + " JdbcTemplate). SUPPORTS means the method runs with a transaction"
                         + " if the caller has one, or without one if it does not.",
-                "When SUPPORTS is called from a non-transactional context, each write commits"
-                        + " immediately in auto-commit mode. A failure mid-method leaves partial"
-                        + " writes in the database — no rollback, no atomicity. This creates"
+                "When SUPPORTS is called from a non-transactional context there is no atomicity."
+                        + " JDBC writes commit one by one in auto-commit mode, each Spring Data repository"
+                        + " call runs in a transaction of its own, and persist, merge or remove on the"
+                        + " EntityManager are rejected with TransactionRequiredException. A failure"
+                        + " mid-method leaves partial writes in the database. This creates"
                         + " silent data-corruption bugs that pass integration tests (which run"
                         + " inside a transaction) and surface only in production with concurrent"
                         + " or partially-failed writes.",

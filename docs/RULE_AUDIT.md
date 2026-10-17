@@ -50,6 +50,8 @@ ERROR rule cannot ship without its claim being checked.
 | `TIMER_TASK_EXCEPTION_KILLS_TIMER` | The failure is not logged | The thread's default uncaught exception handler prints it to stderr | Text corrected |
 | `KAFKA_CONSUMER_GROUP_HARDCODED` | A staging consumer joins the production group | Only when the environments share a cluster | Text corrected |
 | `METRIC_CREATED_IN_LOOP` | Each lookup multiplies time series | Re-resolving the same name and tags returns the existing meter; series multiply only when tags differ | Text corrected |
+| `TRANSACTION_WITH_HTTP_CALL` | The database connection is held for the whole HTTP roundtrip | `DataSourceTransactionManager.doBegin` takes the connection at the start. `HibernateJpaDialect` prepares it at the start only for a read-only transaction or an explicit isolation level, and Hibernate's resource-local default is delayed acquisition (`DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION`), so under JPA a call before the first statement holds the transaction but no connection yet | Text and limits corrected |
+| `PROPAGATION_SUPPORTS_WRITE_RISK` | Each write commits immediately in auto-commit mode | True for JDBC. A Spring Data call runs in its own transaction (its methods are `@Transactional`), and `persist`/`merge`/`remove` on the shared `EntityManager` throw `TransactionRequiredException` outside a transaction (`SharedEntityManagerCreator`) | Text corrected |
 | `AOP_ADVICE_NOT_APPLIED`, `AOP_SELF_INVOCATION` | A private method under a class-level `@Transactional` loses the transaction | The proxy never sees a private method and its callers already run inside the advised method. Found by scanning jhipster-sample-app (24 findings, all of this kind) | Only an annotation or advice on the method itself counts |
 | `AOP_ADVICE_NOT_APPLIED` | `@Transactional` cannot be applied to a protected or package-visible method | Spring reference (transaction annotations): "As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies"; CDI interceptors (Quarkus) also advise them. The cache annotations still need public methods | Reported for `@Transactional` only when the method is private or static |
 
@@ -63,7 +65,12 @@ Read against the source in a later pass and now listed with their references (`d
 Boot's scheduler pool size defaults to 1, which `spring.task.scheduling.pool.size` can change),
 `CONFIGURATION_PROPERTIES_NOT_VALIDATED` (Spring Boot validates only when the class, or its `@Bean` method, is
 `@Validated`) and `CACHEABLE_ON_VOID_METHOD` (`ConcurrentMapCacheManager` allows null values by default, so the
-`null` of a void method is cached).
+`null` of a void method is cached), `TRANSACTIONAL_READONLY_MISSING` (`HibernateJpaDialect` switches the session to
+`FlushMode.MANUAL` for a read-only transaction), `ENTITY_MANAGER_CLEAR_IN_TRANSACTION` and
+`ENTITY_MANAGER_FIND_DEREFERENCE` (Jakarta Persistence `EntityManager` Javadoc: `clear()` drops unflushed changes,
+`find` returns `null` for a missing row), `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID` (`SimpleKeyGenerator` returns
+`SimpleKey.EMPTY` for no arguments), `CACHE_EVICT_MISSING` (the default `ConcurrentMapCacheManager` cache never evicts)
+and `CACHE_NAME_MISMATCH` (a code-shape check, no framework claim).
 
 `ASYNC_ON_PRIVATE_METHOD`, `CACHEABLE_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_FINAL_METHOD` (a CGLIB proxy cannot
 intercept private or final methods), `AOP_SELF_INVOCATION`, `BULKHEAD_WITHOUT_FALLBACK` and
