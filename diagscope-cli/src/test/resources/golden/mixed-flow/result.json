@@ -1039,7 +1039,7 @@
       "title" : "Diagnostics written to standard output",
       "whatItMeans" : "Diagnostic text is written with System.out or System.err instead of the logger.",
       "whyItMatters" : "The message escapes log routing, sampling, and correlation, so it cannot be searched or alerted on when the incident happens.",
-      "howDetected" : "A direct call to System.out/System.err print methods on a reachable path."
+      "howDetected" : "A direct call to System.out/System.err print/println on a reachable path. Methods of a @Command class and main methods are skipped: the output of a command-line program is its product."
     },
     "confidenceRationale" : "HIGH — the evidence is explicit in the source and the call path from the entrypoint was resolved without ambiguity. Treat it as a real finding.",
     "relatedFlows" : [ {

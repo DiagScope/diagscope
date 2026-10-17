@@ -381,7 +381,7 @@ System output is used instead of application logging.
 
 **Why it matters:** The message escapes log routing, sampling, and correlation, so it cannot be searched or alerted on when the incident happens.
 
-**How it was detected:** A direct call to System.out/System.err print methods on a reachable path.
+**How it was detected:** A direct call to System.out/System.err print/println on a reachable path. Methods of a @Command class and main methods are skipped: the output of a command-line program is its product.
 
 **Suggested action:** Use the configured logger so the message participates in structured production telemetry.
 
