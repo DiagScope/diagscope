@@ -5,6 +5,7 @@ import dev.diagscope.core.application.port.out.ProjectAnalyzer;
 import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.AspectAdvice;
 import dev.diagscope.core.domain.Entrypoint;
+import dev.diagscope.core.domain.IdentityConflict;
 import dev.diagscope.core.domain.InvocationEvidence;
 import dev.diagscope.core.domain.MethodCall;
 import dev.diagscope.core.domain.MethodId;
@@ -58,12 +59,14 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         var methods = new LinkedHashMap<MethodId, MethodModel>();
         var entrypoints = new LinkedHashSet<Entrypoint>();
         var failures = new ArrayList<ParseFailure>();
+        var conflicts = new ArrayList<IdentityConflict>();
         var aspects = new LinkedHashMap<String, AspectAdvice>();
         long sourceFiles = 0;
 
         for (AnalyzedProject fragment : fragments) {
             sourceFiles += fragment.discoveredSourceFiles();
             failures.addAll(fragment.parseFailures());
+            conflicts.addAll(fragment.identityConflicts());
             entrypoints.addAll(fragment.entrypoints());
             for (AspectAdvice aspect : fragment.aspects()) {
                 aspects.putIfAbsent(aspect.id() + ':' + aspect.kind(), aspect);
@@ -71,8 +74,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             for (MethodModel method : fragment.methods().values()) {
                 MethodModel previous = methods.putIfAbsent(method.id(), method);
                 if (previous != null) {
-                    failures.add(new ParseFailure(method.location().file(),
-                            "Duplicate cross-language method identity ignored: " + method.id().displayName()));
+                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.CROSS_LANGUAGE_METHOD,
+                            method.id().displayName(), previous.location().file(), method.location().file()));
                 }
             }
         }
@@ -88,6 +91,8 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                         .thenComparing(item -> item.method().displayName()))
                 .toList();
         failures.sort(Comparator.comparing(failure -> failure.file().toString()));
+        conflicts.sort(Comparator.comparing((IdentityConflict conflict) -> conflict.ignoredFile().toString())
+                .thenComparing(IdentityConflict::kind).thenComparing(IdentityConflict::identity));
         var orderedAspects = aspects.values().stream()
                 .sorted(Comparator.comparing(AspectAdvice::id).thenComparing(item -> item.kind().name()))
                 .toList();
@@ -95,7 +100,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                 linkAcrossLanguages(methods), orderedAspects);
         Path root = layout.root();
         return new AnalyzedProject(root.getFileName().toString(), root, layout, linkedMethods,
-                orderedEntrypoints, sourceFiles, failures, orderedAspects);
+                orderedEntrypoints, sourceFiles, failures, orderedAspects, conflicts);
     }
 
     private static Map<MethodId, MethodModel> linkAcrossLanguages(Map<MethodId, MethodModel> methods) {

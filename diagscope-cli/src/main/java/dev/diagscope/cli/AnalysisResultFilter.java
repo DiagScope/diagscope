@@ -29,7 +29,9 @@ final class AnalysisResultFilter {
                 statistics.flows(),
                 retained.size(),
                 statistics.parseFailures(),
-                statistics.phaseMetrics()
+                statistics.phaseMetrics(),
+                statistics.identityConflicts(),
+                statistics.droppedMethods()
         );
         return new AnalysisResult(
                 result.projectName(),
@@ -42,7 +44,8 @@ final class AnalysisResultFilter {
                 result.diagnosticCoverage(),
                 filteredStatistics,
                 result.aspects(),
-                result.scanPolicy()
+                result.scanPolicy(),
+                result.identityConflicts()
         );
     }
 
@@ -50,7 +53,7 @@ final class AnalysisResultFilter {
         return new AnalysisResult(
                 result.projectName(), result.projectRoot(), result.projectLayout(), result.options(),
                 result.parseFailures(), result.flows(), result.findings(), result.diagnosticCoverage(),
-                result.statistics(), result.aspects(), scanPolicy
+                result.statistics(), result.aspects(), scanPolicy, result.identityConflicts()
         );
     }
 }

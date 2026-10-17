@@ -23,7 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.5-alpha.1";
+    public static final String SCHEMA_VERSION = "1.6-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -77,6 +77,12 @@ public final class JsonReporter implements AnalysisReporter {
         document.put("parseFailures", result.parseFailures().stream().map(failure -> orderedMap(
                 "file", failure.file().toString(),
                 "message", failure.message()
+        )).toList());
+        document.put("identityConflicts", result.identityConflicts().stream().map(conflict -> orderedMap(
+                "kind", conflict.kind().name(),
+                "identity", conflict.identity(),
+                "keptFile", conflict.keptFile().toString(),
+                "ignoredFile", conflict.ignoredFile().toString()
         )).toList());
         document.put("aspects", result.aspects().stream().map(JsonReporter::aspect).toList());
         document.put("flows", result.flows().stream().map(flow -> flow(flow, result)).toList());
@@ -154,6 +160,8 @@ public final class JsonReporter implements AnalysisReporter {
         values.put("flows", statistics.flows());
         values.put("findings", statistics.findings());
         values.put("parseFailures", statistics.parseFailures());
+        values.put("identityConflicts", statistics.identityConflicts());
+        values.put("droppedMethods", statistics.droppedMethods());
         values.put("projectAnalysisNanos", phases.projectAnalysisNanos());
         values.put("flowConstructionNanos", phases.flowConstructionNanos());
         values.put("ruleExecutionNanos", phases.ruleExecutionNanos());

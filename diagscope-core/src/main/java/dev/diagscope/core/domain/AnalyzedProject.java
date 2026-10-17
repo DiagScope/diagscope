@@ -15,7 +15,8 @@ public record AnalyzedProject(
         List<Entrypoint> entrypoints,
         long discoveredSourceFiles,
         List<ParseFailure> parseFailures,
-        List<AspectAdvice> aspects
+        List<AspectAdvice> aspects,
+        List<IdentityConflict> identityConflicts
 ) {
     public AnalyzedProject {
         Objects.requireNonNull(name, "name");
@@ -25,6 +26,7 @@ public record AnalyzedProject(
         Objects.requireNonNull(entrypoints, "entrypoints");
         Objects.requireNonNull(parseFailures, "parseFailures");
         Objects.requireNonNull(aspects, "aspects");
+        Objects.requireNonNull(identityConflicts, "identityConflicts");
         if (discoveredSourceFiles < 0) {
             throw new IllegalArgumentException("discoveredSourceFiles must not be negative");
         }
@@ -32,6 +34,7 @@ public record AnalyzedProject(
         entrypoints = List.copyOf(entrypoints);
         parseFailures = List.copyOf(parseFailures);
         aspects = List.copyOf(aspects);
+        identityConflicts = List.copyOf(identityConflicts);
     }
 
     /** Project without discovered aspects, used by adapters and tests that do not model them. */
@@ -44,7 +47,21 @@ public record AnalyzedProject(
             long discoveredSourceFiles,
             List<ParseFailure> parseFailures
     ) {
-        this(name, root, layout, methods, entrypoints, discoveredSourceFiles, parseFailures, List.of());
+        this(name, root, layout, methods, entrypoints, discoveredSourceFiles, parseFailures, List.of(), List.of());
+    }
+
+    /** Project without identity conflicts. */
+    public AnalyzedProject(
+            String name,
+            Path root,
+            ProjectLayout layout,
+            Map<MethodId, MethodModel> methods,
+            List<Entrypoint> entrypoints,
+            long discoveredSourceFiles,
+            List<ParseFailure> parseFailures,
+            List<AspectAdvice> aspects
+    ) {
+        this(name, root, layout, methods, entrypoints, discoveredSourceFiles, parseFailures, aspects, List.of());
     }
 
     /** The same project restricted to production or to test methods; entrypoints follow the methods. */
@@ -56,7 +73,7 @@ public record AnalyzedProject(
         var keptEntrypoints = entrypoints.stream()
                 .filter(entrypoint -> SourceScope.isTestSource(entrypoint.location().file()) == testSources).toList();
         return new AnalyzedProject(name, root, layout, kept, keptEntrypoints, discoveredSourceFiles, parseFailures,
-                aspects);
+                aspects, identityConflicts);
     }
 
     /** Whether any analyzed method comes from a test source root. */

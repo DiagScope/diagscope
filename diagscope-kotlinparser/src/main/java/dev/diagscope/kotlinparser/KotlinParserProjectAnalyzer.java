@@ -10,6 +10,7 @@ import dev.diagscope.core.domain.CatchEvidence;
 import dev.diagscope.core.domain.CallableShape;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
+import dev.diagscope.core.domain.IdentityConflict;
 import dev.diagscope.core.domain.InvocationEvidence;
 import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.MethodCall;
@@ -144,10 +145,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 options.enabledEntrypointTypes(), options.policy());
 
         var failures = new ArrayList<ParseFailure>(batch.failures());
-        failures.addAll(mapped.failures());
         failures.sort(Comparator.comparing(failure -> failure.file().toString()));
         return new AnalyzedProject(root.getFileName().toString(), root, layout, methods, entrypoints,
-                sourceFiles.size(), failures, aspects);
+                sourceFiles.size(), failures, aspects, mapped.identityConflicts());
     }
 
     private static List<Path> discoverSourceFiles(List<Path> sourceRoots) {
@@ -726,23 +726,27 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private static MappedProject merge(List<MappedUnit> units) {
         var methods = new LinkedHashMap<MethodId, RawMethod>();
         var types = new LinkedHashMap<String, TypeInfo>();
-        var failures = new ArrayList<ParseFailure>();
+        var conflicts = new ArrayList<IdentityConflict>();
+        var typeFiles = new HashMap<String, Path>();
         for (MappedUnit unit : units) {
             for (TypeInfo type : unit.types()) {
                 if (types.putIfAbsent(type.qualifiedName(), type) != null) {
-                    failures.add(new ParseFailure(unit.file(), "Duplicate Kotlin type identity ignored: "
-                            + type.qualifiedName()));
+                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.TYPE, type.qualifiedName(),
+                            typeFiles.get(type.qualifiedName()), unit.file()));
+                } else {
+                    typeFiles.put(type.qualifiedName(), unit.file());
                 }
             }
             for (RawMethod method : unit.methods()) {
-                if (methods.putIfAbsent(method.id(), method) != null) {
-                    failures.add(new ParseFailure(method.location().file(),
-                            "Duplicate Kotlin method identity ignored: " + method.id().displayName()));
+                RawMethod previous = methods.putIfAbsent(method.id(), method);
+                if (previous != null) {
+                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, method.id().displayName(),
+                            previous.location().file(), method.location().file()));
                 }
             }
         }
         return new MappedProject(Collections.unmodifiableMap(methods), Collections.unmodifiableMap(types),
-                List.copyOf(failures), units.stream().anyMatch(MappedUnit::producerListenerVisible));
+                List.copyOf(conflicts), units.stream().anyMatch(MappedUnit::producerListenerVisible));
     }
 
     private static Map<MethodId, MethodModel> resolveCalls(MappedProject project, List<AspectAdvice> aspects) {
@@ -1861,7 +1865,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     private record ParseBatch(List<MappedUnit> units, List<ParseFailure> failures) {}
 
     private record MappedProject(Map<MethodId, RawMethod> methods, Map<String, TypeInfo> types,
-            List<ParseFailure> failures, boolean producerListenerVisible) {}
+            List<IdentityConflict> identityConflicts, boolean producerListenerVisible) {}
 
     private record Resolution(Optional<MethodId> target, ResolutionReason reason) {}
 }

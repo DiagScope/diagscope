@@ -25,6 +25,7 @@ class ResultSchemaCompatibilityTest {
         JsonNode v13 = contract("1.3-alpha.1");
         JsonNode v14 = contract("1.4-alpha.1");
         JsonNode v15 = contract("1.5-alpha.1");
+        JsonNode v16 = contract("1.6-alpha.1");
 
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         Path output = temp.resolve("out");
@@ -37,7 +38,7 @@ class ResultSchemaCompatibilityTest {
 
         // ── schema version must match the latest contract ─────────────────────
         assertThat(result.path("schemaVersion").asText())
-                .isEqualTo(v15.path("schemaVersion").asText());
+                .isEqualTo(v16.path("schemaVersion").asText());
 
         // ── 1.0-alpha.1: root, project, statistics, flow, finding, location ──
         assertFields(result, v10.path("root"));
@@ -101,6 +102,11 @@ class ResultSchemaCompatibilityTest {
         assertThat(features.path("springAop").asText()).isEqualTo("PARTIAL");
         assertThat(features.path("kotlinDependencyResolution").asText())
                 .isIn("SOURCE_FIRST", "NOT_APPLICABLE");
+
+        // ── 1.6-alpha.1: identityConflicts, kept apart from parseFailures ─────
+        assertFields(result, v16.path("root"));
+        assertThat(result.path("identityConflicts").isArray()).isTrue();
+        assertFields(result.path("statistics"), v16.path("statisticsAdditions"));
     }
 
     private static JsonNode contract(String version) throws Exception {

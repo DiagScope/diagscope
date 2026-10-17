@@ -60,6 +60,7 @@ public final class MarkdownReporter implements AnalysisReporter {
                 .append("| Methods | ").append(statistics.parsedMethods()).append(" |\n")
                 .append("| Flow boundaries | ").append(boundaries).append(" |\n")
                 .append("| Parse failures | ").append(statistics.parseFailures()).append(" |\n")
+                .append(identityConflictRow(statistics))
                 .append("| Total time | ").append(statistics.phaseMetrics().totalMillis()).append(" ms |\n")
                 .append("| Tool version | `").append(BuildInfo.version()).append("` |\n\n")
                 .append("<details><summary>Scan configuration</summary>\n\n")
@@ -89,6 +90,18 @@ public final class MarkdownReporter implements AnalysisReporter {
                 .append(" (excluded ").append(result.scanPolicy().changeScopeExcludedFindings())
                 .append(")\n\n")
                 .append("</details>\n\n");
+        if (!result.identityConflicts().isEmpty()) {
+            builder.append("<details><summary>Identity conflicts (")
+                    .append(result.identityConflicts().size()).append(")</summary>\n\n")
+                    .append("The same class or method name is declared more than once (usually in different modules). ")
+                    .append("Only the first declaration is analyzed; methods of the others reach no flow and no rule.")
+                    .append("\n\n");
+            result.identityConflicts().forEach(conflict -> builder.append("- ").append(conflict.kind().name())
+                    .append(" `").append(escape(conflict.identity())).append("`: analyzed in `")
+                    .append(escape(conflict.keptFile().toString())).append("`, ignored in `")
+                    .append(escape(conflict.ignoredFile().toString())).append("`\n"));
+            builder.append("\n</details>\n\n");
+        }
         if (!result.parseFailures().isEmpty()) {
             builder.append("<details><summary>Parse failures (")
                     .append(result.parseFailures().size()).append(")</summary>\n\n");
@@ -97,6 +110,12 @@ public final class MarkdownReporter implements AnalysisReporter {
                     .append(escape(failure.message())).append("\n"));
             builder.append("\n</details>\n\n");
         }
+    }
+
+    private static String identityConflictRow(dev.diagscope.core.application.AnalysisStatistics statistics) {
+        if (statistics.identityConflicts() == 0) return "";
+        return "| Identity conflicts | " + statistics.identityConflicts() + " (" + statistics.droppedMethods()
+                + " methods not analyzed) |\n";
     }
 
     private static String valueOrNone(String value) {

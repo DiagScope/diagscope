@@ -3,6 +3,7 @@ package dev.diagscope.core.application;
 import dev.diagscope.core.domain.AspectAdvice;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
+import dev.diagscope.core.domain.IdentityConflict;
 import dev.diagscope.core.domain.BuildSystem;
 import dev.diagscope.core.domain.ParseFailure;
 import dev.diagscope.core.domain.ProjectLayout;
@@ -22,7 +23,8 @@ public record AnalysisResult(
         List<FlowDiagnosticCoverage> diagnosticCoverage,
         AnalysisStatistics statistics,
         List<AspectAdvice> aspects,
-        ScanPolicyMetadata scanPolicy
+        ScanPolicyMetadata scanPolicy,
+        List<IdentityConflict> identityConflicts
 ) {
     public AnalysisResult {
         Objects.requireNonNull(projectName, "projectName");
@@ -36,6 +38,8 @@ public record AnalysisResult(
         Objects.requireNonNull(statistics, "statistics");
         Objects.requireNonNull(aspects, "aspects");
         Objects.requireNonNull(scanPolicy, "scanPolicy");
+        Objects.requireNonNull(identityConflicts, "identityConflicts");
+        identityConflicts = List.copyOf(identityConflicts);
         parseFailures = List.copyOf(parseFailures);
         flows = List.copyOf(flows);
         findings = List.copyOf(findings);
@@ -64,7 +68,7 @@ public record AnalysisResult(
     ) {
         this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings,
                 coverage(flows, findings), statistics,
-                List.of(), ScanPolicyMetadata.none());
+                List.of(), ScanPolicyMetadata.none(), List.of());
     }
 
     public AnalysisResult(
@@ -80,7 +84,7 @@ public record AnalysisResult(
     ) {
         this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings,
                 coverage(flows, findings), statistics,
-                aspects, ScanPolicyMetadata.none());
+                aspects, ScanPolicyMetadata.none(), List.of());
     }
 
     public AnalysisResult(
@@ -96,7 +100,43 @@ public record AnalysisResult(
             ScanPolicyMetadata scanPolicy
     ) {
         this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings,
-                coverage(flows, findings), statistics, aspects, scanPolicy);
+                coverage(flows, findings), statistics, aspects, scanPolicy, List.of());
+    }
+
+    /** Result that carries a scan policy but no identity conflicts. */
+    public AnalysisResult(
+            String projectName,
+            Path projectRoot,
+            ProjectLayout projectLayout,
+            AnalysisOptions options,
+            List<ParseFailure> parseFailures,
+            List<Flow> flows,
+            List<Finding> findings,
+            List<FlowDiagnosticCoverage> diagnosticCoverage,
+            AnalysisStatistics statistics,
+            List<AspectAdvice> aspects,
+            ScanPolicyMetadata scanPolicy
+    ) {
+        this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings, diagnosticCoverage,
+                statistics, aspects, scanPolicy, List.of());
+    }
+
+    /** Result whose diagnostic coverage is calculated from its flows and findings. */
+    public AnalysisResult(
+            String projectName,
+            Path projectRoot,
+            ProjectLayout projectLayout,
+            AnalysisOptions options,
+            List<ParseFailure> parseFailures,
+            List<Flow> flows,
+            List<Finding> findings,
+            AnalysisStatistics statistics,
+            List<AspectAdvice> aspects,
+            ScanPolicyMetadata scanPolicy,
+            List<IdentityConflict> identityConflicts
+    ) {
+        this(projectName, projectRoot, projectLayout, options, parseFailures, flows, findings,
+                coverage(flows, findings), statistics, aspects, scanPolicy, identityConflicts);
     }
 
     /** Build tool that declares the scanned project. */

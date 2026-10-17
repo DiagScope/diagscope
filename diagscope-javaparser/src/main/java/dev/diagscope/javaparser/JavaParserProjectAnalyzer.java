@@ -51,6 +51,7 @@ import dev.diagscope.core.domain.CatchEvidence;
 import dev.diagscope.core.domain.CallableShape;
 import dev.diagscope.core.domain.Entrypoint;
 import dev.diagscope.core.domain.EntrypointType;
+import dev.diagscope.core.domain.IdentityConflict;
 import dev.diagscope.core.domain.InvocationEvidence;
 import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.MethodCall;
@@ -138,12 +139,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         List<Entrypoint> entrypoints = detectEntrypoints(mapped,
                 options.enabledEntrypointTypes(), options.policy());
 
-        var failures = new ArrayList<ParseFailure>(parseBatch.failures().size() + mapped.failures().size());
-        failures.addAll(parseBatch.failures());
-        failures.addAll(mapped.failures());
+        var failures = new ArrayList<ParseFailure>(parseBatch.failures());
         failures.sort(Comparator.comparing(failure -> failure.file().toString()));
         return new AnalyzedProject(root.getFileName().toString(), root, layout, methods, entrypoints,
-                sourceFiles.size(), failures, aspects);
+                sourceFiles.size(), failures, aspects, mapped.identityConflicts());
     }
 
     /** Collects the Java files of every source root, deduplicated so nested modules cannot double count. */
@@ -413,21 +412,24 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static MappedProject mergeMappedUnits(List<MappedUnit> units) {
         var rawMethods = new LinkedHashMap<MethodId, RawMethod>(Math.max(16, units.size() * 4));
         var types = new LinkedHashMap<String, TypeInfo>();
-        var failures = new ArrayList<ParseFailure>();
+        var conflicts = new ArrayList<IdentityConflict>();
+        var typeFiles = new HashMap<String, Path>();
 
         for (var unit : units) {
             for (var type : unit.types()) {
                 TypeInfo previous = types.putIfAbsent(type.qualifiedName(), type);
                 if (previous != null) {
-                    failures.add(new ParseFailure(unit.file(),
-                            "Duplicate type identity ignored: " + type.qualifiedName()));
+                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.TYPE, type.qualifiedName(),
+                            typeFiles.get(type.qualifiedName()), unit.file()));
+                } else {
+                    typeFiles.put(type.qualifiedName(), unit.file());
                 }
             }
             for (var rawMethod : unit.rawMethods()) {
                 RawMethod previous = rawMethods.putIfAbsent(rawMethod.id(), rawMethod);
                 if (previous != null) {
-                    failures.add(new ParseFailure(rawMethod.location().file(),
-                            "Duplicate method identity ignored: " + rawMethod.id().displayName()));
+                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, rawMethod.id().displayName(),
+                            previous.location().file(), rawMethod.location().file()));
                 }
             }
         }
@@ -435,7 +437,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return new MappedProject(
                 Collections.unmodifiableMap(new LinkedHashMap<>(rawMethods)),
                 Collections.unmodifiableMap(new LinkedHashMap<>(types)),
-                List.copyOf(failures),
+                List.copyOf(conflicts),
                 producerListenerVisible
         );
     }
@@ -1978,7 +1980,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private record MappedProject(
             Map<MethodId, RawMethod> rawMethods,
             Map<String, TypeInfo> types,
-            List<ParseFailure> failures,
+            List<IdentityConflict> identityConflicts,
             boolean producerListenerVisible
     ) {}
 

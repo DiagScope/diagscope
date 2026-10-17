@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.5-alpha.1",
+  "schemaVersion" : "1.6-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -220,6 +220,8 @@
     "flows" : 3,
     "findings" : 9,
     "parseFailures" : 0,
+    "identityConflicts" : 0,
+    "droppedMethods" : 0,
     "projectAnalysisNanos" : 0,
     "flowConstructionNanos" : 0,
     "ruleExecutionNanos" : 0,
@@ -396,6 +398,7 @@
     } ]
   },
   "parseFailures" : [ ],
+  "identityConflicts" : [ ],
   "aspects" : [ ],
   "flows" : [ {
     "id" : "KAFKA_LISTENER:example.PaymentListener.consume(String)",

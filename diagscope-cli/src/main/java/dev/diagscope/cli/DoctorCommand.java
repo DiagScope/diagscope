@@ -307,6 +307,16 @@ public final class DoctorCommand implements Callable<Integer> {
 
         out.printf("  %s %d parse failure%s%n", parseFailures == 0 ? OK : WARN, parseFailures, plural(parseFailures));
         if (parseFailures > 0) tally.warnings++;
+        long conflicts = result.identityConflicts().size();
+        long dropped = result.statistics().droppedMethods();
+        if (conflicts == 0) {
+            out.printf("  %s no identity conflicts%n", OK);
+        } else {
+            out.printf("  %s %d identity conflict%s: %d method%s not analyzed (same class name declared more than"
+                            + " once, usually in different modules; only the first declaration is analyzed)%n",
+                    dropped == 0 ? OK : WARN, conflicts, plural(conflicts), dropped, plural(dropped));
+            if (dropped > 0) tally.warnings++;
+        }
         out.printf("  %s %d unresolved boundar%s%n", unresolved == 0 ? OK : WARN, unresolved, pluralY(unresolved));
         out.printf("  %s %d ambiguous boundar%s%n", ambiguous == 0 ? OK : WARN, ambiguous, pluralY(ambiguous));
         out.printf("  %s %d entrypoint%s, %d flow%s analyzed%n",

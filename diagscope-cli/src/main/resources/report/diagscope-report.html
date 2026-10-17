@@ -280,6 +280,12 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
   <ul class="plain-list small" id="aspects-list"></ul>
 </section>
 
+<section class="block" id="identity-conflicts-block" hidden>
+  <h2>Identity conflicts</h2>
+  <p class="small muted">The same class or method name is declared more than once, usually in different modules. Only the first declaration is analyzed; the methods of the others reach no flow and no rule.</p>
+  <ul class="plain-list small" id="identity-conflicts"></ul>
+</section>
+
 <section class="block" id="parse-failures-block" hidden>
   <h2>Parse failures</h2>
   <ul class="plain-list small" id="parse-failures"></ul>
@@ -474,6 +480,9 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
       [millis(statistics.totalNanos), 'Total time'],
       [configuration.maxFlowDepth, 'Max flow depth']
     ];
+    if (statistics.identityConflicts) {
+      cards.push([statistics.identityConflicts, 'Identity conflicts']);
+    }
     if (scanScope.baselineSuppressedFindings) {
       cards.push([scanScope.baselineSuppressedFindings, 'Baseline suppressed']);
     }
@@ -802,6 +811,15 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
     }).join('');
   }
 
+  function renderIdentityConflicts() {
+    var conflicts = report.identityConflicts || [];
+    document.getElementById('identity-conflicts-block').hidden = conflicts.length === 0;
+    document.getElementById('identity-conflicts').innerHTML = conflicts.map(function (conflict) {
+      return '<li>' + esc(conflict.kind) + ' <code>' + esc(conflict.identity) + '</code>: analyzed in <code>' +
+        esc(conflict.keptFile) + '</code>, ignored in <code>' + esc(conflict.ignoredFile) + '</code></li>';
+    }).join('');
+  }
+
   function renderParseFailures() {
     var failures = report.parseFailures || [];
     var block = document.getElementById('parse-failures-block');
@@ -832,6 +850,7 @@ html[data-theme="dark"] .chip.active { color: #0f141c; }
     renderFindings();
     renderFlows();
     renderAspects();
+    renderIdentityConflicts();
     renderParseFailures();
     openFromHash();
   }

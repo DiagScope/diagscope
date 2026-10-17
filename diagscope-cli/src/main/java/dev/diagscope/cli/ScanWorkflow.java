@@ -369,6 +369,12 @@ public final class ScanWorkflow {
         }
     }
 
+    private static String identityConflictSummary(dev.diagscope.core.application.AnalysisStatistics statistics) {
+        return statistics.identityConflicts() == 0 ? ""
+                : "Identity conflicts: " + statistics.identityConflicts() + " (" + statistics.droppedMethods()
+                        + " methods not analyzed) | ";
+    }
+
     /** Everything the closing summary of a run reports. */
     private record RunSummary(
             AnalysisResult result,
@@ -395,8 +401,9 @@ public final class ScanWorkflow {
         out.printf("DiagScope %s analyzed %d files, %d methods and %d flows in %d ms.%n",
                 BuildInfo.version(), statistics.sourceFiles(), statistics.parsedMethods(), statistics.flows(),
                 statistics.phaseMetrics().totalMillis());
-        out.printf("Findings: %d | Parse failures: %d | Flow boundaries: %d | Output: %s%n",
-                statistics.findings(), statistics.parseFailures(), boundaries, outputDirectory);
+        out.printf("Findings: %d | Parse failures: %d | %sFlow boundaries: %d | Output: %s%n",
+                statistics.findings(), statistics.parseFailures(), identityConflictSummary(statistics), boundaries,
+                outputDirectory);
         if (changeScopeExcludedFindings > 0) {
             out.printf("Change scope excluded %d finding(s) outside --changed-since %s.%n",
                     changeScopeExcludedFindings, changedSince);

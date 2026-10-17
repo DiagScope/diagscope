@@ -4,6 +4,17 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Changed
+
+- **`result.json` 1.6-alpha.1: identity conflicts are no longer parse failures.** The same class or method name in two
+  modules (or in Java and Kotlin) was reported in `parseFailures` as "Duplicate ... identity ignored", although both
+  files parsed. On quarkus-quickstarts that showed 192 parse failures for a project with none, and hid that 132 of
+  933 methods (about 14%) were never analyzed. The conflicts now have their own top-level `identityConflicts` array
+  (`kind`, `identity`, `keptFile`, `ignoredFile`) and the statistics `identityConflicts` and `droppedMethods`;
+  `parseFailures` lists only unreadable or syntactically broken files. **Migration:** a consumer that counted
+  duplicates in `parseFailures` must read `identityConflicts`. The terminal summary, `doctor`, the Markdown and the HTML
+  report show the conflicts separately. The detection itself is unchanged: only the first declaration is analyzed.
+
 ### Fixed
 
 - `SYSTEM_OUTPUT` skips `@Command` classes and `main` methods, where printing is the program's output (rule version

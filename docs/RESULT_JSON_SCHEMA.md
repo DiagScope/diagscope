@@ -37,11 +37,22 @@ shape stays the same.
    an intentional major-version break.
 4. Document migration notes in `CHANGELOG.md`.
 
-The current contract is `1.4-alpha.1`. It adds the `REACTIVE_MESSAGE` entrypoint enum value for
+The current contract is `1.6-alpha.1`. It adds a top-level `identityConflicts` array and the statistics
+`identityConflicts` and `droppedMethods`. A conflict means two declarations share one qualified type or method name
+(usually the same class in two modules of a monorepo): only the first is analyzed, and each ignored method is left out
+of every flow and rule. Each entry has `kind` (`TYPE`, `METHOD` or `CROSS_LANGUAGE_METHOD`), `identity`, `keptFile` and
+`ignoredFile`. These entries used to be reported in `parseFailures` with a "Duplicate ... identity ignored" message;
+`parseFailures` now lists only files that could not be read or parsed, which changes what that field holds, so
+consumers that counted duplicates there must read `identityConflicts` instead. The contract is still a prerelease,
+which is why the change was made now.
+
+The previous contract is `1.5-alpha.1`; it adds the top-level `analysisCapabilities` object.
+
+`1.4-alpha.1`. It adds the `REACTIVE_MESSAGE` entrypoint enum value for
 SmallRye Reactive Messaging `@Incoming` flows. Existing fields are unchanged, so this is an
 additive minor contract advance and readers should preserve unknown enum values.
 
-The previous contract is `1.3-alpha.1`; it adds a top-level `ruleVersions` map with the evidence
+The earlier contract `1.3-alpha.1` adds a top-level `ruleVersions` map with the evidence
 contract version of every registered rule, and reviewed-waiver lifecycle counts
 (`waivedFindings`, `expiredWaivers`, `unusedWaivers`) under `configuration.scanScope`.
 
