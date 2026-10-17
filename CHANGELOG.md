@@ -6,6 +6,13 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- **Monorepos: a class declared in several modules is analyzed in each of them** (ADR-0006). The second and later
+  declarations used to be dropped, which left about 14% of the methods of quarkus-quickstarts unanalyzed. A repeat in
+  another module now keeps the module as a qualifier (`MethodId.module`); call resolution prefers the caller's own
+  module, and a flow id gets an `@<module>` suffix only when two modules declare the same entrypoint method.
+  `result.json` 1.7-alpha.1 adds `module` to every flow. Existing fingerprints do not change, but projects that had
+  duplicates will report findings that were hidden before (quarkus-quickstarts +4, spring-data-examples +4). Only a
+  repeat inside one module is still an identity conflict.
 - **`result.json` 1.6-alpha.1: identity conflicts are no longer parse failures.** The same class or method name in two
   modules (or in Java and Kotlin) was reported in `parseFailures` as "Duplicate ... identity ignored", although both
   files parsed. On quarkus-quickstarts that showed 192 parse failures for a project with none, and hid that 132 of

@@ -47,7 +47,7 @@ public record AnalysisResult(
         aspects = List.copyOf(aspects);
         var expectedCoverage = new java.util.TreeSet<String>();
         flows.forEach(flow -> expectedCoverage.add(
-                flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName()));
+                flow.entrypoint().flowId()));
         var actualCoverage = new java.util.TreeSet<String>();
         diagnosticCoverage.forEach(coverage -> actualCoverage.add(coverage.flowId()));
         if (actualCoverage.size() != diagnosticCoverage.size() || !actualCoverage.equals(expectedCoverage)) {

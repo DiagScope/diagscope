@@ -39,6 +39,12 @@ public record MethodModel(
         boolean declaringTypeIsInterface,
         List<SourceLocation> throwsInFinally
 ) {
+    /** The same method under another identity, used to qualify a repeat declared in another module. */
+    public MethodModel withId(MethodId other) {
+        return new MethodModel(other, location, annotations, catches, invocations, metricTags, metricNames, calls,
+                proxy, annotationAttributes, callableShape, returnType, declaringTypeIsInterface, throwsInFinally);
+    }
+
     /**
      * Synthetic annotation the Kotlin adapter adds to {@code suspend} functions, so rules can tell a
      * coroutine body from a plain one without a new field on every constructor. Mirrors the synthetic

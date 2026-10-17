@@ -23,7 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class JsonReporter implements AnalysisReporter {
-    public static final String SCHEMA_VERSION = "1.6-alpha.1";
+    public static final String SCHEMA_VERSION = "1.7-alpha.1";
 
     private final JsonMapper mapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -216,10 +216,11 @@ public final class JsonReporter implements AnalysisReporter {
 
     private static Map<String, Object> flow(Flow flow, AnalysisResult result) {
         var item = new LinkedHashMap<String, Object>();
-        item.put("id", flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName());
+        item.put("id", flow.entrypoint().flowId());
         item.put("type", flow.entrypoint().type().name());
         item.put("name", flow.entrypoint().displayName());
         item.put("method", flow.entrypoint().method().displayName());
+        item.put("module", result.projectLayout().moduleOf(flow.entrypoint().location().file()));
         item.put("location", location(flow.entrypoint().location()));
         item.put("confidence", flow.confidence().name());
         item.put("diagnosticCoverage", coverage(coverageFor(result, flow)));
@@ -274,7 +275,7 @@ public final class JsonReporter implements AnalysisReporter {
     }
 
     private static FlowDiagnosticCoverage coverageFor(AnalysisResult result, Flow flow) {
-        String id = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+        String id = flow.entrypoint().flowId();
         return result.diagnosticCoverage().stream().filter(coverage -> coverage.flowId().equals(id))
                 .findFirst().orElseGet(() -> FlowDiagnosticCoverage.calculate(flow, result.findings()));
     }

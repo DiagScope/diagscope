@@ -36,4 +36,25 @@ public record ProjectLayout(
     public boolean isMultiModule() {
         return modules.size() > 1;
     }
+
+    /**
+     * The module that contains a source file: the longest matching module directory, with {@code /} separators, or
+     * {@code ""} for the root module and for a file outside every declared module.
+     *
+     * @param file path relative to {@link #root}
+     */
+    public String moduleOf(Path file) {
+        String best = "";
+        int bestDepth = -1;
+        for (Path module : modules) {
+            if (module.toString().isEmpty() || !file.startsWith(module)) {
+                continue;
+            }
+            if (module.getNameCount() > bestDepth) {
+                bestDepth = module.getNameCount();
+                best = module.toString().replace('\\', '/');
+            }
+        }
+        return best;
+    }
 }

@@ -44,6 +44,7 @@ import dev.diagscope.core.application.port.out.ProjectAnalyzer;
 import dev.diagscope.core.domain.AdviceKind;
 import dev.diagscope.core.domain.AnalyzedProject;
 import dev.diagscope.core.domain.AspectAdvice;
+import dev.diagscope.core.domain.ModuleScope;
 import dev.diagscope.core.domain.MethodVisibility;
 import dev.diagscope.core.domain.ProxyProfile;
 import dev.diagscope.core.domain.ProjectLayout;
@@ -87,6 +88,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Pattern;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /** Syntax-first Java source adapter for the alpha release. */
@@ -133,9 +135,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 .toList();
         ParseBatch parseBatch = parseFiles(layout, sourceFiles,
                 explicitClasspath(root, options.explicitClasspath()), options);
-        MappedProject mapped = mergeMappedUnits(parseBatch.units());
+        MappedProject mapped = mergeMappedUnits(parseBatch.units(), layout);
         List<AspectAdvice> aspects = collectAspects(mapped);
-        Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped, aspects);
+        Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped, aspects, layout);
         List<Entrypoint> entrypoints = detectEntrypoints(mapped,
                 options.enabledEntrypointTypes(), options.policy());
 
@@ -409,28 +411,38 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return jakarta;
     }
 
-    private static MappedProject mergeMappedUnits(List<MappedUnit> units) {
+    /**
+     * Merges the files of the project. A type or method declared again in another module keeps its place under that
+     * module's qualifier (ADR-0006); only a repeat inside one module is an identity conflict.
+     */
+    private static MappedProject mergeMappedUnits(List<MappedUnit> units, ProjectLayout layout) {
         var rawMethods = new LinkedHashMap<MethodId, RawMethod>(Math.max(16, units.size() * 4));
         var types = new LinkedHashMap<String, TypeInfo>();
         var conflicts = new ArrayList<IdentityConflict>();
         var typeFiles = new HashMap<String, Path>();
 
         for (var unit : units) {
+            String unitModule = layout.moduleOf(unit.file());
             for (var type : unit.types()) {
                 TypeInfo previous = types.putIfAbsent(type.qualifiedName(), type);
-                if (previous != null) {
+                if (previous == null) {
+                    typeFiles.put(type.qualifiedName(), unit.file());
+                } else if (layout.moduleOf(typeFiles.get(type.qualifiedName())).equals(unitModule)) {
                     conflicts.add(new IdentityConflict(IdentityConflict.Kind.TYPE, type.qualifiedName(),
                             typeFiles.get(type.qualifiedName()), unit.file()));
-                } else {
-                    typeFiles.put(type.qualifiedName(), unit.file());
                 }
             }
             for (var rawMethod : unit.rawMethods()) {
                 RawMethod previous = rawMethods.putIfAbsent(rawMethod.id(), rawMethod);
-                if (previous != null) {
-                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, rawMethod.id().displayName(),
-                            previous.location().file(), rawMethod.location().file()));
+                if (previous == null) continue;
+                String keptModule = layout.moduleOf(previous.location().file());
+                String module = layout.moduleOf(rawMethod.location().file());
+                if (!keptModule.equals(module)) {
+                    MethodId qualified = rawMethod.id().withModule(module);
+                    if (rawMethods.putIfAbsent(qualified, rawMethod.withId(qualified)) == null) continue;
                 }
+                conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, rawMethod.id().displayName(),
+                        previous.location().file(), rawMethod.location().file()));
             }
         }
         boolean producerListenerVisible = units.stream().anyMatch(MappedUnit::producerListenerVisible);
@@ -764,7 +776,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static Map<MethodId, MethodModel> resolveLocalCalls(
-            MappedProject project, List<AspectAdvice> aspects) {
+            MappedProject project, List<AspectAdvice> aspects, ProjectLayout layout) {
         Set<String> beanFactoryTypes = beanFactoryTypes(project);
         var proxyContext = new ProxyContext(aspects, beanFactoryTypes);
         var byQualifiedTypeAndName = new HashMap<String, List<RawMethod>>();
@@ -800,7 +812,14 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         var resolved = new LinkedHashMap<MethodId, MethodModel>(project.rawMethods().size());
         var callIndex = new CallIndex(project.types(), typesBySimpleName, implementationsBySuperType,
                 byQualifiedTypeAndName, bySimpleTypeAndName);
+        boolean repeatedAcrossModules = project.rawMethods().keySet().stream()
+                .anyMatch(id -> !id.module().isEmpty());
+        var indexByModule = new HashMap<String, CallIndex>();
         for (var raw : project.rawMethods().values()) {
+            CallIndex rawIndex = repeatedAcrossModules
+                    ? indexByModule.computeIfAbsent(layout.moduleOf(raw.location().file()),
+                            module -> callIndex.restrictedTo(module, layout))
+                    : callIndex;
             List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(raw, project);
             List<AnnotationDescriptor> methodAnnotations = effectiveMethodAnnotations(raw, project);
             var effectiveNames = new TreeSet<String>();
@@ -808,7 +827,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             methodAnnotations.forEach(annotation -> effectiveNames.add(annotation.name()));
             var calls = new ArrayList<MethodCall>(raw.calls().size());
             for (var call : raw.calls()) {
-                Resolution resolution = resolveCall(raw, call, callIndex);
+                Resolution resolution = resolveCall(raw, call, rawIndex);
                 calls.add(new MethodCall(call.location(), call.scope(), call.methodName(), call.argumentCount(),
                         resolution.target(), resolution.reason()));
             }
@@ -976,6 +995,14 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             Map<String, List<RawMethod>> byQualifiedTypeAndName,
             Map<String, List<RawMethod>> bySimpleTypeAndName
     ) {
+        /** The same lookups as seen from a caller in {@code module}: its own module's methods win over a repeat. */
+        CallIndex restrictedTo(String module, ProjectLayout layout) {
+            Function<RawMethod, String> moduleOf = method -> layout.moduleOf(method.location().file());
+            return new CallIndex(types, typesBySimpleName, implementationsBySuperType,
+                    ModuleScope.restrictedTo(byQualifiedTypeAndName, module, moduleOf),
+                    ModuleScope.restrictedTo(bySimpleTypeAndName, module, moduleOf));
+        }
+
         List<RawMethod> hierarchy(TypeInfo type, String methodName, boolean skipDeclared) {
             return hierarchyMethods(type, methodName, types, typesBySimpleName, byQualifiedTypeAndName,
                     new LinkedHashSet<>(), skipDeclared);
@@ -1970,6 +1997,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         private RawMethod {
             throwsInFinally = List.copyOf(throwsInFinally == null ? List.of() : throwsInFinally);
+        }
+
+        private RawMethod withId(MethodId other) {
+            return new RawMethod(other, location, typeAnnotations, methodAnnotations, catches, invocations, metricTags,
+                    metricNames, calls, variableTypes, visibility, staticMethod, finalMethod, returnType,
+                    minimumArity, maximumArity, varargIndex, typeParameters, executableBody, throwsInFinally);
         }
 
         private boolean acceptsArity(int arity) {

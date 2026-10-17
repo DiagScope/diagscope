@@ -241,7 +241,7 @@ public final class MarkdownReporter implements AnalysisReporter {
             builder.append("| Flow | Type | Score | Signals | Findings | Logging | Metrics | Annotations |\n")
                     .append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n");
             for (var flow : result.flows()) {
-                String flowId = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+                String flowId = flow.entrypoint().flowId();
                 var coverage = result.diagnosticCoverage().stream()
                         .filter(candidate -> candidate.flowId().equals(flowId)).findFirst()
                         .orElseGet(() -> FlowDiagnosticCoverage.calculate(flow, result.findings()));
@@ -260,7 +260,7 @@ public final class MarkdownReporter implements AnalysisReporter {
         builder.append("### Findings grouped by flow\n\n");
         boolean anyFlowFindings = false;
         for (var flow : result.flows()) {
-            String id = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+            String id = flow.entrypoint().flowId();
             var findings = result.findings().stream()
                     .filter(finding -> finding.relatedFlows().stream().anyMatch(related -> related.id().equals(id)))
                     .toList();

@@ -26,6 +26,7 @@ class ResultSchemaCompatibilityTest {
         JsonNode v14 = contract("1.4-alpha.1");
         JsonNode v15 = contract("1.5-alpha.1");
         JsonNode v16 = contract("1.6-alpha.1");
+        JsonNode v17 = contract("1.7-alpha.1");
 
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
         Path output = temp.resolve("out");
@@ -38,7 +39,7 @@ class ResultSchemaCompatibilityTest {
 
         // ── schema version must match the latest contract ─────────────────────
         assertThat(result.path("schemaVersion").asText())
-                .isEqualTo(v16.path("schemaVersion").asText());
+                .isEqualTo(v17.path("schemaVersion").asText());
 
         // ── 1.0-alpha.1: root, project, statistics, flow, finding, location ──
         assertFields(result, v10.path("root"));
@@ -107,6 +108,10 @@ class ResultSchemaCompatibilityTest {
         assertFields(result, v16.path("root"));
         assertThat(result.path("identityConflicts").isArray()).isTrue();
         assertFields(result.path("statistics"), v16.path("statisticsAdditions"));
+
+        // ── 1.7-alpha.1: the module of each flow ──────────────────────────────
+        assertFields(result, v17.path("root"));
+        assertFields(result.path("flows").get(0), v17.path("flowAdditions"));
     }
 
     private static JsonNode contract(String version) throws Exception {

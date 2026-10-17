@@ -83,6 +83,6 @@ public record RelatedFlow(
     }
 
     private static String id(Entrypoint entrypoint) {
-        return entrypoint.type().name() + ':' + entrypoint.method().displayName();
+        return entrypoint.flowId();
     }
 }

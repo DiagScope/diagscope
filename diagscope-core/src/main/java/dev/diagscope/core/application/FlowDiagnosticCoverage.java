@@ -38,7 +38,7 @@ public record FlowDiagnosticCoverage(
     public static FlowDiagnosticCoverage calculate(Flow flow, List<Finding> findings) {
         Objects.requireNonNull(flow, "flow");
         Objects.requireNonNull(findings, "findings");
-        String flowId = flow.entrypoint().type().name() + ':' + flow.entrypoint().method().displayName();
+        String flowId = flow.entrypoint().flowId();
         int logging = 0;
         int metrics = 0;
         int annotations = 0;

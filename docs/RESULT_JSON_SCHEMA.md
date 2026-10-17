@@ -37,7 +37,11 @@ shape stays the same.
    an intentional major-version break.
 4. Document migration notes in `CHANGELOG.md`.
 
-The current contract is `1.6-alpha.1`. It adds a top-level `identityConflicts` array and the statistics
+The current contract is `1.7-alpha.1`. Each flow carries `module`, the module directory (`""` for the root module) of its
+entrypoint. A flow id is still `<type>:<method>`, and gets an `@<module>` suffix only when two modules declare the same
+entrypoint method (ADR-0006), so the ids of projects without that collision do not change.
+
+The previous contract is `1.6-alpha.1`. It adds a top-level `identityConflicts` array and the statistics
 `identityConflicts` and `droppedMethods`. A conflict means two declarations share one qualified type or method name
 (usually the same class in two modules of a monorepo): only the first is analyzed, and each ignored method is left out
 of every flow and rule. Each entry has `kind` (`TYPE`, `METHOD` or `CROSS_LANGUAGE_METHOD`), `identity`, `keptFile` and

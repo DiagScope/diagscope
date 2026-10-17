@@ -17,6 +17,7 @@ import dev.diagscope.core.domain.MethodCall;
 import dev.diagscope.core.domain.MethodId;
 import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.MethodVisibility;
+import dev.diagscope.core.domain.ModuleScope;
 import dev.diagscope.core.domain.MetricNameEvidence;
 import dev.diagscope.core.domain.MetricTagEvidence;
 import dev.diagscope.core.domain.ParseFailure;
@@ -138,9 +139,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         } finally {
             psiEvent.commit();
         }
-        MappedProject mapped = merge(batch.units());
+        MappedProject mapped = merge(batch.units(), layout);
         List<AspectAdvice> aspects = collectAspects(mapped);
-        Map<MethodId, MethodModel> methods = resolveCalls(mapped, aspects);
+        Map<MethodId, MethodModel> methods = resolveCalls(mapped, aspects, layout);
         List<Entrypoint> entrypoints = detectEntrypoints(mapped,
                 options.enabledEntrypointTypes(), options.policy());
 
@@ -723,33 +724,41 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 || policy.isCustomLogger(rawScope, type);
     }
 
-    private static MappedProject merge(List<MappedUnit> units) {
+    /** A type or method declared again in another module keeps that module as qualifier (ADR-0006). */
+    private static MappedProject merge(List<MappedUnit> units, ProjectLayout layout) {
         var methods = new LinkedHashMap<MethodId, RawMethod>();
         var types = new LinkedHashMap<String, TypeInfo>();
         var conflicts = new ArrayList<IdentityConflict>();
         var typeFiles = new HashMap<String, Path>();
         for (MappedUnit unit : units) {
+            String unitModule = layout.moduleOf(unit.file());
             for (TypeInfo type : unit.types()) {
-                if (types.putIfAbsent(type.qualifiedName(), type) != null) {
+                if (types.putIfAbsent(type.qualifiedName(), type) == null) {
+                    typeFiles.put(type.qualifiedName(), unit.file());
+                } else if (layout.moduleOf(typeFiles.get(type.qualifiedName())).equals(unitModule)) {
                     conflicts.add(new IdentityConflict(IdentityConflict.Kind.TYPE, type.qualifiedName(),
                             typeFiles.get(type.qualifiedName()), unit.file()));
-                } else {
-                    typeFiles.put(type.qualifiedName(), unit.file());
                 }
             }
             for (RawMethod method : unit.methods()) {
                 RawMethod previous = methods.putIfAbsent(method.id(), method);
-                if (previous != null) {
-                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, method.id().displayName(),
-                            previous.location().file(), method.location().file()));
+                if (previous == null) continue;
+                String keptModule = layout.moduleOf(previous.location().file());
+                String module = layout.moduleOf(method.location().file());
+                if (!keptModule.equals(module)) {
+                    MethodId qualified = method.id().withModule(module);
+                    if (methods.putIfAbsent(qualified, method.withId(qualified)) == null) continue;
                 }
+                conflicts.add(new IdentityConflict(IdentityConflict.Kind.METHOD, method.id().displayName(),
+                        previous.location().file(), method.location().file()));
             }
         }
         return new MappedProject(Collections.unmodifiableMap(methods), Collections.unmodifiableMap(types),
                 List.copyOf(conflicts), units.stream().anyMatch(MappedUnit::producerListenerVisible));
     }
 
-    private static Map<MethodId, MethodModel> resolveCalls(MappedProject project, List<AspectAdvice> aspects) {
+    private static Map<MethodId, MethodModel> resolveCalls(
+            MappedProject project, List<AspectAdvice> aspects, ProjectLayout layout) {
         var byTypeAndName = new HashMap<String, List<RawMethod>>();
         var bySimpleTypeAndName = new HashMap<String, List<RawMethod>>();
         for (RawMethod method : project.methods().values()) {
@@ -776,7 +785,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         var result = new LinkedHashMap<MethodId, MethodModel>();
         var callIndex = new CallIndex(project.types(), typesBySimpleName, implementationsBySuperType,
                 byTypeAndName, bySimpleTypeAndName);
+        boolean repeatedAcrossModules = project.methods().keySet().stream().anyMatch(id -> !id.module().isEmpty());
+        var indexByModule = new HashMap<String, CallIndex>();
         for (RawMethod raw : project.methods().values()) {
+            CallIndex rawIndex = repeatedAcrossModules
+                    ? indexByModule.computeIfAbsent(layout.moduleOf(raw.location().file()),
+                            module -> callIndex.restrictedTo(module, layout))
+                    : callIndex;
             List<AnnotationDescriptor> typeAnnotations = effectiveTypeAnnotations(raw, project);
             List<AnnotationDescriptor> methodAnnotations = effectiveMethodAnnotations(raw, project);
             var annotationNames = new TreeSet<String>();
@@ -784,7 +799,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             methodAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
             var calls = new ArrayList<MethodCall>();
             for (RawCall call : raw.calls()) {
-                Resolution resolution = resolveCall(raw, call, callIndex);
+                Resolution resolution = resolveCall(raw, call, rawIndex);
                 calls.add(new MethodCall(call.location(), call.scope(), call.methodName(), call.argumentCount(),
                         resolution.target(), resolution.reason()));
             }
@@ -842,6 +857,14 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             Map<String, List<RawMethod>> byTypeAndName,
             Map<String, List<RawMethod>> bySimpleTypeAndName
     ) {
+        /** The same lookups as seen from a caller in {@code module}: its own module's methods win over a repeat. */
+        CallIndex restrictedTo(String module, ProjectLayout layout) {
+            java.util.function.Function<RawMethod, String> moduleOf = method -> layout.moduleOf(method.location().file());
+            return new CallIndex(types, typesBySimpleName, implementationsBySuperType,
+                    ModuleScope.restrictedTo(byTypeAndName, module, moduleOf),
+                    ModuleScope.restrictedTo(bySimpleTypeAndName, module, moduleOf));
+        }
+
         List<RawMethod> hierarchy(TypeInfo type, String methodName) {
             return hierarchyMethods(type, methodName, types, typesBySimpleName, byTypeAndName, new LinkedHashSet<>());
         }
@@ -1848,6 +1871,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         private RawMethod {
             throwsInFinally = List.copyOf(throwsInFinally == null ? List.of() : throwsInFinally);
+        }
+
+        private RawMethod withId(MethodId other) {
+            return new RawMethod(other, location, typeAnnotations, methodAnnotations, catches, invocations, metricTags,
+                    metricNames, calls, variableTypes, visibility, staticMethod, finalMethod, returnType,
+                    minimumArity, maximumArity, varargIndex, typeParameters, topLevel, executableBody,
+                    throwsInFinally);
         }
 
         private boolean acceptsArity(int arity) {

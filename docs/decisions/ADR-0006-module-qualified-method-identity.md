@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted and implemented (`result.json` 1.7-alpha.1).
 
 ## Context
 
@@ -77,6 +77,13 @@ What identity feeds, which decides how much a change can break:
 - **Use the Maven `artifactId`.** Needs build-file parsing for Gradle and Maven alike and fails when modules share a
   name; the directory does not.
 
+## Known limit
+
+Type-level facts (supertypes, interfaces, kind) are keyed by qualified type name, so a repeat of a class in another
+module is analyzed with the method bodies of its own module but with the type information of the first declaration.
+Two modules that declare the same class name with different supertypes can resolve an interface call through the wrong
+hierarchy. Keying types by module is the next step if this shows up in practice.
+
 ## Plan and acceptance
 
 1. `MethodId.module`, `qualifiedName()`, and assignment on collision in the Java, Kotlin and composite merges.
@@ -87,3 +94,9 @@ What identity feeds, which decides how much a change can break:
 Accepted when, on the calibration corpus: identity conflicts of kind `TYPE`/`METHOD` drop to the genuine same-module
 duplicates; `parsedMethods` of quarkus-quickstarts rises from 801 to about 933; every fingerprint present before is
 still present; no two flows share an id; and the scan time grows by no more than the share of added methods.
+
+## Result on the calibration corpus
+
+quarkus-quickstarts: 801 → 933 methods analyzed, identity conflicts 192 → 0, 4 findings that were hidden are now
+reported. spring-data-examples: 4,809 → 4,855 methods, conflicts 72 → 0, 4 new findings. vertx-examples: 837 → 841.
+No flow id is duplicated, and every fingerprint present before is still present in all seven projects.

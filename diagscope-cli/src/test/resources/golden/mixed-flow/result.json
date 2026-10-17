@@ -1,5 +1,5 @@
 {
-  "schemaVersion" : "1.6-alpha.1",
+  "schemaVersion" : "1.7-alpha.1",
   "tool" : {
     "name" : "DiagScope",
     "version" : "<version>"
@@ -405,6 +405,7 @@
     "type" : "KAFKA_LISTENER",
     "name" : "Kafka topic=payments",
     "method" : "example.PaymentListener.consume(String)",
+    "module" : "",
     "location" : {
       "file" : "src/main/java/example/PaymentListener.java",
       "startLine" : 4,
@@ -460,6 +461,7 @@
     "type" : "REST",
     "name" : "POST /payments/{id}/capture",
     "method" : "example.PaymentController.capture(String)",
+    "module" : "",
     "location" : {
       "file" : "src/main/java/example/PaymentController.java",
       "startLine" : 8,
@@ -679,6 +681,7 @@
     "type" : "SCHEDULED",
     "name" : "Scheduled cron=0 */5 * * * *",
     "method" : "example.ReconciliationJob.execute()",
+    "module" : "",
     "location" : {
       "file" : "src/main/java/example/ReconciliationJob.java",
       "startLine" : 4,

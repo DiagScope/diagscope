@@ -10,6 +10,7 @@ import dev.diagscope.core.domain.InvocationEvidence;
 import dev.diagscope.core.domain.MethodCall;
 import dev.diagscope.core.domain.MethodId;
 import dev.diagscope.core.domain.MethodModel;
+import dev.diagscope.core.domain.ModuleScope;
 import dev.diagscope.core.domain.ParseFailure;
 import dev.diagscope.core.domain.ProjectLayout;
 import dev.diagscope.core.domain.ProxyProfile;
@@ -73,10 +74,14 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             }
             for (MethodModel method : fragment.methods().values()) {
                 MethodModel previous = methods.putIfAbsent(method.id(), method);
-                if (previous != null) {
-                    conflicts.add(new IdentityConflict(IdentityConflict.Kind.CROSS_LANGUAGE_METHOD,
-                            method.id().displayName(), previous.location().file(), method.location().file()));
+                if (previous == null) continue;
+                String module = layout.moduleOf(method.location().file());
+                if (!layout.moduleOf(previous.location().file()).equals(module)) {
+                    MethodId qualified = method.id().withModule(module);
+                    if (methods.putIfAbsent(qualified, method.withId(qualified)) == null) continue;
                 }
+                conflicts.add(new IdentityConflict(IdentityConflict.Kind.CROSS_LANGUAGE_METHOD,
+                        method.id().displayName(), previous.location().file(), method.location().file()));
             }
         }
 
@@ -85,7 +90,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         var seenFlowIdentities = new java.util.HashSet<String>();
         var orderedEntrypoints = entrypoints.stream()
                 .filter(item -> methods.containsKey(item.method()))
-                .filter(item -> seenFlowIdentities.add(item.type().name() + ':' + item.method().displayName()))
+                .filter(item -> seenFlowIdentities.add(item.flowId()))
                 .sorted(Comparator.comparing((Entrypoint item) -> item.type().name())
                         .thenComparing(Entrypoint::displayName)
                         .thenComparing(item -> item.method().displayName()))
@@ -97,13 +102,14 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                 .sorted(Comparator.comparing(AspectAdvice::id).thenComparing(item -> item.kind().name()))
                 .toList();
         Map<MethodId, MethodModel> linkedMethods = applyAspectMatches(
-                linkAcrossLanguages(methods), orderedAspects);
+                linkAcrossLanguages(methods, layout), orderedAspects);
         Path root = layout.root();
         return new AnalyzedProject(root.getFileName().toString(), root, layout, linkedMethods,
                 orderedEntrypoints, sourceFiles, failures, orderedAspects, conflicts);
     }
 
-    private static Map<MethodId, MethodModel> linkAcrossLanguages(Map<MethodId, MethodModel> methods) {
+    private static Map<MethodId, MethodModel> linkAcrossLanguages(
+            Map<MethodId, MethodModel> methods, ProjectLayout layout) {
         var byQualifiedTypeAndName = new HashMap<String, List<MethodModel>>();
         var bySimpleTypeAndName = new HashMap<String, List<MethodModel>>();
         for (MethodModel method : methods.values()) {
@@ -118,11 +124,23 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         bySimpleTypeAndName.values().forEach(list ->
                 list.sort(Comparator.comparing(item -> item.id().displayName())));
 
+        boolean repeatedAcrossModules = methods.keySet().stream().anyMatch(id -> !id.module().isEmpty());
+        var lookupsByModule = new HashMap<String, List<Map<String, List<MethodModel>>>>();
+        java.util.function.Function<MethodModel, String> moduleOf = item -> layout.moduleOf(item.location().file());
         var result = new LinkedHashMap<MethodId, MethodModel>(methods.size());
         for (MethodModel method : methods.values()) {
+            Map<String, List<MethodModel>> qualifiedLookup = byQualifiedTypeAndName;
+            Map<String, List<MethodModel>> simpleLookup = bySimpleTypeAndName;
+            if (repeatedAcrossModules) {
+                var views = lookupsByModule.computeIfAbsent(moduleOf.apply(method), module -> List.of(
+                        ModuleScope.restrictedTo(byQualifiedTypeAndName, module, moduleOf),
+                        ModuleScope.restrictedTo(bySimpleTypeAndName, module, moduleOf)));
+                qualifiedLookup = views.get(0);
+                simpleLookup = views.get(1);
+            }
             var calls = new ArrayList<MethodCall>(method.calls().size());
             for (MethodCall call : method.calls()) {
-                calls.add(relink(method, call, byQualifiedTypeAndName, bySimpleTypeAndName));
+                calls.add(relink(method, call, qualifiedLookup, simpleLookup));
             }
             result.put(method.id(), copyWithCalls(method, calls));
         }

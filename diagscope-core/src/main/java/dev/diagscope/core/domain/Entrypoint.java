@@ -14,4 +14,9 @@ public record Entrypoint(
         Objects.requireNonNull(displayName, "displayName");
         Objects.requireNonNull(location, "location");
     }
+
+    /** Identity of the flow that starts here; unique even when two modules declare the same entrypoint method. */
+    public String flowId() {
+        return type.name() + ':' + method.qualifiedName();
+    }
 }
