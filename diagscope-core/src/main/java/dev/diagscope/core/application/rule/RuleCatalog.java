@@ -179,7 +179,8 @@ public final class RuleCatalog {
                 "Diagnostic text is written with System.out or System.err instead of the logger.",
                 "The message escapes log routing, sampling, and correlation, so it cannot be searched"
                         + " or alerted on when the incident happens.",
-                "A direct call to System.out/System.err print methods on a reachable path.");
+                "A direct call to System.out/System.err print/println on a reachable path. Methods of a @Command class and main methods are skipped: the output of a command-line program is its product.",
+                "Only print and println are matched, so printf and format are not reported. A program that is not annotated with @Command and prints on purpose is reported; suppress with diagscope:ignore.");
 
         put(catalog, LogWithoutThrowableRule.ID,
                 "Failure logged without the exception",

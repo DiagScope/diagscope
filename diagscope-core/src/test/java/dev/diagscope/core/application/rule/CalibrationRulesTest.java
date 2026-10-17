@@ -431,6 +431,22 @@ class CalibrationRulesTest {
         assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("lookup", cacheable)))).hasSize(1);
     }
 
+    @Test
+    void systemOutputInACommandLineProgram_isTheProgramsOutput() {
+        var println = new InvocationEvidence(location(10), "System.out", "PrintStream", "println", List.of("\"done\""),
+                InvocationResultUsage.IGNORED);
+        var command = new MethodModel(new MethodId("example.ScanCommand", "call", List.of()), location(1),
+                Set.of("Command"), List.of(), List.of(println), List.of(), List.of(), List.of());
+        var main = new MethodModel(new MethodId("example.App", "main", List.of("String[]")), location(1), Set.of(),
+                List.of(), List.of(println), List.of(), List.of(), List.of());
+        var service = new MethodModel(new MethodId("example.OrderService", "place", List.of()), location(1),
+                Set.of("Service"), List.of(), List.of(println), List.of(), List.of(), List.of());
+
+        assertThat(new SystemOutputRule().evaluate(flow(command))).isEmpty();
+        assertThat(new SystemOutputRule().evaluate(flow(main))).isEmpty();
+        assertThat(new SystemOutputRule().evaluate(flow(service))).hasSize(1);
+    }
+
     // ── Noise from repeated or delegating findings ───────────────────────────
 
     @Test

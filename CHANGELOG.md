@@ -6,6 +6,8 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `SYSTEM_OUTPUT` skips `@Command` classes and `main` methods, where printing is the program's output (rule version
+  1.0.1). The remaining self-scan findings are the 8 oversized signatures and 3 `orElse(null)`.
 - Scanning DiagScope with itself (`--entrypoint PUBLIC_METHOD`) exposed three false positives, now fixed:
   `MAP_GET_DEREFERENCED_WITHOUT_CHECK` took `Resolution direct = choose(map.get(k), ...)` as a `Map.get` result stored
   in `direct` (the Java adapter attributed a call argument to the variable of the enclosing call; rule version 1.0.1);

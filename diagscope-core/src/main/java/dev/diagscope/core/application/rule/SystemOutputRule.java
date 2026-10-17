@@ -6,6 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Reports {@code System.out}/{@code System.err} printing in place of a logger. A command-line program (a picocli or
+ * Spring Shell {@code @Command} class, or a {@code main} method) prints because its output is the product, so those
+ * are skipped.
+ */
 public final class SystemOutputRule implements DiagnosticRule {
     public static final String ID = "SYSTEM_OUTPUT";
     @Override public String id() { return ID; }
@@ -15,6 +20,7 @@ public final class SystemOutputRule implements DiagnosticRule {
         var findings = new ArrayList<Finding>();
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
+            if (isCommandLineOutput(method)) continue;
             for (var invocation : method.invocations()) {
                 boolean systemOutput = ("System.out".equals(invocation.scope()) || "System.err".equals(invocation.scope()))
                         && ("print".equals(invocation.methodName()) || "println".equals(invocation.methodName()));
@@ -28,5 +34,9 @@ public final class SystemOutputRule implements DiagnosticRule {
             }
         }
         return List.copyOf(findings);
+    }
+
+    private static boolean isCommandLineOutput(MethodModel method) {
+        return method.annotations().contains("Command") || "main".equals(method.id().name());
     }
 }
