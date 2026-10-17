@@ -614,6 +614,7 @@ public final class DiagScopeMain {
                 .addSubcommand("doctor", new DoctorCommand(createScanUseCase()))
                 .addSubcommand("rules", new RulesCommand())
                 .addSubcommand("explain", new ExplainCommand())
+                .addSubcommand("init-agent", new InitAgentCommand())
                 .setCaseInsensitiveEnumValuesAllowed(true);
     }
 }

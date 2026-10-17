@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `diagscope init-agent`: writes a marked DiagScope block into `AGENTS.md` and `CLAUDE.md` and installs a Claude
+  Code `Stop` hook that scans the changed files at the end of a task and hands the findings back once. Idempotent and
+  additive. See [CLI.md](docs/CLI.md#init-agent).
 - `--format AGENT`: compact plain text for coding assistants, printed to standard output when it is the only
   format. `--files` limits the reported findings to the listed files. See [CLI.md](docs/CLI.md).
 - `gate:` section in `diagscope.yml`: `failOn` conditions combining minimum severity, minimum confidence and an

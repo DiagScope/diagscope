@@ -218,3 +218,23 @@ ERROR HIGH SILENT_CATCH src/main/java/example/PaymentListener.java:6
   entries or rule overrides without asking the user;
 - the exit code still comes from the gate, so `scan --format AGENT --files A.java,B.java --fail-on ERROR` is a
   complete post-edit check.
+
+### `init-agent`
+
+`diagscope init-agent [--project .] [--target CLAUDE|AGENTS|ALL] [--command "diagscope"] [--gate-profile NAME] [--dry-run]`
+wires a project to a coding assistant. It only adds, and re-running it is safe:
+
+- `AGENTS.md` (read by most assistants) and `CLAUDE.md` get a marked block telling the assistant to run
+  `diagscope scan --format AGENT --files <changed files>` before declaring a task done, to fix the cause, and never to
+  add `diagscope:ignore`, waivers, baseline entries or overrides without asking you. Text outside the block is never
+  touched; the block itself is replaced on re-run.
+- `.claude/hooks/diagscope-stop.sh` is a Claude Code `Stop` hook. It scans when Java or Kotlin files changed in the
+  working tree (`git diff HEAD` plus untracked files) and returns exit `2` with the findings so the assistant fixes
+  them before finishing. It runs once per stop: when the assistant stops again after seeing the findings, the hook lets
+  it go, so it can never loop. Gate: `--gate-profile` if given, otherwise the project's `gate:` section, otherwise
+  `--fail-on ERROR`. `DIAGSCOPE` and `DIAGSCOPE_GATE_PROFILE` override the command and profile at run time.
+- `.claude/settings.json` gets the hook registered; every other key and hook is preserved.
+
+The check runs at the end of the task, not after every edit, because a scan costs 1 to 15 seconds whatever the number
+of changed files ([PERFORMANCE.md](PERFORMANCE.md)). `--command` accepts a launcher such as
+`"java -jar /opt/diagscope.jar"` and rejects shell metacharacters.
