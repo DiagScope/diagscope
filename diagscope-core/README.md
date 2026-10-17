@@ -7,7 +7,7 @@ This module contains:
 - immutable domain models;
 - input and output ports;
 - `DiagnosticCoverageService`;
-- deterministic rules;
+- deterministic rules, each with a declared basis (`RuleSources`) and a version (`RuleVersions`);
 - finding deduplication;
 - analysis statistics and phase metrics.
 

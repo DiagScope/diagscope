@@ -12,7 +12,7 @@ This repository is the analyzer itself. It is under active development (alpha).
 
 | If you want to… | Go to |
 |---|---|
-| **Use** DiagScope on a project | [Homebrew tap](https://github.com/DiagScope/homebrew-tap) — install, scan, collect reports |
+| **Use** DiagScope on a project | [Homebrew tap](https://github.com/DiagScope/homebrew-tap) — install, scan, collect reports, set a gate, use it with AI assistants |
 | See what it looks like | <https://diagscope.github.io> |
 | **Work on** DiagScope | keep reading |
 
@@ -49,7 +49,7 @@ diagscope-core            parser-neutral domain, ports, flow builder, rule engin
 diagscope-jvmanalysis     layout detection (Maven/Gradle), analyzer composition, Java↔Kotlin call relinking
 diagscope-javaparser      JavaParser adapter: Java source → core domain
 diagscope-kotlinparser    Kotlin compiler PSI adapter: Kotlin source → core domain
-diagscope-cli             Picocli commands, composition root, reporters (Markdown/JSON/HTML/SARIF)
+diagscope-cli             Picocli commands, composition root, reporters (Markdown/JSON/HTML/SARIF/agent text), gate, init-agent
 diagscope-test-fixtures   small sample projects used by integration tests (resources only)
 docs/                     architecture, CLI, configuration, rule lifecycle, ADRs, roadmap
 scripts/                  run-fixture, benchmark, JFR profiling, corpus validation, CI action helpers
@@ -87,7 +87,9 @@ source files ─► parser adapters ─► AnalyzedProject ─► flows from ent
    instead of guesses.
 4. **Run rules.** `RuleEngine` runs `DiagnosticRule`s per flow and `ProjectRule`s over the whole project,
    then deduplicates findings by fingerprint and merges their related flows.
-5. **Report.** Reporters write `report.md`, `report.html`, `result.json` and SARIF.
+5. **Report.** Reporters write `report.md`, `report.html`, `result.json`, SARIF and `result.agent.txt` (compact text
+   for coding assistants). The CLI then applies baseline, changed-file scope and waivers, and the **gate**
+   (`gate:` in `diagscope.yml`, [ADR-0007](docs/decisions/ADR-0007-gate-policy.md)) decides the exit code.
 
 Key types, all in `diagscope-core`: `MethodModel`, `InvocationEvidence`, `CatchEvidence`, `Flow`,
 `FlowMethod`, `Finding`, `Confidence`, `RuleEngine`, `RuleCatalog`.
@@ -115,6 +117,8 @@ Build the jar first (`mvn -DskipTests package`); the scripts below run it.
 java -jar diagscope-cli/target/diagscope.jar scan --project /path/to/project
 
 # useful while developing
+./bin/diagscope scan --project /path/to/project --format AGENT   # compact text, as an assistant sees it
+./bin/diagscope init-agent --project /path/to/project --dry-run # what it would add to a project
 ./bin/diagscope doctor --project /path/to/project     # what DiagScope understands about it
 ./bin/diagscope rules                                 # the rule catalog with versions
 ./bin/diagscope explain SILENT_CATCH                  # one rule's documentation
@@ -188,7 +192,12 @@ supported languages (`ALL_LANGUAGES` or `Set.of("kotlin")`), what it means, why 
 known limitations. `diagscope explain` prints this, and `RuleDocumentationContractTest` fails if a registered rule
 has no entry. Bump `RuleVersions` only when you change what an existing rule reports.
 
-**5. Test it.**
+**5. State its basis.** Add the rule to `RuleSources`: `SOURCED` with the URLs of the framework documentation or
+source you read, or `PATTERN` when it is a generally accepted practice without a single normative source.
+`RuleSourcesContractTest` fails for a rule with no basis, and `diagscope explain` prints it. Verify framework claims
+against the source, not memory ([docs/RULE_AUDIT.md](docs/RULE_AUDIT.md) lists what that has already corrected).
+
+**6. Test it.**
 
 - A unit test next to the others: build `MethodModel`s and `InvocationEvidence` by hand and assert on the findings
   (`Wave11RulesTest` is a compact example). Cover a positive, a negative and a boundary case.
@@ -198,7 +207,7 @@ has no entry. Bump `RuleVersions` only when you change what an existing rule rep
   declares Kotlin support must fire on Kotlin source.
 - Regenerate the goldens (command above) and check the diff only adds the new rule version.
 
-**6. Update the docs and changelog.** `CHANGELOG.md`, and `docs/RULES.md` when the rule deserves a longer
+**7. Update the docs and changelog.** `CHANGELOG.md`, and `docs/RULES.md` when the rule deserves a longer
 explanation than the catalog entry.
 
 ## Teach a parser a new fact
@@ -245,8 +254,8 @@ end. Parsers do not read `src/test`; only `src/main/java` and `src/main/kotlin` 
 `action.yml` is the composite GitHub Action other repositories use to run DiagScope
 ([docs/CI.md](docs/CI.md)).
 
-Releases are built by `.github/workflows/release.yml` when a version tag is pushed. The POM is the source of
-truth for the version.
+Releases are built by `.github/workflows/release.yml` when a version tag is pushed, or by running the workflow manually
+with the `tag` input. The POM is the source of truth for the version.
 
 ```bash
 mvn versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false   # 1. bump every module
@@ -267,6 +276,8 @@ published as pre-releases. The Homebrew formula lives in
 | CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md) |
 | Rules: reference, backlog, lifecycle | [docs/RULES.md](docs/RULES.md), [docs/RULE_CANDIDATES.md](docs/RULE_CANDIDATES.md), [docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md) |
 | Output contracts | [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md), [docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md) |
+| Rule audit and calibration | [docs/RULE_AUDIT.md](docs/RULE_AUDIT.md), `scripts/calibrate.sh` |
+| Using it with AI assistants | [docs/CLI.md](docs/CLI.md#init-agent), [docs/CONFIGURATION.md](docs/CONFIGURATION.md#gate) |
 | What can and cannot be analyzed | [docs/CAPABILITY_MODEL.md](docs/CAPABILITY_MODEL.md), [docs/GLOSSARY.md](docs/GLOSSARY.md) |
 | Performance, roadmap | [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 

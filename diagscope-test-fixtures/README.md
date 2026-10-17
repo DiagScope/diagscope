@@ -23,6 +23,14 @@ Fixtures are Java and Kotlin/JVM sources analyzed by DiagScope. They do not need
   proves that every registered rule is exercised by Java source.
 - `configuration-policy` exercises strict `diagscope.yml` behavior across Java and Kotlin: ignored
   generated paths, rule state/severity, sensitive names, logger types, and custom entrypoints.
+- `context-and-transactions`, `observability-patterns`, `metric-patterns` and `spring-aop` cover context propagation and
+  transactions, retry and recovery and reporting jobs, Micrometer metric names and tags, and Spring AOP advice.
+- `kafka-patterns`, `kafka-producer-listener` and `kafka-db-patterns` cover Kafka sends and producer listeners, and
+  listeners that read from a repository.
+- `quarkus-entrypoints` and `quarkus-reactive` are the Quarkus REST and reactive-messaging entrypoints, each in Java and
+  Kotlin.
+- `edge-cases` holds default-package controllers, nested types and overloads; `gradle-multi-module` is a Gradle layout
+  with a Kotlin-DSL and a Groovy module.
 - `silent-catch` defines the alpha contract for empty catch blocks, logging, explanatory comments, and explicit rule suppression. Its `expected.json` records the exact positive and negative locations.
 
 An intentional suppression must use `diagscope:ignore <RULE_ID> -- <reason>`. A regular explanatory comment remains diagnostic evidence rather than silently disabling a rule.
