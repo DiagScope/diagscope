@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Changed
+
+- The HTML report uses a cool mineral palette (green-black ink, teal links, vermilion marker) instead of warm paper, to
+  match the site. Severity colours keep their meaning.
+
 ## 0.1.3 — 2026-10-17
 
 ### Added
