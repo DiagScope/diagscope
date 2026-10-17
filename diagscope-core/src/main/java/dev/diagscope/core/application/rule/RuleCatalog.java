@@ -1767,14 +1767,13 @@ public final class RuleCatalog {
                         + " more than one invocation. The very high polling frequency combined"
                         + " with non-trivial work increases the risk of execution overlap and"
                         + " resource exhaustion.",
-                "fixedRate fires the task at a fixed wall-clock interval regardless of how"
-                        + " long the previous execution took. With a sub-500ms rate, a task"
-                        + " that makes a database query, HTTP call, or does any I/O will trigger"
-                        + " hundreds of operations per minute per instance — even when there is"
-                        + " nothing to process. Under the default single-threaded scheduler,"
-                        + " slow executions queue up indefinitely. Under a thread-pool scheduler,"
-                        + " concurrent executions contend over shared resources. Either way,"
-                        + " the application degrades under production load.",
+                "fixedRate measures the period from the start of each run. A run that outlasts the"
+                        + " period never overlaps the next one of the same task (later executions start late,"
+                        + " not concurrently), but the late ones then run back to back to catch up. With a"
+                        + " sub-500ms rate, a task that makes a database query, HTTP call, or does any I/O"
+                        + " makes more than 120 of them per minute per instance, even when there is nothing"
+                        + " to process, and under the default single-threaded scheduler it keeps the thread"
+                        + " that every other @Scheduled task is waiting for busy.",
                 "Methods with @Scheduled where fixedRate (as a long literal) is below 500,"
                         + " and the method has at least 2 invocations. fixedRateString is"
                         + " excluded because the value may be a property placeholder.",
@@ -1975,8 +1974,8 @@ public final class RuleCatalog {
                 "Manually created threads in Spring beans have no pool bounds, no lifecycle"
                         + " management, no exception handler, and no shutdown hook. Spring cannot"
                         + " stop or wait for them when ApplicationContext.close() is called."
-                        + " Under load, each call creates a new thread, exhausting the JVM file-"
-                        + " descriptor limit (OutOfMemoryError: unable to create native thread)."
+                        + " Under load, each call creates a new thread, until the operating system's"
+                        + " thread limit is reached (OutOfMemoryError: unable to create native thread)."
                         + " The application cannot shut down cleanly if background threads are"
                         + " still running.",
                 "Constructor invocations where methodName is 'Thread' in a method whose"

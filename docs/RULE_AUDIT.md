@@ -54,6 +54,8 @@ ERROR rule cannot ship without its claim being checked.
 | `PROPAGATION_SUPPORTS_WRITE_RISK` | Each write commits immediately in auto-commit mode | True for JDBC. A Spring Data call runs in its own transaction (its methods are `@Transactional`), and `persist`/`merge`/`remove` on the shared `EntityManager` throw `TransactionRequiredException` outside a transaction (`SharedEntityManagerCreator`) | Text corrected |
 | `MISSING_BULKHEAD_ON_HTTP_CLIENT` | A slow downstream holds a request thread per in-flight call | True for a blocking client (`RestTemplate`, `RestClient`, `HttpClient.send`). A `WebClient` call or `HttpClient.sendAsync` returns before the response arrives and holds no thread unless the method then waits (`block`, `join`, `get`) | Non-blocking calls reported only when the method waits; `java.net.http.HttpClient` was already matched, and the limits said it was not |
 | `KAFKA_RETRY_WITHOUT_BACKOFF` | A zero-delay `FixedBackOff` causes hundreds of attempts per second | `FixedBackOff(interval, maxAttempts)` redelivers each failing record at most `maxAttempts` times. Spring Kafka's own `DefaultErrorHandler()` default is `FixedBackOff(0, 9)` (`SeekUtils.DEFAULT_BACK_OFF`), which the rule does not report | Text corrected, limit added |
+| `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` | Slow runs queue up indefinitely; under a thread pool concurrent runs contend | `ScheduledExecutorService.scheduleAtFixedRate`: "subsequent executions may start late, but will not concurrently execute". `ThreadPoolTaskScheduler` delegates to it. A late run delays the next, which then catch up back to back | Text corrected |
+| `UNGUARDED_THREAD_CREATION` | New threads exhaust the file-descriptor limit | "unable to create native thread" is the operating system's thread limit, not file descriptors | Text corrected |
 | `AOP_ADVICE_NOT_APPLIED`, `AOP_SELF_INVOCATION` | A private method under a class-level `@Transactional` loses the transaction | The proxy never sees a private method and its callers already run inside the advised method. Found by scanning jhipster-sample-app (24 findings, all of this kind) | Only an annotation or advice on the method itself counts |
 | `AOP_ADVICE_NOT_APPLIED` | `@Transactional` cannot be applied to a protected or package-visible method | Spring reference (transaction annotations): "As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies"; CDI interceptors (Quarkus) also advise them. The cache annotations still need public methods | Reported for `@Transactional` only when the method is private or static |
 
@@ -84,6 +86,14 @@ empty, all exceptions are retried; with only `exclude` set, all that are not exc
 listener). `KAFKA_CONSUMER_GROUP_HARDCODED` is a statement about Kafka group membership, `RETRY_WITHOUT_DIAGNOSTICS` and
 `FALLBACK_HIDES_FAILURE` about observability: no framework behaviour to check. The MicroProfile `@Retry` default was not
 read.
+
+`@Async`, `@Scheduled` and Mutiny: `ASYNC_VOID_RETURN` (`AsyncExecutionAspectSupport.handleError` rethrows for a `Future`
+return and otherwise calls the `AsyncUncaughtExceptionHandler`, whose default logs at ERROR),
+`SCHEDULED_NO_INITIAL_DELAY` (tasks are activated in the `ContextRefreshedEvent` phase; `initialDelay` defaults to -1,
+and the scheduler logs a failing run and runs again), `MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED` (`UniSubscribe.with(onItem)`
+passes `Infrastructure::handleDroppedException` as the failure callback; its default handler prints to standard error).
+`MUTINY_FAILURE_RECOVERED_SILENTLY`, `UNGUARDED_THREAD_CREATION`, `ASYNC_RESULT_UNOBSERVED` and
+`SCHEDULED_TASK_SWALLOWS_FAILURE` state no framework behaviour.
 
 `ASYNC_ON_PRIVATE_METHOD`, `CACHEABLE_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_FINAL_METHOD` (a CGLIB proxy cannot
 intercept private or final methods), `AOP_SELF_INVOCATION`, `BULKHEAD_WITHOUT_FALLBACK` and

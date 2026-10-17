@@ -38,6 +38,8 @@ public final class RuleSources {
             "COROUTINE_EXCEPTION_NOT_HANDLED",
             "CACHE_NAME_MISMATCH",
             "FALLBACK_HIDES_FAILURE",
+            "MUTINY_FAILURE_RECOVERED_SILENTLY",
+            "UNGUARDED_THREAD_CREATION",
             "KAFKA_CONSUMER_GROUP_HARDCODED",
             "MISSING_BULKHEAD_ON_HTTP_CLIENT",
             "RETRY_WITHOUT_DIAGNOSTICS",
@@ -190,6 +192,19 @@ public final class RuleSources {
                 "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-ratelimiter/src/main/java/io/github/resilience4j/ratelimiter/RequestNotPermitted.java"));
         SOURCED.put("RETRY_ON_ALL_EXCEPTIONS", List.of(
                 "https://github.com/spring-projects/spring-retry/blob/main/src/main/java/org/springframework/retry/annotation/Retryable.java"));
+        SOURCED.put("ASYNC_VOID_RETURN", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-aop/src/main/java/org/springframework/aop/interceptor/SimpleAsyncUncaughtExceptionHandler.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-aop/src/main/java/org/springframework/aop/interceptor/AsyncExecutionAspectSupport.java"));
+        SOURCED.put("SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ScheduledExecutorService.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/scheduling/concurrent/ThreadPoolTaskScheduler.java"));
+        SOURCED.put("SCHEDULED_NO_INITIAL_DELAY", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/scheduling/annotation/ScheduledAnnotationBeanPostProcessor.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/scheduling/annotation/Scheduled.java",
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/scheduling/support/TaskUtils.java"));
+        SOURCED.put("MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED", List.of(
+                "https://github.com/smallrye/smallrye-mutiny/blob/main/implementation/src/main/java/io/smallrye/mutiny/groups/UniSubscribe.java",
+                "https://github.com/smallrye/smallrye-mutiny/blob/main/implementation/src/main/java/io/smallrye/mutiny/infrastructure/Infrastructure.java"));
     }
 
     private RuleSources() {

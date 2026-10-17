@@ -24,6 +24,10 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` no longer says that slow runs queue up indefinitely or run concurrently under a
+  thread pool: `ScheduledExecutorService` never overlaps a periodic task with itself, it delays the next run
+  (text only). `UNGUARDED_THREAD_CREATION` names the operating system's thread limit instead of the
+  file-descriptor limit.
 - `MISSING_BULKHEAD_ON_HTTP_CLIENT` no longer reports a non-blocking `WebClient` call or `HttpClient.sendAsync` unless the
   same method waits for the result: such a call holds no request thread, so the stated harm did not apply (rule version
   1.0.1). `KAFKA_RETRY_WITHOUT_BACKOFF` text corrected: retries are bounded by `maxAttempts` per record, and Spring
