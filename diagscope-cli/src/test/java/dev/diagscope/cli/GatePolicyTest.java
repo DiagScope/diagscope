@@ -71,6 +71,21 @@ class GatePolicyTest {
     }
 
     @Test
+    void fail_on_confidence_narrows_fail_on_and_cannot_stand_alone() {
+        Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
+
+        // mixed-flow has ERROR/HIGH SILENT_CATCH, and ERROR/MEDIUM HIGH_CARDINALITY_METRIC_TAG.
+        assertThat(scan(project, "--fail-on", "ERROR", "--fail-on-confidence", "HIGH")).isEqualTo(1);
+        assertThat(scan(project, "--fail-on", "INFO", "--fail-on-confidence", "HIGH")).isEqualTo(1);
+        // PaymentMetrics.java holds only the MEDIUM one: it breaks a plain ERROR gate and passes a HIGH one.
+        String medium = "src/main/java/example/PaymentMetrics.java";
+        assertThat(scan(project, "--fail-on", "ERROR", "--files", medium)).isEqualTo(1);
+        assertThat(scan(project, "--fail-on", "ERROR", "--fail-on-confidence", "HIGH", "--files", medium)).isZero();
+        assertThat(scan(project, "--fail-on-confidence", "HIGH")).isEqualTo(2);
+        assertThat(scan(project, "--fail-on", "NONE", "--fail-on-confidence", "HIGH")).isZero();
+    }
+
+    @Test
     void max_findings_tolerates_up_to_the_limit() throws IOException {
         Path project = FixtureCatalog.copyTo(temp, "mixed-flow");
 

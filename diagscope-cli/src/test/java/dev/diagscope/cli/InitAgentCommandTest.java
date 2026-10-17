@@ -97,10 +97,16 @@ class InitAgentCommandTest {
 
         var failing = run(temp, "{}", "FAKE_EXIT", "1", hook.toString());
         assertThat(failing.exit).isEqualTo(2);
-        assertThat(failing.out).contains("--files src/A.java", "--fail-on ERROR", "--format AGENT",
+        assertThat(failing.out).contains("--files src/A.java", "--fail-on ERROR --fail-on-confidence HIGH", "--format AGENT",
                 "--entrypoint REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED,PUBLIC_METHOD");
 
-        assertThat(failing.out).contains("--output /");
+        assertThat(failing.out).contains("--output /").doesNotContain("--baseline");
+        Files.writeString(temp.resolve("diagscope-baseline.json"), "{}");
+        assertThat(run(temp, "{}", "FAKE_EXIT", "1", hook.toString()).out).contains("--baseline");
+        Files.delete(temp.resolve("diagscope-baseline.json"));
+        Files.writeString(temp.resolve("diagscope.yml"), "schemaVersion: \"1.0\"\ngate:\n  maxFindings: {}\n");
+        assertThat(run(temp, "{}", "FAKE_EXIT", "1", hook.toString()).out).doesNotContain("--fail-on");
+        Files.delete(temp.resolve("diagscope.yml"));
         assertThat(temp.resolve("target")).doesNotExist();
 
         assertThat(run(temp, "{\"stop_hook_active\": true}", "FAKE_EXIT", "1", hook.toString()).exit).isZero();

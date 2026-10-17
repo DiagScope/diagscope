@@ -34,6 +34,7 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, `SARIF`, and/or `AGENT`;
 - `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`); overrides the `gate:` section of `diagscope.yml`, and `NONE` disables it;
 - `--files` — comma-separated files to report on (project-relative, or absolute inside the project). The whole project is still analyzed because flow rules need it; only the findings are narrowed. Combines with `--changed-since`; excluded findings are counted with the change-scope exclusions. A path outside the project is exit `2`, a missing file only a warning;
+- `--fail-on-confidence` — with `--fail-on`, only findings of at least this confidence (`LOW`, `MEDIUM`, `HIGH`) break the build; default `LOW`. Without `--fail-on` it is an error;
 - `--gate-profile` — named profile from the `gate:` section of `diagscope.yml` (see [CONFIGURATION.md](CONFIGURATION.md#gate));
 - `--baseline [path]` — suppress findings whose stable fingerprint is in the selected baseline; when
   the option has no path, `<project>/diagscope-baseline.json` is used;
@@ -231,8 +232,10 @@ wires a project to a coding assistant. It only adds, and re-running it is safe:
 - `.claude/hooks/diagscope-stop.sh` is a Claude Code `Stop` hook. It scans when Java or Kotlin files changed in the
   working tree (`git diff HEAD` plus untracked files) and returns exit `2` with the findings so the assistant fixes
   them before finishing. It runs once per stop: when the assistant stops again after seeing the findings, the hook lets
-  it go, so it can never loop. Gate: `--gate-profile` if given, otherwise the project's `gate:` section, otherwise
-  `--fail-on ERROR`. `DIAGSCOPE` and `DIAGSCOPE_GATE_PROFILE` override the command and profile at run time.
+  it go, so it can never loop. Gate: `--gate-profile` if given, otherwise the project's `gate:` section, otherwise ERROR findings of
+  HIGH confidence (`--fail-on ERROR --fail-on-confidence HIGH`; `DIAGSCOPE_FAIL_CONFIDENCE` changes it). HIGH because an
+  assistant obeys: a MEDIUM false positive costs a wrong "fix". When `diagscope-baseline.json` exists the hook passes
+  `--baseline`, so legacy findings in a file the assistant touched do not block it. `DIAGSCOPE` and `DIAGSCOPE_GATE_PROFILE` override the command and profile at run time.
 - The hook scans with `PUBLIC_METHOD` among the entrypoints (override with `DIAGSCOPE_ENTRYPOINTS`). Without it a scan
   only checks code reachable from a REST, Kafka, reactive or scheduled entrypoint, so a helper or a service an
   assistant just wrote and has not wired to an endpoint yet would pass unchecked. It writes its reports to a temporary

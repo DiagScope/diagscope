@@ -3,6 +3,7 @@ package dev.diagscope.cli;
 import dev.diagscope.cli.report.AnalysisReporter;
 import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
+import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.EntrypointType;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -39,6 +40,11 @@ public final class ScanCommand implements Callable<Integer> {
 
     @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE. Overrides the gate: section of diagscope.yml")
     private FailOn failOn;
+
+    @Option(names = "--fail-on-confidence",
+            description = "With --fail-on: only findings of at least this confidence (LOW, MEDIUM, HIGH) break the build."
+                    + " Default LOW, so every finding of the severity counts")
+    private Confidence failOnConfidence;
 
     @Option(names = "--gate-profile",
             description = "Named profile from the gate: section of diagscope.yml; replaces the default gate")
@@ -103,7 +109,7 @@ public final class ScanCommand implements Callable<Integer> {
             return workflow.run(new ScanWorkflow.Request(
                     project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath,
-                    sourceRoots, entrypointTypes, includeTests, gateProfile, files
+                    sourceRoots, entrypointTypes, includeTests, gateProfile, files, failOnConfidence
             )).exitCode();
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());

@@ -8,6 +8,7 @@ import dev.diagscope.core.application.ScanPolicyMetadata;
 import dev.diagscope.core.application.port.in.ScanProjectUseCase;
 import dev.diagscope.core.application.port.out.UnsupportedProjectException;
 import dev.diagscope.core.domain.BuildSystem;
+import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.EntrypointType;
 import dev.diagscope.jvmanalysis.ProjectLayoutDetector;
 
@@ -63,7 +64,8 @@ public final class ScanWorkflow {
             EnumSet<EntrypointType> entrypointTypes,
             boolean includeTests,
             String gateProfile,
-            List<String> files
+            List<String> files,
+            Confidence failOnConfidence
     ) {
         /** Request that analyzes production sources only. */
         public Request(
@@ -99,7 +101,20 @@ public final class ScanWorkflow {
         ) {
             this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
-                    entrypointTypes, includeTests, gateProfile, null);
+                    entrypointTypes, includeTests, gateProfile, null, null);
+        }
+
+        /** Request without a minimum confidence for {@code --fail-on}. */
+        public Request(
+                Path project, Path output, int maxDepth, int parallelism, EnumSet<ReportFormat> formats,
+                FailOn failOn, Path baseline, boolean updateBaseline, List<String> baselineMigrations,
+                boolean pruneRemovedBaseline, String changedSince, Path configuration, List<Path> classpath,
+                List<Path> sourceRoots, EnumSet<EntrypointType> entrypointTypes, boolean includeTests,
+                String gateProfile, List<String> files
+        ) {
+            this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
+                    baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
+                    entrypointTypes, includeTests, gateProfile, files, null);
         }
 
         public Request {
@@ -214,7 +229,11 @@ public final class ScanWorkflow {
             if (request.gateProfile() != null) {
                 throw new IllegalArgumentException("--fail-on and --gate-profile are mutually exclusive");
             }
-            return GatePolicy.ofSeverity(request.failOn());
+            return GatePolicy.ofSeverity(request.failOn(),
+                    request.failOnConfidence() == null ? Confidence.LOW : request.failOnConfidence());
+        }
+        if (request.failOnConfidence() != null) {
+            throw new IllegalArgumentException("--fail-on-confidence requires --fail-on");
         }
         return configured.select(request.gateProfile());
     }

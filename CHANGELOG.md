@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- The `init-agent` hook now gates on ERROR findings of HIGH confidence instead of every ERROR, and honours
+  `diagscope-baseline.json` when present. On the calibration corpus the ERROR/MEDIUM class was where the false
+  positives were. Re-run `diagscope init-agent` to regenerate the hook.
 - `HTTP_CLIENT_ERROR_DISCARDED` (1.1.0) only reports in a method that calls an HTTP client. It used to fire on any
   `handle`, `exceptionally` or `onStatus` call, including a Vert.x `Handler`.
 - `READONLY_TRANSACTION_WRITE` (1.1.0): a method-level `@Transactional` without attributes now replaces a class-level
@@ -26,6 +29,7 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `--fail-on-confidence`: with `--fail-on`, only findings of at least that confidence break the build.
 - `diagscope init-agent`: writes a marked DiagScope block into `AGENTS.md` and `CLAUDE.md` and installs a Claude
   Code `Stop` hook that scans the changed files at the end of a task and hands the findings back once. Idempotent and
   additive. See [CLI.md](docs/CLI.md#init-agent).

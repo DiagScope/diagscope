@@ -28,10 +28,10 @@ record GatePolicy(List<Condition> failOn, Map<Severity, Integer> maxFindings) {
         });
     }
 
-    /** The legacy {@code --fail-on} threshold expressed as a one-condition gate. */
-    static GatePolicy ofSeverity(FailOn failOn) {
+    /** The {@code --fail-on} threshold, optionally with a minimum confidence, as a one-condition gate. */
+    static GatePolicy ofSeverity(FailOn failOn, Confidence confidence) {
         return failOn.threshold() == null
-                ? NONE : new GatePolicy(List.of(new Condition(failOn.threshold(), Confidence.LOW, Set.of())), Map.of());
+                ? NONE : new GatePolicy(List.of(new Condition(failOn.threshold(), confidence, Set.of())), Map.of());
     }
 
     boolean isEmpty() {

@@ -56,7 +56,7 @@ public final class InitAgentCommand implements Callable<Integer> {
 
     @Option(names = "--gate-profile",
             description = "Gate profile from diagscope.yml the hook uses. Without it the project gate applies,"
-                    + " or --fail-on ERROR when diagscope.yml has none")
+                    + " or ERROR findings of HIGH confidence when diagscope.yml has none")
     private String gateProfile;
 
     @Option(names = "--dry-run", description = "Print what would change and write nothing")
@@ -139,11 +139,14 @@ public final class InitAgentCommand implements Callable<Integer> {
                 # nothing outside a REST, Kafka, reactive or scheduled flow would be checked at all.
                 args=(scan --project . --output "$out" --format AGENT --entrypoint "${DIAGSCOPE_ENTRYPOINTS:-@ENTRYPOINTS@}")
                 [ -n "$files" ] && args+=(--files "$files")
+                # Legacy findings in a file the assistant touched are not its doing: honour the project's baseline.
+                [ -f diagscope-baseline.json ] && args+=(--baseline)
                 profile="${DIAGSCOPE_GATE_PROFILE:-@PROFILE@}"
                 if [ -n "$profile" ]; then
                   args+=(--gate-profile "$profile")
                 elif ! grep -qs '^gate:' diagscope.yml; then
-                  args+=(--fail-on ERROR)
+                  # Only confident errors block an assistant: it obeys, so a false positive costs a wrong "fix".
+                  args+=(--fail-on ERROR --fail-on-confidence "${DIAGSCOPE_FAIL_CONFIDENCE:-HIGH}")
                 fi
 
                 # shellcheck disable=SC2086
