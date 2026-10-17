@@ -121,6 +121,7 @@ public final class RuleVersions {
         overrides.put(TransactionalEventListenerMissingPhaseRule.ID, "2.0.0");
         overrides.put(TransactionalOnRestControllerRule.ID, "2.1.0");
         overrides.put(SilentFailureConversionRule.ID, "1.0.1");
+        overrides.put(GodClassRule.ID, "1.0.1");
         overrides.put(TransactionalOnFinalMethodRule.ID, "1.0.1");
         overrides.put(DeleteAllWithoutIdRule.ID, "1.0.1");
         overrides.put(SpanNotClosedRule.ID, "1.0.1");

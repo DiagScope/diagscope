@@ -24,7 +24,8 @@ import java.util.Map;
  * complexity is a structural property visible across all entry points.</p>
  *
  * <p>Inner classes and anonymous types share the outer class threshold. Interfaces are excluded
- * because their method count describes a contract, not an implementation.</p>
+ * because their method count describes a contract, not an implementation. Getters, setters, {@code equals},
+ * {@code hashCode} and {@code toString} are not counted.</p>
  */
 public final class GodClassRule implements ProjectRule {
 
@@ -52,6 +53,7 @@ public final class GodClassRule implements ProjectRule {
             long publicCount = methods.stream()
                     .filter(m -> m.proxy().visibility() == MethodVisibility.PUBLIC)
                     .filter(m -> !m.proxy().staticMethod())
+                    .filter(m -> !isAccessorOrObjectMethod(m))
                     .count();
 
             if (publicCount <= MAX_PUBLIC_METHODS) continue;
@@ -77,6 +79,20 @@ public final class GodClassRule implements ProjectRule {
             ));
         }
         return List.copyOf(findings);
+    }
+
+    /**
+     * Getters, setters and the {@code Object} overrides say nothing about how many things a class does: a data class
+     * with ten fields has twenty of them. Counting them flags DTOs, entities and Lombok-style beans as god classes.
+     */
+    static boolean isAccessorOrObjectMethod(MethodModel method) {
+        String name = method.id().name();
+        int parameters = method.id().parameterTypes().size();
+        if (name.equals("equals") || name.equals("hashCode") || name.equals("toString")) return true;
+        boolean prefixed = name.length() > 3 && Character.isUpperCase(name.charAt(name.startsWith("is") ? 2 : 3));
+        if (name.startsWith("get") && prefixed) return parameters == 0;
+        if (name.startsWith("is") && name.length() > 2 && Character.isUpperCase(name.charAt(2))) return parameters == 0;
+        return name.startsWith("set") && prefixed && parameters == 1;
     }
 
     private static String simpleTypeName(String qualifiedName) {

@@ -514,6 +514,26 @@ class CalibrationRulesTest {
         assertThat(new SpanNotClosedRule().evaluate(flow(service("startsAndForgets", Set.of(), dropped)))).hasSize(1);
     }
 
+    // ── Data classes are not god classes ────────────────────────────────────────
+
+    @Test
+    void gettersSettersAndObjectOverrides_doNotMakeAGodClass() {
+        var methods = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 8; i++) {
+            methods.add(method("example.Stats", "getField" + i, Set.of(), "String"));
+            methods.add(new MethodModel(new MethodId("example.Stats", "setField" + i, List.of("String")), location(1),
+                    Set.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
+        }
+        methods.add(method("example.Stats", "isActive", Set.of(), "boolean"));
+        methods.add(method("example.Stats", "toString", Set.of(), "String"));
+        methods.add(method("example.Stats", "hashCode", Set.of(), "int"));
+        var behaviour = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 16; i++) behaviour.add(method("example.Orders", "process" + i, Set.of(), "void"));
+
+        assertThat(new GodClassRule().evaluate(project(methods.toArray(MethodModel[]::new)))).isEmpty();
+        assertThat(new GodClassRule().evaluate(project(behaviour.toArray(MethodModel[]::new)))).hasSize(1);
+    }
+
     // ── Noise from repeated or delegating findings ───────────────────────────
 
     @Test
