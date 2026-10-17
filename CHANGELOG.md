@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.2 — 2026-10-17
+
 ### Changed
 
 - The HTML report has a new look: warm paper and ink instead of slate and blue, serif headings, rule ids in monospace,
