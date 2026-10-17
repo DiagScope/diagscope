@@ -225,7 +225,7 @@ ERROR HIGH SILENT_CATCH src/main/java/example/PaymentListener.java:6
 wires a project to a coding assistant. It only adds, and re-running it is safe:
 
 - `AGENTS.md` (read by most assistants) and `CLAUDE.md` get a marked block telling the assistant to run
-  `diagscope scan --format AGENT --files <changed files>` before declaring a task done, to fix the cause, and never to
+  `diagscope scan --format AGENT --entrypoint REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED,PUBLIC_METHOD --files <changed files>` before declaring a task done, to fix the cause, and never to
   add `diagscope:ignore`, waivers, baseline entries or overrides without asking you. Text outside the block is never
   touched; the block itself is replaced on re-run.
 - `.claude/hooks/diagscope-stop.sh` is a Claude Code `Stop` hook. It scans when Java or Kotlin files changed in the
@@ -233,7 +233,16 @@ wires a project to a coding assistant. It only adds, and re-running it is safe:
   them before finishing. It runs once per stop: when the assistant stops again after seeing the findings, the hook lets
   it go, so it can never loop. Gate: `--gate-profile` if given, otherwise the project's `gate:` section, otherwise
   `--fail-on ERROR`. `DIAGSCOPE` and `DIAGSCOPE_GATE_PROFILE` override the command and profile at run time.
+- The hook scans with `PUBLIC_METHOD` among the entrypoints (override with `DIAGSCOPE_ENTRYPOINTS`). Without it a scan
+  only checks code reachable from a REST, Kafka, reactive or scheduled entrypoint, so a helper or a service an
+  assistant just wrote and has not wired to an endpoint yet would pass unchecked. It writes its reports to a temporary
+  directory, never into the project.
 - `.claude/settings.json` gets the hook registered; every other key and hook is preserved.
+
+Checked against a real Claude Code session (2.1.302, `claude -p`): the hook fires on stop, exit `2` reaches the
+assistant as "Stop hook feedback", the assistant answers it, and the second stop passes without looping. The hook runs
+by itself; the assistant running the command on its own during the task needs a permission rule such as
+`Bash(diagscope scan:*)` in its settings, which `init-agent` does not add for you.
 
 The check runs at the end of the task, not after every edit, because a scan costs 1 to 15 seconds whatever the number
 of changed files ([PERFORMANCE.md](PERFORMANCE.md)). `--command` accepts a launcher such as

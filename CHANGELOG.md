@@ -4,6 +4,13 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Fixed
+
+- The `init-agent` Stop hook now scans with `PUBLIC_METHOD` among the entrypoints. Without it, code not reachable from a
+  REST, Kafka, reactive or scheduled entrypoint, such as a helper an assistant had just written, produced no findings at
+  all, not even for an empty `catch`. It also writes its reports to a temporary directory instead of `target/` or
+  `build/` in the project. Re-run `diagscope init-agent` to regenerate the hook.
+
 ### Changed
 
 - The HTML report uses a cool mineral palette (green-black ink, teal links, vermilion marker) instead of warm paper, to

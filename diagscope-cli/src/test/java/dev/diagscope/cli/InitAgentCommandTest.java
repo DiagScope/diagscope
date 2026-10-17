@@ -20,7 +20,7 @@ class InitAgentCommandTest {
         assertThat(init()).isZero();
 
         String claude = Files.readString(temp.resolve("CLAUDE.md"));
-        assertThat(claude).contains("diagscope scan --format AGENT --files", "Stop hook");
+        assertThat(claude).contains("diagscope scan --format AGENT --entrypoint", "PUBLIC_METHOD", "--files", "Stop hook");
         assertThat(Files.readString(temp.resolve("AGENTS.md"))).doesNotContain("Stop hook");
         assertThat(temp.resolve(InitAgentCommand.HOOK_PATH)).isExecutable();
         var hooks = new ObjectMapper().readTree(temp.resolve(InitAgentCommand.SETTINGS_PATH).toFile())
@@ -97,7 +97,11 @@ class InitAgentCommandTest {
 
         var failing = run(temp, "{}", "FAKE_EXIT", "1", hook.toString());
         assertThat(failing.exit).isEqualTo(2);
-        assertThat(failing.out).contains("--files src/A.java", "--fail-on ERROR", "--format AGENT");
+        assertThat(failing.out).contains("--files src/A.java", "--fail-on ERROR", "--format AGENT",
+                "--entrypoint REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED,PUBLIC_METHOD");
+
+        assertThat(failing.out).contains("--output /");
+        assertThat(temp.resolve("target")).doesNotExist();
 
         assertThat(run(temp, "{\"stop_hook_active\": true}", "FAKE_EXIT", "1", hook.toString()).exit).isZero();
         assertThat(run(temp, "{}", "FAKE_EXIT", "0", hook.toString()).exit).isZero();

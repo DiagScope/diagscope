@@ -37,6 +37,7 @@ public final class InitAgentCommand implements Callable<Integer> {
     static final String END = "<!-- diagscope:end -->";
     static final String HOOK_PATH = ".claude/hooks/diagscope-stop.sh";
     static final String SETTINGS_PATH = ".claude/settings.json";
+    static final String ENTRYPOINTS = "REST,KAFKA_LISTENER,REACTIVE_MESSAGE,SCHEDULED,PUBLIC_METHOD";
     private static final String HOOK_COMMAND = "\"$CLAUDE_PROJECT_DIR\"/" + HOOK_PATH;
     private static final Pattern SAFE_COMMAND = Pattern.compile("[A-Za-z0-9_./ :=@+-]+");
     private static final Pattern SAFE_PROFILE = Pattern.compile("[A-Za-z0-9_-]+");
@@ -100,8 +101,9 @@ public final class InitAgentCommand implements Callable<Integer> {
         return BEGIN + "\n## DiagScope\n\n"
                 + "This project is checked with DiagScope, a static analyzer for diagnostic gaps: swallowed exceptions,"
                 + " missing logs and metrics, transaction and resilience misuse.\n\n"
-                + "- Before you declare a task done, run `diagscope scan --format AGENT --files <the files you changed>`"
-                + " and fix what it reports, starting with ERROR.\n"
+                + "- Before you declare a task done, run `diagscope scan --format AGENT --entrypoint " + ENTRYPOINTS
+                + " --files <the files you changed>` and fix what it reports, starting with ERROR."
+                + " Without `PUBLIC_METHOD`, code that no endpoint, listener or job reaches is not checked.\n"
                 + "- Fix the cause. Do not add `diagscope:ignore` comments, waivers, baseline entries or rule overrides"
                 + " to make a finding disappear without asking the user.\n"
                 + "- If you believe a finding is a false positive, tell the user the rule id and why; do not silence it.\n"
@@ -129,7 +131,13 @@ public final class InitAgentCommand implements Callable<Integer> {
                   [ -z "$files" ] && exit 0
                 fi
 
-                args=(scan --project . --format AGENT)
+                # Reports go to a throwaway directory so a check never leaves files in the project.
+                out=$(mktemp -d)
+                trap 'rm -rf "$out"' EXIT
+
+                # PUBLIC_METHOD too: code an assistant just wrote is often not wired to an endpoint yet, and without it
+                # nothing outside a REST, Kafka, reactive or scheduled flow would be checked at all.
+                args=(scan --project . --output "$out" --format AGENT --entrypoint "${DIAGSCOPE_ENTRYPOINTS:-@ENTRYPOINTS@}")
                 [ -n "$files" ] && args+=(--files "$files")
                 profile="${DIAGSCOPE_GATE_PROFILE:-@PROFILE@}"
                 if [ -n "$profile" ]; then
@@ -146,7 +154,7 @@ public final class InitAgentCommand implements Callable<Integer> {
                   exit 2
                 fi
                 exit 0
-                """.replace("@COMMAND@", command).replace("@PROFILE@", gateProfile == null ? "" : gateProfile);
+                """.replace("@ENTRYPOINTS@", ENTRYPOINTS).replace("@COMMAND@", command).replace("@PROFILE@", gateProfile == null ? "" : gateProfile);
     }
 
     /** Returns {@code existing} with the generated block replaced, or appended when absent. */
