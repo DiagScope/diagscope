@@ -33,6 +33,7 @@ public final class JdbcResourceLeakRule implements DiagnosticRule {
         var findings = new ArrayList<Finding>();
         for (var flowMethod : flow.methods()) {
             MethodModel method = flowMethod.method();
+            boolean handsResourceToCaller = DatabaseResources.returnsJdbcResource(method);
             for (InvocationEvidence invocation : method.invocations()) {
                 if (!DatabaseResources.JDBC_ACQUISITIONS.contains(invocation.methodName())
                         || invocation.resourceManaged()) {
@@ -43,6 +44,11 @@ public final class JdbcResourceLeakRule implements DiagnosticRule {
                     continue;
                 }
                 if (invocation.resultUsage() != InvocationResultUsage.ASSIGNED) {
+                    continue;
+                }
+                // A factory hands the resource to its caller, and a field keeps it for the object's lifetime:
+                // in both the close is somewhere else, so "never closed in this method" is not a leak.
+                if (handsResourceToCaller || invocation.assignedToField()) {
                     continue;
                 }
                 if (DatabaseResources.releaseOf(method, invocation.assignedTo())

@@ -301,6 +301,49 @@ class CalibrationRulesTest {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    // ── HTTP_CLIENT_ERROR_DISCARDED ──────────────────────────────────────────
+
+    @Test
+    void errorOperatorWithoutAnHttpClientInTheMethod_isNotReported() {
+        // Found on vertx-examples and a Spring functional router: Handler.handle, a listen() chain and a filter.
+        var method = service("filter", Set.of(), argumentCall(10, "handle", "request"),
+                argumentCall(11, "exceptionally", "\"fallback\""));
+        assertThat(new HttpClientErrorDiscardedRule().evaluate(flow(method))).isEmpty();
+    }
+
+    @Test
+    void errorOperatorInAMethodThatCallsAWebClient_isReported() {
+        var method = service("fetch", Set.of(), invocation(9, "webClient", "WebClient", "get"),
+                argumentCall(10, "onErrorReturn", "\"unavailable\""));
+        assertThat(new HttpClientErrorDiscardedRule().evaluate(flow(method))).hasSize(1);
+    }
+
+    // ── JDBC_RESOURCE_NOT_CLOSED ─────────────────────────────────────────────
+
+    @Test
+    void acquiredConnectionThatTheMethodReturns_isNotALeak() {
+        var factory = method("example.Provider", "getConnection", Set.of(), "Connection", acquired("connection", false));
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(factory))).isEmpty();
+    }
+
+    @Test
+    void acquiredConnectionKeptInAField_isNotALeakOfTheAcquiringMethod() {
+        var method = method("example.Server", "setUp", Set.of(), "void", acquired("conn", true));
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(method))).isEmpty();
+    }
+
+    @Test
+    void acquiredConnectionNeitherReturnedNorKept_isStillALeak() {
+        var method = method("example.Dao", "count", Set.of(), "int", acquired("connection", false));
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(method))).hasSize(1);
+    }
+
+    private static InvocationEvidence acquired(String variable, boolean field) {
+        return new InvocationEvidence(location(10), "dataSource", "DataSource", "getConnection", List.of(),
+                InvocationResultUsage.ASSIGNED, false, false, variable, false, false, false, List.of(), false, false,
+                field);
+    }
+
     private static MethodModel controllerPost(String name, List<String> parameterTypes, Map<String, String> parameters,
                                               String... annotations) {
         Set<String> names = annotations.length == 0
@@ -321,6 +364,13 @@ class CalibrationRulesTest {
         return new MethodModel(new MethodId("example.VetRepository", "findAll", List.of()), location(1), annotations,
                 List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(0), "", true);
+    }
+
+    private static MethodModel method(String type, String name, Set<String> annotations, String returnType,
+            InvocationEvidence... invocations) {
+        return new MethodModel(new MethodId(type, name, List.of()), location(1), annotations, List.of(),
+                List.of(invocations), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), returnType, false);
     }
 
     private static MethodModel method(String type, String name, Set<String> annotations, String returnType) {

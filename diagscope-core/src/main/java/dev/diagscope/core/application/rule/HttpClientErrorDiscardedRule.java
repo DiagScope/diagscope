@@ -3,6 +3,7 @@ package dev.diagscope.core.application.rule;
 import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
+import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.RelatedFlow;
 import dev.diagscope.core.domain.Severity;
 
@@ -19,6 +20,10 @@ public final class HttpClientErrorDiscardedRule implements DiagnosticRule {
             Set.of("onErrorReturn", "onErrorResume", "onErrorComplete", "onErrorContinue",
                     "exceptionally", "handle", "onStatus");
 
+    /** Receivers that make the method an HTTP client call site. Without one, {@code handle} is just a method. */
+    private static final Set<String> HTTP_CLIENTS =
+            Set.of("WebClient", "RestClient", "RestTemplate", "HttpClient", "OkHttpClient");
+
     @Override
     public String id() {
         return ID;
@@ -29,6 +34,7 @@ public final class HttpClientErrorDiscardedRule implements DiagnosticRule {
         var findings = new ArrayList<Finding>();
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
+            if (!callsHttpClient(method)) continue;
             for (var invocation : method.invocations()) {
                 if (!ERROR_OPERATORS.contains(invocation.methodName())) continue;
                 if (DiagnosticSignals.mentionsThrowable(String.join(" ", invocation.arguments()))) {
@@ -46,5 +52,10 @@ public final class HttpClientErrorDiscardedRule implements DiagnosticRule {
             }
         }
         return List.copyOf(findings);
+    }
+
+    private static boolean callsHttpClient(MethodModel method) {
+        return method.invocations().stream()
+                .anyMatch(invocation -> HTTP_CLIENTS.contains(ExecutionContexts.simpleTypeName(invocation.receiverType())));
     }
 }

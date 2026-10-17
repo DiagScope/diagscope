@@ -6,6 +6,12 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `HTTP_CLIENT_ERROR_DISCARDED` (1.1.0) only reports in a method that calls an HTTP client. It used to fire on any
+  `handle`, `exceptionally` or `onStatus` call, including a Vert.x `Handler`.
+- `READONLY_TRANSACTION_WRITE` (1.1.0): a method-level `@Transactional` without attributes now replaces a class-level
+  `readOnly = true`, as Spring resolves it. The Java and Kotlin parsers previously ignored such a method annotation.
+- `JDBC_RESOURCE_NOT_CLOSED` (1.1.0) no longer reports a factory method that returns the resource it acquires, nor a
+  resource assigned to a field.
 - The `init-agent` Stop hook now scans with `PUBLIC_METHOD` among the entrypoints. Without it, code not reachable from a
   REST, Kafka, reactive or scheduled entrypoint, such as a helper an assistant had just written, produced no findings at
   all, not even for an empty `catch`. It also writes its reports to a temporary directory instead of `target/` or

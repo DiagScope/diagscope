@@ -3,7 +3,7 @@ package example.kotlin.parity
 @Service
 class KotlinParityService(
     private val executor: ExecutorService,
-    private val client: RemoteClient,
+    private val client: WebClient,
     private val logger: Logger,
     private val kafkaTemplate: KafkaTemplate,
     val repository: KotlinRepository,

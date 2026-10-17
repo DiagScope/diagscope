@@ -505,7 +505,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         return new RawMethod(id, methodLocation, typeAnnotations, methodAnnotations,
                 catches,
                 // Receivers that are variables declared inside this method cannot be shared state.
-                InvocationEvidence.withLocalReceivers(extracted.invocations, localNames),
+                InvocationEvidence.withVariableScope(extracted.invocations, localNames, parameterNames),
                 dedupeTags(extracted.metricTags), dedupeMeters(extracted.metricNames),
                 List.copyOf(extracted.calls), Collections.unmodifiableMap(new LinkedHashMap<>(variableTypes)),
                 visibility(method), method.isStatic(), method.isFinal(), method.getTypeAsString(),
@@ -883,8 +883,13 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             attributes.put(annotation.name(), annotation.attributes());
         }
         for (var annotation : methodAnnotations) {
-            if (annotation.attributes().isEmpty()) continue;
-            attributes.put(annotation.name(), annotation.attributes());
+            // A bare method-level annotation still replaces the type-level one: Spring takes the first
+            // @Transactional it finds on the method and never merges in the class's readOnly or timeout.
+            if (annotation.attributes().isEmpty()) {
+                attributes.remove(annotation.name());
+            } else {
+                attributes.put(annotation.name(), annotation.attributes());
+            }
         }
         return Collections.unmodifiableMap(attributes);
     }

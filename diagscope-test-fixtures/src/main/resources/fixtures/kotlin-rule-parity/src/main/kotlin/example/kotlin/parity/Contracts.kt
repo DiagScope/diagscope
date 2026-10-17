@@ -59,7 +59,7 @@ interface RemoteResponse {
     fun onErrorResume(handler: (Throwable) -> String): RemoteResponse
 }
 
-interface RemoteClient {
+interface WebClient {
     fun refresh()
     fun remote(): RemoteResponse
     fun describeFailure(failure: Throwable): String

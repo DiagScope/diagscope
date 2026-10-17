@@ -51,6 +51,13 @@ public final class RuleVersions {
     private static Map<String, String> overrides() {
         var overrides = new LinkedHashMap<String, String>();
         // Kafka producer coverage was generalized to producer listeners and async handoffs.
+        // Found by scanning with PUBLIC_METHOD on the calibration corpus. The rule now needs an HTTP client call in the
+        // same method; before it fired on any Handler.handle or Future.listen.
+        overrides.put(HttpClientErrorDiscardedRule.ID, "1.1.0");
+        // A method-level @Transactional now replaces the class-level readOnly = true, as Spring resolves it.
+        overrides.put(ReadOnlyTransactionWriteRule.ID, "1.1.0");
+        // A factory that returns the resource, and a resource kept in a field, are not leaks of the acquiring method.
+        overrides.put(JdbcResourceLeakRule.ID, "1.1.0");
         overrides.put(IgnoredKafkaSendResultRule.ID, "1.2.0");
         // Manual acknowledgement detection was extended to class-level listeners and @KafkaHandler.
         overrides.put(KafkaManualAckMissingRule.ID, "1.1.0");

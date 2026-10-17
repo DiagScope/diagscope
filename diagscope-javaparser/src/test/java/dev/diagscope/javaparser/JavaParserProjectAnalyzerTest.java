@@ -877,6 +877,43 @@ class JavaParserProjectAnalyzerTest {
     }
 
 
+    @Test
+    void a_bare_method_level_annotation_replaces_the_class_level_one_and_field_assignments_are_marked() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("overrides"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/java/sample"));
+        Files.writeString(sourceRoot.resolve("Accounts.java"), """
+                package sample;
+
+                import org.springframework.transaction.annotation.Transactional;
+
+                @Transactional(readOnly = true)
+                class Accounts {
+                    private java.sql.Connection held;
+
+                    @Transactional void save() {}
+                    void read() {}
+                    @Transactional(timeout = 5) void slow() {}
+
+                    void hold(javax.sql.DataSource ds) throws Exception { held = ds.getConnection(); }
+                    void local(javax.sql.DataSource ds) throws Exception { java.sql.Connection c = ds.getConnection(); }
+                }
+                """);
+
+        var analyzed = new JavaParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "sample.Accounts", "read").annotationAttribute("Transactional", "readOnly"))
+                .contains("true");
+        assertThat(method(analyzed, "sample.Accounts", "save").annotationAttribute("Transactional", "readOnly")).isEmpty();
+        assertThat(method(analyzed, "sample.Accounts", "slow").annotationAttribute("Transactional", "readOnly")).isEmpty();
+        assertThat(method(analyzed, "sample.Accounts", "hold").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("getConnection"))
+                .isNotEmpty().allMatch(invocation -> invocation.assignedToField());
+        assertThat(method(analyzed, "sample.Accounts", "local").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("getConnection"))
+                .isNotEmpty().noneMatch(invocation -> invocation.assignedToField());
+    }
+
     private static MethodModel method(AnalyzedProject project, String declaringType, String name) {
         return project.methods().values().stream()
                 .filter(method -> declaringType.equals(method.id().declaringType()) && name.equals(method.id().name()))

@@ -664,6 +664,40 @@ class KotlinParserProjectAnalyzerTest {
     }
 
 
+    @Test
+    void a_bare_method_level_annotation_replaces_the_class_level_one_and_field_assignments_are_marked() throws IOException {
+        Path root = Files.createDirectories(temp.resolve("overrides"));
+        Files.writeString(root.resolve("pom.xml"), "<project/>\n");
+        Path sourceRoot = Files.createDirectories(root.resolve("src/main/kotlin/sample"));
+        Files.writeString(sourceRoot.resolve("Accounts.kt"), """
+                package sample
+
+                import org.springframework.transaction.annotation.Transactional
+
+                @Transactional(readOnly = true)
+                class Accounts {
+                    private var held: java.sql.Connection? = null
+
+                    @Transactional fun save() {}
+                    fun read() {}
+
+                    fun hold(ds: javax.sql.DataSource) { held = ds.getConnection() }
+                    fun local(ds: javax.sql.DataSource) { val c = ds.getConnection() }
+                }
+                """);
+
+        var analyzed = new KotlinParserProjectAnalyzer().analyze(root, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "Accounts", "read").annotationAttribute("Transactional", "readOnly")).contains("true");
+        assertThat(method(analyzed, "Accounts", "save").annotationAttribute("Transactional", "readOnly")).isEmpty();
+        assertThat(method(analyzed, "Accounts", "hold").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("getConnection"))
+                .isNotEmpty().allMatch(invocation -> invocation.assignedToField());
+        assertThat(method(analyzed, "Accounts", "local").invocations())
+                .filteredOn(invocation -> invocation.methodName().equals("getConnection"))
+                .isNotEmpty().noneMatch(invocation -> invocation.assignedToField());
+    }
+
     private static MethodModel method(dev.diagscope.core.domain.AnalyzedProject project, String type, String name) {
         return project.methods().values().stream()
                 .filter(method -> method.id().declaringType().endsWith(type) && method.id().name().equals(name))

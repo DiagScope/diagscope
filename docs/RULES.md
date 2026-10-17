@@ -393,6 +393,9 @@ Detects an error-handling reactive operator (`onErrorReturn`, `onErrorResume`, `
 `onStatus`) whose arguments do not reference the throwable being handled, so the original failure
 evidence is dropped.
 
+The method must also call an HTTP client (`WebClient`, `RestClient`, `RestTemplate`, `HttpClient`,
+`OkHttpClient`); `handle` or `exceptionally` on anything else is not reported.
+
 - Default severity: `ERROR`.
 - Evidence confidence: `MEDIUM`; the rule checks whether a captured or parameter-named throwable is
   mentioned in the recovery expression.

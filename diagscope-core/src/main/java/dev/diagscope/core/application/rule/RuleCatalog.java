@@ -355,7 +355,8 @@ public final class RuleCatalog {
                 "The remote call failed but the flow continues with a placeholder, so the outage looks"
                         + " like empty data downstream.",
                 "An error-handling operator (onErrorReturn, onErrorResume, exceptionally, onStatus)"
-                        + " whose arguments do not mention the error.");
+                        + " whose arguments do not mention the error, in a method that also calls a WebClient,"
+                        + " RestClient, RestTemplate, HttpClient or OkHttpClient.");
 
         put(catalog, ScheduledTaskSwallowsFailureRule.ID,
                 "Scheduled task swallows the failure",

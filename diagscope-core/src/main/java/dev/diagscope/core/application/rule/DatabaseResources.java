@@ -21,9 +21,22 @@ final class DatabaseResources {
             "datasource", "connection", "statement", "preparedstatement", "callablestatement",
             "resultset");
 
+    private static final Set<String> JDBC_RESOURCE_TYPES = Set.of(
+            "Connection", "Statement", "PreparedStatement", "CallableStatement", "ResultSet");
+
     private static final Set<String> RELEASES = Set.of("close", "releaseConnection", "closeConnection");
 
     private DatabaseResources() {
+    }
+
+    /** True when the method itself returns a JDBC resource, so its caller owns and closes what it acquires. */
+    static boolean returnsJdbcResource(MethodModel method) {
+        String type = method.returnType();
+        int generics = type.indexOf('<');
+        if (generics >= 0) type = type.substring(0, generics);
+        int dot = type.lastIndexOf('.');
+        if (dot >= 0) type = type.substring(dot + 1);
+        return JDBC_RESOURCE_TYPES.contains(type.trim());
     }
 
     /** True when the receiver of the call is recognisably a JDBC handle rather than an unrelated API. */

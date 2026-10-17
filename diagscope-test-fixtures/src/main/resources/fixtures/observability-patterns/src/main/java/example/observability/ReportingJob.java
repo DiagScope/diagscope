@@ -10,9 +10,9 @@ public class ReportingJob {
 
     private final ExecutorService executor;
     private final MeterRegistry meterRegistry;
-    private final ReportClient reportClient;
+    private final WebClient reportClient;
 
-    public ReportingJob(ExecutorService executor, MeterRegistry meterRegistry, ReportClient reportClient) {
+    public ReportingJob(ExecutorService executor, MeterRegistry meterRegistry, WebClient reportClient) {
         this.executor = executor;
         this.meterRegistry = meterRegistry;
         this.reportClient = reportClient;

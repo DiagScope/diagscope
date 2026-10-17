@@ -5,13 +5,13 @@ import java.util.Map;
 @Service
 class JavaParityService {
     private final ExecutorService executor;
-    private final RemoteClient client;
+    private final WebClient client;
     private final Logger logger;
     private final KafkaTemplate kafkaTemplate;
     final JavaRepository repository;
     private final UnmanagedWorker unmanagedWorker;
 
-    JavaParityService(ExecutorService executor, RemoteClient client, Logger logger,
+    JavaParityService(ExecutorService executor, WebClient client, Logger logger,
             KafkaTemplate kafkaTemplate, JavaRepository repository, UnmanagedWorker unmanagedWorker) {
         this.executor = executor;
         this.client = client;

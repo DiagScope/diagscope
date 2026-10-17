@@ -263,7 +263,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         collectCalls(root, file, lines, function, scope, policy, extracted);
         collectAccessibleAssignments(root, file, lines, function, extracted.invocations);
         // Receivers that are variables declared inside this function cannot be shared state.
-        var markedInvocations = InvocationEvidence.withLocalReceivers(extracted.invocations, scope.localNames());
+        var markedInvocations = InvocationEvidence.withVariableScope(extracted.invocations, scope.localNames(), scope.parameterNames());
 
         var parameters = function.getValueParameters();
         int minimumArity = (int) parameters.stream()
@@ -1357,8 +1357,14 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         var result = new LinkedHashMap<String, Map<String, String>>();
         typeAnnotations.stream().filter(item -> !item.attributes().isEmpty())
                 .forEach(item -> result.put(item.name(), item.attributes()));
-        methodAnnotations.stream().filter(item -> !item.attributes().isEmpty())
-                .forEach(item -> result.put(item.name(), item.attributes()));
+        // A bare method-level annotation still replaces the type-level one, as Spring resolves @Transactional.
+        methodAnnotations.forEach(item -> {
+            if (item.attributes().isEmpty()) {
+                result.remove(item.name());
+            } else {
+                result.put(item.name(), item.attributes());
+            }
+        });
         return Collections.unmodifiableMap(result);
     }
 

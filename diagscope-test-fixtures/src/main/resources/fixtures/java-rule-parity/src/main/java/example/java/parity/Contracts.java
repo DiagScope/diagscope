@@ -47,7 +47,7 @@ interface RemoteResponse {
     RemoteResponse onErrorResume(Function<Throwable, String> handler);
 }
 
-interface RemoteClient {
+interface WebClient {
     void refresh();
     RemoteResponse remote();
     String describeFailure(Throwable failure);

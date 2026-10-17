@@ -177,13 +177,18 @@ No finding is lost. Spring applications gain little; the extra volume is example
 (213 of the 238 in vertx-examples are `SYSTEM_OUTPUT`).
 
 **The 14 extra ERROR findings, read against the source:** 6 are correct or plausible (`SILENT_CATCH` x3,
-`INTERRUPTED_EXCEPTION_SWALLOWED`, `SILENT_FAILURE_CONVERSION` x2) and **at least 8 are false positives**:
+`INTERRUPTED_EXCEPTION_SWALLOWED`, `SILENT_FAILURE_CONVERSION` x2) and **8 were false positives**, now fixed:
 
-| Rule | Extra | False positives | Why |
+| Rule | Extra | False positives | Why, and the fix (rule version 1.1.0) |
 | --- | ---: | ---: | --- |
-| `HTTP_CLIENT_ERROR_DISCARDED` (MEDIUM) | 5 | 5 | Fires on a `Handler.handle(...)`, a Vert.x `termServer.listen()`, a gRPC server `onSuccess` and a Spring functional `filter`: none is an HTTP client call. |
-| `READONLY_TRANSACTION_WRITE` (HIGH) | 2 | 2 | The method carries its own `@Transactional`, which replaces a class-level `readOnly = true` rather than inheriting it. |
-| `JDBC_RESOURCE_NOT_CLOSED` (HIGH) | 2 | 1 confirmed | A factory method that returns the `Connection` hands ownership to its caller; the other was not read. |
+| `HTTP_CLIENT_ERROR_DISCARDED` (MEDIUM) | 4 | 4 | Fired on a `Handler.handle(...)`, a Vert.x `termServer.listen()`, a gRPC server `onSuccess` and a Spring functional `filter`: none is an HTTP client call. The rule now needs a `WebClient`, `RestClient`, `RestTemplate`, `HttpClient` or `OkHttpClient` call in the same method. |
+| `READONLY_TRANSACTION_WRITE` (HIGH) | 2 | 2 | The method carries its own `@Transactional`, which replaces a class-level `readOnly = true`: Spring returns the method's attribute first and never merges the class's (`AbstractFallbackTransactionAttributeSource.computeTransactionAttribute`, 6.1.14). Both parsers dropped a method annotation with no attributes instead of letting it override. Fixed in the parsers, so every rule reading annotation attributes benefits. |
+| `JDBC_RESOURCE_NOT_CLOSED` (HIGH) | 2 | 2 | One was a factory returning the `Connection` it acquires (the caller owns it), the other assigned the connection to a field (it lives as long as the object). The rule skips a method whose return type is a JDBC resource, and the parsers now mark a result assigned to a field or another object's property (`InvocationEvidence.assignedToField`). |
 
-These were invisible in earlier calibration because it used the default entrypoints, where such code is rarely
-reachable. They matter for the hook because its default gate is ERROR.
+Rescanning the corpus after the fix removes exactly these 8 findings and adds none, in both entrypoint modes. The
+extra ERROR findings from `PUBLIC_METHOD` drop from 14 to 6.
+
+Known limits of the fixes: `HTTP_CLIENT_ERROR_DISCARDED` stays silent when the error operator is in a different method
+from the HTTP call, or when the client is a local created in the method (the receiver type is unknown).
+`EntityManagerLeakRule` has the same "never closed in this method" logic and has not been given the factory and field
+exemptions, because it was not exercised on the corpus.

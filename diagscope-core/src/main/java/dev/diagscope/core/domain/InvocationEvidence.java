@@ -19,6 +19,8 @@ import java.util.Objects;
  *        must not treat it as discarded
  * @param localReceiver whether the receiver is a variable declared inside the method itself, so it cannot be
  *        shared with another thread unless the method hands it out
+ * @param assignedToField whether the result is stored in a field or another object's property rather than a
+ *        local variable, so the resource outlives the method and "never closed in this method" says nothing
  */
 public record InvocationEvidence(
         SourceLocation location,
@@ -35,7 +37,8 @@ public record InvocationEvidence(
         boolean loggerReceiver,
         List<String> argumentTypes,
         boolean lastInLambda,
-        boolean localReceiver
+        boolean localReceiver,
+        boolean assignedToField
 ) {
     public InvocationEvidence {
         Objects.requireNonNull(location, "location");
@@ -46,6 +49,28 @@ public record InvocationEvidence(
         Objects.requireNonNull(resultUsage, "resultUsage");
         assignedTo = assignedTo == null ? "" : assignedTo;
         argumentTypes = List.copyOf(argumentTypes);
+    }
+
+    public InvocationEvidence(
+            SourceLocation location,
+            String scope,
+            String receiverType,
+            String methodName,
+            List<String> arguments,
+            InvocationResultUsage resultUsage,
+            boolean producerListenerVisible,
+            boolean resourceManaged,
+            String assignedTo,
+            boolean insideFinally,
+            boolean insideLoop,
+            boolean loggerReceiver,
+            List<String> argumentTypes,
+            boolean lastInLambda,
+            boolean localReceiver
+    ) {
+        this(location, scope, receiverType, methodName, arguments, resultUsage, producerListenerVisible,
+                resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver, argumentTypes, lastInLambda,
+                localReceiver, false);
     }
 
     public InvocationEvidence(
@@ -182,7 +207,7 @@ public record InvocationEvidence(
         if (Objects.equals(receiverType, resolvedReceiverType)) return this;
         return new InvocationEvidence(location, scope, resolvedReceiverType, methodName, arguments, resultUsage,
                 producerListenerVisible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                argumentTypes, lastInLambda, localReceiver);
+                argumentTypes, lastInLambda, localReceiver, assignedToField);
     }
 
     /** Returns a copy that records a syntax-visible {@code ProducerListener} in the same project. */
@@ -191,7 +216,7 @@ public record InvocationEvidence(
                 ? this
                 : new InvocationEvidence(location, scope, receiverType, methodName, arguments, resultUsage,
                         visible, resourceManaged, assignedTo, insideFinally, insideLoop, loggerReceiver,
-                        argumentTypes, lastInLambda, localReceiver);
+                        argumentTypes, lastInLambda, localReceiver, assignedToField);
     }
 
     /** The first identifier of the scope: {@code items} in {@code items.stream().filter(...)}; empty when none. */
@@ -214,7 +239,28 @@ public record InvocationEvidence(
                     invocation.receiverType, invocation.methodName, invocation.arguments, invocation.resultUsage,
                     invocation.producerListenerVisible, invocation.resourceManaged, invocation.assignedTo,
                     invocation.insideFinally, invocation.insideLoop, invocation.loggerReceiver,
-                    invocation.argumentTypes, invocation.lastInLambda, true));
+                    invocation.argumentTypes, invocation.lastInLambda, true, invocation.assignedToField));
+        }
+        return List.copyOf(result);
+    }
+
+    /**
+     * Applies what the declaring method knows about its own variables: marks receivers that are locals, and marks a
+     * result assigned to anything that is neither a local nor a parameter (a field, or another object's property).
+     */
+    public static List<InvocationEvidence> withVariableScope(
+            List<InvocationEvidence> invocations, java.util.Set<String> locals, java.util.Set<String> parameters) {
+        var result = new java.util.ArrayList<InvocationEvidence>(invocations.size());
+        for (InvocationEvidence invocation : withLocalReceivers(invocations, locals)) {
+            String target = invocation.assignedTo;
+            boolean field = invocation.resultUsage == InvocationResultUsage.ASSIGNED && !target.isBlank()
+                    && !invocation.assignedToField
+                    && (target.contains(".") || !(locals.contains(target) || parameters.contains(target)));
+            result.add(!field ? invocation : new InvocationEvidence(invocation.location, invocation.scope,
+                    invocation.receiverType, invocation.methodName, invocation.arguments, invocation.resultUsage,
+                    invocation.producerListenerVisible, invocation.resourceManaged, invocation.assignedTo,
+                    invocation.insideFinally, invocation.insideLoop, invocation.loggerReceiver,
+                    invocation.argumentTypes, invocation.lastInLambda, invocation.localReceiver, true));
         }
         return List.copyOf(result);
     }

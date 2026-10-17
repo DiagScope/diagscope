@@ -2,7 +2,7 @@ package example.observability;
 
 import java.util.List;
 
-public class ReportClient {
+public class WebClient {
     public void refresh() {}
     public void refreshAll(List<String> ids) {}
     public String describe() { return "report"; }
