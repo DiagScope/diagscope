@@ -153,3 +153,37 @@ threads comes from JEP 444, which could not be opened).
 Also not read: Quarkus-specific behaviour, and the two web pages that could not be
 opened from the audit environment (JEP 491, PostgreSQL isolation levels). The rules have no field data for Quarkus or
 Vert.x beyond the open-source quickstarts.
+
+## What `PUBLIC_METHOD` adds on the calibration corpus (hook noise)
+
+The `init-agent` hook scans with `PUBLIC_METHOD` among the entrypoints, so code no endpoint reaches is checked. Each
+project was scanned twice, with and without it, and findings compared by fingerprint (11 projects, 0.1.3 + hook fix).
+
+| Project | Default | + PUBLIC_METHOD | Extra | Extra ERROR |
+| --- | ---: | ---: | ---: | ---: |
+| spring-petclinic | 11 | 11 | 0 | 0 |
+| spring-petclinic-kotlin | 5 | 5 | 0 | 0 |
+| spring-petclinic-microservices | 21 | 22 | 1 | 0 |
+| tut-spring-boot-kotlin | 1 | 2 | 1 | 0 |
+| spring-kotlin-functional | 0 | 1 | 1 | 1 |
+| jhipster-sample-app | 78 | 84 | 6 | 0 |
+| quarkus-super-heroes | 2 | 9 | 7 | 0 |
+| quarkus-quickstarts | 57 | 71 | 14 | 0 |
+| spring-cloud-contract-samples | 103 | 126 | 23 | 0 |
+| spring-data-examples | 48 | 90 | 42 | 5 |
+| vertx-examples | 37 | 275 | 238 | 8 |
+
+No finding is lost. Spring applications gain little; the extra volume is example code that prints to standard output
+(213 of the 238 in vertx-examples are `SYSTEM_OUTPUT`).
+
+**The 14 extra ERROR findings, read against the source:** 6 are correct or plausible (`SILENT_CATCH` x3,
+`INTERRUPTED_EXCEPTION_SWALLOWED`, `SILENT_FAILURE_CONVERSION` x2) and **at least 8 are false positives**:
+
+| Rule | Extra | False positives | Why |
+| --- | ---: | ---: | --- |
+| `HTTP_CLIENT_ERROR_DISCARDED` (MEDIUM) | 5 | 5 | Fires on a `Handler.handle(...)`, a Vert.x `termServer.listen()`, a gRPC server `onSuccess` and a Spring functional `filter`: none is an HTTP client call. |
+| `READONLY_TRANSACTION_WRITE` (HIGH) | 2 | 2 | The method carries its own `@Transactional`, which replaces a class-level `readOnly = true` rather than inheriting it. |
+| `JDBC_RESOURCE_NOT_CLOSED` (HIGH) | 2 | 1 confirmed | A factory method that returns the `Connection` hands ownership to its caller; the other was not read. |
+
+These were invisible in earlier calibration because it used the default entrypoints, where such code is rarely
+reachable. They matter for the hook because its default gate is ERROR.
