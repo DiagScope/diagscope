@@ -54,6 +54,7 @@ cannot ship without declaring where its claim comes from.
 | `PROPAGATION_SUPPORTS_WRITE_RISK` | Each write commits immediately in auto-commit mode | True for JDBC. A Spring Data call runs in its own transaction (its methods are `@Transactional`), and `persist`/`merge`/`remove` on the shared `EntityManager` throw `TransactionRequiredException` outside a transaction (`SharedEntityManagerCreator`) | Text corrected |
 | `MISSING_BULKHEAD_ON_HTTP_CLIENT` | A slow downstream holds a request thread per in-flight call | True for a blocking client (`RestTemplate`, `RestClient`, `HttpClient.send`). A `WebClient` call or `HttpClient.sendAsync` returns before the response arrives and holds no thread unless the method then waits (`block`, `join`, `get`) | Non-blocking calls reported only when the method waits; `java.net.http.HttpClient` was already matched, and the limits said it was not |
 | `KAFKA_RETRY_WITHOUT_BACKOFF` | A zero-delay `FixedBackOff` causes hundreds of attempts per second | `FixedBackOff(interval, maxAttempts)` redelivers each failing record at most `maxAttempts` times. Spring Kafka's own `DefaultErrorHandler()` default is `FixedBackOff(0, 9)` (`SeekUtils.DEFAULT_BACK_OFF`), which the rule does not report | Text corrected, limit added |
+| `RETRY_ON_ALL_EXCEPTIONS` | Applies to Spring Retry `@Retryable` and to MicroProfile `@Retry` | Only `@Retryable` is detected. MicroProfile's `@Retry` does retry everything by default (`retryOn() default {Exception.class}`), but the simple name `Retry` is also Resilience4j's annotation and the rule matches by simple name | Applicability corrected to Spring Retry; the recommendation now suggests `retryFor`, since `include` is deprecated in spring-retry |
 | `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` | Slow runs queue up indefinitely; under a thread pool concurrent runs contend | `ScheduledExecutorService.scheduleAtFixedRate`: "subsequent executions may start late, but will not concurrently execute". `ThreadPoolTaskScheduler` delegates to it. A late run delays the next, which then catch up back to back | Text corrected |
 | `UNGUARDED_THREAD_CREATION` | New threads exhaust the file-descriptor limit | "unable to create native thread" is the operating system's thread limit, not file descriptors | Text corrected |
 | `BLOCKING_CALL_ON_COMMON_POOL`, `COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT` | `supplyAsync` without an executor always uses the common pool, which has about one thread per core | `CompletableFuture.defaultExecutor`: the common pool "if it supports more than one parallel thread, or else an Executor using one thread per async task"; `ForkJoinPool` suggests a parallelism of one less than the cores | Text corrected: one thread fewer than the processors, and no pool sharing for async stages when it has a single thread |
@@ -85,8 +86,8 @@ empty, all exceptions are retried; with only `exclude` set, all that are not exc
 (`ContainerProperties.missingTopicsFatal` is `false` by default, so a missing topic does not stop the listener),
 `KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (the container's error handler runs only for an exception that leaves the
 listener). `KAFKA_CONSUMER_GROUP_HARDCODED` is a statement about Kafka group membership, `RETRY_WITHOUT_DIAGNOSTICS` and
-`FALLBACK_HIDES_FAILURE` about observability: no framework behaviour to check. The MicroProfile `@Retry` default was not
-read.
+`FALLBACK_HIDES_FAILURE` about observability: no framework behaviour to check. The MicroProfile `@Retry` default (`retryOn = {Exception.class}`) was read in `Retry.java`; it is the reason the
+rule's applicability no longer lists it.
 
 `@Async`, `@Scheduled` and Mutiny: `ASYNC_VOID_RETURN` (`AsyncExecutionAspectSupport.handleError` rethrows for a `Future`
 return and otherwise calls the `AsyncUncaughtExceptionHandler`, whose default logs at ERROR),
@@ -145,6 +146,6 @@ logging on that path, so the failure lives only in the future), `AUTOWIRED_REQUI
 `VIRTUAL_THREAD_WITH_THREAD_LOCAL` (`ThreadLocal`: each thread holds its own copy; the claim about millions of virtual
 threads comes from JEP 444, which could not be opened).
 
-Also not read: the MicroProfile `@Retry` default, Quarkus-specific behaviour, and the two web pages that could not be
+Also not read: Quarkus-specific behaviour, and the two web pages that could not be
 opened from the audit environment (JEP 491, PostgreSQL isolation levels). The rules have no field data for Quarkus or
 Vert.x beyond the open-source quickstarts.

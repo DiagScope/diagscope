@@ -68,11 +68,11 @@ public final class RetryOnAllExceptionsRule implements ProjectRule {
         findings.add(new Finding(
                 ID, Severity.WARNING, Confidence.HIGH, method.location(),
                 "@Retryable on '" + method.id().displayName() + "' has no exception filter"
-                        + " (no 'include' or 'value' attribute). The method will be retried on every"
+                        + " (no 'retryFor', 'include' or 'value' attribute). The method will be retried on every"
                         + " thrown exception, including NullPointerException and programming errors"
                         + " that can never succeed on retry.",
-                "Add an 'include' attribute listing only the transient, recoverable exceptions"
-                        + " this method should retry: @Retryable(include = {IOException.class},"
+                "Add a 'retryFor' attribute listing only the transient, recoverable exceptions"
+                        + " this method should retry: @Retryable(retryFor = {IOException.class,"
                         + " SocketTimeoutException.class}). Avoid retrying RuntimeException or"
                         + " Exception directly — this is equivalent to retrying everything.",
                 List.of(),

@@ -1135,7 +1135,7 @@ public final class RuleCatalog {
         put(catalog, RetryOnAllExceptionsRule.ID,
                 "@Retryable with no exception filter retries on every failure",
                 "resilience", Severity.WARNING, ALL_LANGUAGES,
-                "Spring Retry (@Retryable) or MicroProfile Fault Tolerance (@Retry)",
+                "Spring Retry (@Retryable)",
                 "A @Retryable method declares no 'include', 'value' or 'retryFor' attribute. Every thrown "
                         + "exception, including NullPointerException and other programming defects, triggers the retry "
                         + "budget.",
@@ -1146,7 +1146,11 @@ public final class RuleCatalog {
                 "The method carries @Retryable but its annotation attributes map contains no"
                         + " 'include', 'value', or 'retryFor' key — the exception filter is absent.",
                 "Methods using @Recover fallbacks are not excluded; they should still filter"
-                        + " the retry target to transient exceptions.");
+                        + " the retry target to transient exceptions. A method that sets only 'exclude' is"
+                        + " reported although it retries every exception that is not excluded. The"
+                        + " MicroProfile Fault Tolerance @Retry is not covered: its retryOn defaults to"
+                        + " Exception.class, so it retries everything too, but the simple name Retry is shared"
+                        + " with Resilience4j and the two cannot be told apart without the import.");
 
         // ── Configuration: required properties without defaults ────────────────
         put(catalog, ValueWithoutDefaultRule.ID,
