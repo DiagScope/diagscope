@@ -55,6 +55,16 @@ ERROR rule cannot ship without its claim being checked.
 
 ## Checked and kept
 
+Read against the source in a later pass and now listed with their references (`diagscope explain`):
+`TIMED_ON_PRIVATE_METHOD` (`TimedAspect` is a proxy-based `@Around` on `execution(@Timed * *.*(..))`),
+`DELETE_ALL_WITHOUT_ID` (`SimpleJpaRepository.deleteAll` loads `findAll()` and deletes one by one),
+`DRIVER_MANAGER_DATASOURCE_USED` (Javadoc: "not an actual connection pool", a new connection on every call),
+`MULTIPLE_SCHEDULED_NO_THREAD_POOL` (`ScheduledTaskRegistrar` falls back to `newSingleThreadScheduledExecutor`; Spring
+Boot's scheduler pool size defaults to 1, which `spring.task.scheduling.pool.size` can change),
+`CONFIGURATION_PROPERTIES_NOT_VALIDATED` (Spring Boot validates only when the class, or its `@Bean` method, is
+`@Validated`) and `CACHEABLE_ON_VOID_METHOD` (`ConcurrentMapCacheManager` allows null values by default, so the
+`null` of a void method is cached).
+
 `ASYNC_ON_PRIVATE_METHOD`, `CACHEABLE_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_FINAL_METHOD` (a CGLIB proxy cannot
 intercept private or final methods), `AOP_SELF_INVOCATION`, `BULKHEAD_WITHOUT_FALLBACK` and
 `CIRCUIT_BREAKER_WITHOUT_FALLBACK` (the exception reaching the caller is the documented default, now INFO),

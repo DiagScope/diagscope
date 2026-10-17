@@ -136,6 +136,19 @@ public final class RuleSources {
                 "https://github.com/spring-projects/spring-data-jpa/blob/main/spring-data-jpa/src/main/java/org/springframework/data/jpa/repository/support/SimpleJpaRepository.java"));
         SOURCED.put("JPA_BATCH_LOOP_WITHOUT_FLUSH_CLEAR", List.of(
                 "https://github.com/spring-projects/spring-data-jpa/blob/main/spring-data-jpa/src/main/java/org/springframework/data/jpa/repository/support/SimpleJpaRepository.java"));
+        SOURCED.put("TIMED_ON_PRIVATE_METHOD", List.of(
+                "https://github.com/micrometer-metrics/micrometer/blob/main/micrometer-core/src/main/java/io/micrometer/core/aop/TimedAspect.java"));
+        SOURCED.put("DELETE_ALL_WITHOUT_ID", List.of(
+                "https://github.com/spring-projects/spring-data-jpa/blob/main/spring-data-jpa/src/main/java/org/springframework/data/jpa/repository/support/SimpleJpaRepository.java"));
+        SOURCED.put("DRIVER_MANAGER_DATASOURCE_USED", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-jdbc/src/main/java/org/springframework/jdbc/datasource/DriverManagerDataSource.java"));
+        SOURCED.put("MULTIPLE_SCHEDULED_NO_THREAD_POOL", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/scheduling/config/ScheduledTaskRegistrar.java",
+                "https://github.com/spring-projects/spring-boot/blob/main/core/spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/task/TaskSchedulingProperties.java"));
+        SOURCED.put("CONFIGURATION_PROPERTIES_NOT_VALIDATED", List.of(
+                "https://docs.spring.io/spring-boot/reference/features/external-config.html"));
+        SOURCED.put("CACHEABLE_ON_VOID_METHOD", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/cache/concurrent/ConcurrentMapCacheManager.java"));
     }
 
     private RuleSources() {

@@ -1464,8 +1464,11 @@ public final class RuleCatalog {
                         + " If no such bean is found, one WARNING is emitted at the first"
                         + " scheduled method's location.",
                 "A TaskScheduler configured programmatically via SchedulingConfigurer and"
-                        + " not exposed as a @Bean will not suppress this finding. Suppress"
-                        + " manually if a custom scheduler is in place through a non-bean path.");
+                        + " not exposed as a @Bean will not suppress this finding. Spring Boot supplies"
+                        + " a scheduler whose pool size is 1 by default, so the finding holds there too,"
+                        + " but spring.task.scheduling.pool.size can raise it without any @Bean, and"
+                        + " that is not visible in the sources. Suppress manually if a custom scheduler"
+                        + " is in place through a non-bean path.");
 
         put(catalog, ObjectMapperCreatedPerRequestRule.ID,
                 "ObjectMapper constructed per-call — should be a shared @Bean",
@@ -2088,7 +2091,9 @@ public final class RuleCatalog {
                         + " effective annotation set) where no method in the same declaring type"
                         + " also carries Validated. One finding per type. Confidence HIGH.",
                 "Types that validate programmatically via @PostConstruct or a custom Validator bean"
-                        + " will be false positives. @ConstructorBinding-style classes are detected"
+                        + " will be false positives, and so will a class whose @Bean method carries"
+                        + " @Validated (Spring Boot triggers validation from either place)."
+                        + " @ConstructorBinding-style classes are detected"
                         + " if the constructor method carries the annotation.");
 
         put(catalog, CircuitBreakerWithoutFallbackRule.ID,
