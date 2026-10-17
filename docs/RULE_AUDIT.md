@@ -95,6 +95,16 @@ passes `Infrastructure::handleDroppedException` as the failure callback; its def
 `MUTINY_FAILURE_RECOVERED_SILENTLY`, `UNGUARDED_THREAD_CREATION`, `ASYNC_RESULT_UNOBSERVED` and
 `SCHEDULED_TASK_SWALLOWS_FAILURE` state no framework behaviour.
 
+Last batch: `EAGER_COLLECTION_FETCH` (`FetchType.EAGER` is a requirement on the provider and `@OneToMany` is LAZY by
+default; the Hibernate user guide: a lookup by id uses an outer join, an entity query needs a secondary select, the
+N+1 case), `MDC_CONTEXT_LOST` (`LogbackMDCAdapter` keeps the map in a plain `ThreadLocal`, not an inheritable one),
+`HTTP_TIMEOUT_NOT_SET` (`SimpleClientHttpRequestFactory` starts with both timeouts at -1), `OBJECT_MAPPER_CREATED_PER_REQUEST`
+(Jackson: mappers are thread-safe once configured), `BCRYPT_CREATED_PER_CALL` (`BCryptPasswordEncoder` holds only final
+fields), `HTTP_CLIENT_NO_ERROR_HANDLER` (`DefaultResponseErrorHandler` treats 4xx and 5xx as errors),
+`LAZY_BEAN_CIRCULAR_INDICATOR` (`@Lazy` on an injection point injects a lazy-resolution proxy),
+`TIMER_STARTED_NOT_STOPPED` (`Timer.Sample.stop(Timer)` is what records), `AOP_ADVICE_NOT_APPLIED` and
+`AOP_UNMANAGED_ADVICE_TARGET` (the proxying reference). `N_PLUS_ONE_QUERY_RISK` is a pattern.
+
 `ASYNC_ON_PRIVATE_METHOD`, `CACHEABLE_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_FINAL_METHOD` (a CGLIB proxy cannot
 intercept private or final methods), `AOP_SELF_INVOCATION`, `BULKHEAD_WITHOUT_FALLBACK` and
 `CIRCUIT_BREAKER_WITHOUT_FALLBACK` (the exception reaching the caller is the documented default, now INFO),
@@ -110,11 +120,23 @@ Also read and kept as written: `APPLICATION_CONTEXT_LOCATOR`, `BLOCKING_CALL_ON_
 `TIMER_STARTED_NOT_STOPPED`, `HTTP_CLIENT_NO_ERROR_HANDLER`, `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID`,
 `LAZY_BEAN_CIRCULAR_INDICATOR`, `KAFKA_TOPIC_HARDCODED`.
 
-## Not yet verified against source
+## Marked as pattern without reading the source
 
-The claims in this page that cite a project's source or reference were read there. The following were judged by
-reading the rule text and the JDK/library behaviour I know, without opening the implementation: the logging rules
-(`LOG_WITHOUT_THROWABLE`, `GENERIC_EXCEPTION_MESSAGE`, `PRINT_STACK_TRACE`, `SYSTEM_OUTPUT`,
-`LOG_MESSAGE_STRING_CONCAT`), `MDC_CONTEXT_LOST`, the Micrometer and Mutiny internals, the Resilience4j fallback
-rules beyond what the annotations document, and the Quarkus-specific behaviour. The rules also have no field data for
-Quarkus or Vert.x beyond the open-source quickstarts.
+Every rule is now either sourced or a pattern; none is left unverified by default (a new rule still starts as
+unverified, and a new ERROR rule must be sourced or a pattern). The pattern group is mostly code shape and style
+(`GOD_CLASS_DETECTED`, `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`, `FIELD_INJECTION_USED`, the logging and
+test rules). These few also rest on a documented framework or library behaviour that was **not** read against its
+source, and are marked as pattern for that reason only:
+
+- Spring: `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (an absent optional dependency stays `null`), `VALUE_WITHOUT_DEFAULT` (an
+  unresolvable placeholder fails at start-up), `MISSING_RESPONSE_STATUS`, `APPLICATION_CONTEXT_LOCATOR`,
+  `SYSTEM_ENV_IN_BEAN`, `CLOCK_DEPENDENCY_NOT_INJECTED`, `HTTP_CLIENT_CREATED_PER_REQUEST`.
+- Micrometer: `METRIC_CREATED_IN_LOOP`, `DYNAMIC_METRIC_NAME` (corrected earlier, without a recorded reference).
+- Concurrency and reactive: `BLOCKING_CALL_ON_COMMON_POOL`, `VIRTUAL_THREAD_WITH_THREAD_LOCAL`,
+  `COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT`, `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED`,
+  `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED`, `OUTBOX_PATTERN_MISSING`.
+- Security and design: `MASS_ASSIGNMENT_RISK`, `ENTITY_EXPOSED_IN_REST_RESPONSE`.
+
+Also not read: the MicroProfile `@Retry` default, Quarkus-specific behaviour, and the two web pages that could not be
+opened from the audit environment (JEP 491, PostgreSQL isolation levels). The rules have no field data for Quarkus or
+Vert.x beyond the open-source quickstarts.

@@ -670,14 +670,18 @@ public final class RuleCatalog {
                 "An HTTP client call or a reactive .block() is made in a method where no timeout"
                         + " (.timeout(), responseTimeout, setReadTimeout) is observed.",
                 "An HTTP call with no timeout will block the calling thread indefinitely if the"
-                        + " remote server is slow or unreachable. Under load this exhausts the thread"
-                        + " pool and can bring the entire service down.",
+                        + " remote server is slow or unreachable: a RestTemplate on the default"
+                        + " SimpleClientHttpRequestFactory has no connect or read timeout (both are -1),"
+                        + " and a reactive block() without a timeout waits as long as the publisher does."
+                        + " Under load this exhausts the thread pool and can bring the entire service down.",
                 "A blocking terminal operator (block, blockFirst, blockLast) on a receiver whose scope"
                         + " or type name suggests an HTTP or reactive type, or a RestTemplate call,"
                         + " in a method where no timeout-setting call is observed.",
                 "Timeouts set on the WebClient builder at bean-construction time are not visible"
                         + " at the call site; this can produce false positives when the builder is"
-                        + " properly configured. Review each finding in the context of the client setup.");
+                        + " properly configured, and so can a request factory or a Spring Boot client"
+                        + " setting that supplies the timeouts. Review each finding in the context of the"
+                        + " client setup.");
 
         // ── Maintainability: class complexity ─────────────────────────────────────
         put(catalog, GodClassRule.ID,
@@ -2551,10 +2555,12 @@ public final class RuleCatalog {
                 "database", Severity.WARNING, ALL_LANGUAGES,
                 "JPA / Hibernate entities",
                 "An entity declares @OneToMany or @ManyToMany with fetch = FetchType.EAGER.",
-                "The collection is loaded with every parent: one extra query per parent (N+1) or,"
-                        + " when joined, a cartesian product that multiplies rows. It cannot be switched off per"
-                        + " query, so every code path that loads the entity pays for it, including those that"
-                        + " never read the collection.",
+                "FetchType.EAGER is a requirement on the persistence provider, so every code path that"
+                        + " loads the entity also loads the collection, including those that never read it."
+                        + " With Hibernate a lookup by id fetches it with an outer join, which multiplies the"
+                        + " rows by the collection size, and an entity query issues one more select per parent"
+                        + " (N+1). The default for @OneToMany and @ManyToMany is LAZY, so EAGER is an explicit"
+                        + " choice.",
                 "The parsers detect a field annotated with OneToMany or ManyToMany whose fetch"
                         + " attribute contains EAGER and mark the class. The finding is reported once per"
                         + " entity, on its first method, and lists the fields.",

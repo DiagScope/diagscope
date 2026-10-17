@@ -12,7 +12,9 @@ import java.util.TreeMap;
  *   <li>{@link Basis#SOURCED}: the behaviour the rule relies on was read in the project's own documentation or
  *       source; the references are listed.</li>
  *   <li>{@link Basis#PATTERN}: the rule matches a code shape whose harm follows from the language or the JDK
- *       (an unclosed resource, a swallowed interrupt) and does not depend on a framework's behaviour.</li>
+ *       (an unclosed resource, a swallowed interrupt), or a style or size heuristic, and does not depend on a
+ *       framework's behaviour. A few of them lean on a basic documented behaviour that was not opened one by one;
+ *       {@code docs/RULE_AUDIT.md} lists them under "Marked as pattern without reading the source".</li>
  *   <li>{@link Basis#UNVERIFIED}: nothing above applies yet. This is the default, so a new rule is honest until
  *       somebody checks it. {@code RuleSourcesContractTest} forbids it for ERROR rules.</li>
  * </ul>
@@ -80,7 +82,46 @@ public final class RuleSources {
             "THREAD_SLEEP_IN_FLOW",
             "TIMER_TASK_EXCEPTION_KILLS_TIMER",
             "UNBOUNDED_THREAD_POOL",
-            "XML_EXTERNAL_ENTITY_RISK");
+            "XML_EXTERNAL_ENTITY_RISK",
+            "APPLICATION_CONTEXT_LOCATOR",
+            "AUTOWIRED_REQUIRED_FALSE_UNSAFE",
+            "BLOCKING_CALL_ON_COMMON_POOL",
+            "CHECK_THEN_ACT_ON_MAP",
+            "CLOCK_DEPENDENCY_NOT_INJECTED",
+            "COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT",
+            "DUPLICATE_DIAGNOSTIC_SIGNAL",
+            "DYNAMIC_METRIC_NAME",
+            "ENTITY_EXPOSED_IN_REST_RESPONSE",
+            "EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE",
+            "EXCESSIVE_METHOD_PARAMETERS",
+            "FIELD_INJECTION_USED",
+            "GENERIC_EXCEPTION_MESSAGE",
+            "GOD_CLASS_DETECTED",
+            "HIGH_METHOD_COMPLEXITY",
+            "HTTP_CLIENT_CREATED_PER_REQUEST",
+            "LOG_MESSAGE_STRING_CONCAT",
+            "LOG_WITHOUT_THROWABLE",
+            "MAP_GET_DEREFERENCED_WITHOUT_CHECK",
+            "MASS_ASSIGNMENT_RISK",
+            "METRIC_CREATED_IN_LOOP",
+            "MISSING_PAGINATION",
+            "MISSING_RESPONSE_STATUS",
+            "N_PLUS_ONE_QUERY_RISK",
+            "OPTIONAL_OR_ELSE_NULL",
+            "OUTBOX_PATTERN_MISSING",
+            "PRINT_STACK_TRACE",
+            "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED",
+            "STRING_FORMAT_IN_LOOP",
+            "SYSTEM_ENV_IN_BEAN",
+            "SYSTEM_OUTPUT",
+            "TEST_BROAD_EXPECTED_EXCEPTION",
+            "TEST_DISABLED_WITHOUT_REASON",
+            "TEST_SWALLOWS_EXCEPTION",
+            "TEST_THREAD_SLEEP",
+            "TEST_WITHOUT_ASSERTION",
+            "VALUE_WITHOUT_DEFAULT",
+            "VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED",
+            "VIRTUAL_THREAD_WITH_THREAD_LOCAL");
 
     static {
         SOURCED.put("EVENT_LISTENER_ON_PRIVATE_METHOD", List.of(
@@ -205,6 +246,27 @@ public final class RuleSources {
         SOURCED.put("MUTINY_SUBSCRIPTION_FAILURE_UNOBSERVED", List.of(
                 "https://github.com/smallrye/smallrye-mutiny/blob/main/implementation/src/main/java/io/smallrye/mutiny/groups/UniSubscribe.java",
                 "https://github.com/smallrye/smallrye-mutiny/blob/main/implementation/src/main/java/io/smallrye/mutiny/infrastructure/Infrastructure.java"));
+        SOURCED.put("EAGER_COLLECTION_FETCH", List.of(
+                "https://github.com/jakartaee/persistence/blob/main/api/src/main/java/jakarta/persistence/FetchType.java",
+                "https://github.com/hibernate/hibernate-orm/blob/main/documentation/src/main/asciidoc/userguide/chapters/fetching/Fetching.adoc"));
+        SOURCED.put("MDC_CONTEXT_LOST", List.of(
+                "https://github.com/qos-ch/logback/blob/master/logback-classic/src/main/java/ch/qos/logback/classic/util/LogbackMDCAdapter.java"));
+        SOURCED.put("HTTP_TIMEOUT_NOT_SET", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-web/src/main/java/org/springframework/http/client/SimpleClientHttpRequestFactory.java"));
+        SOURCED.put("OBJECT_MAPPER_CREATED_PER_REQUEST", List.of(
+                "https://github.com/FasterXML/jackson-databind/blob/2.x/src/main/java/com/fasterxml/jackson/databind/ObjectMapper.java"));
+        SOURCED.put("BCRYPT_CREATED_PER_CALL", List.of(
+                "https://github.com/spring-projects/spring-security/blob/main/crypto/src/main/java/org/springframework/security/crypto/bcrypt/BCryptPasswordEncoder.java"));
+        SOURCED.put("HTTP_CLIENT_NO_ERROR_HANDLER", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-web/src/main/java/org/springframework/web/client/DefaultResponseErrorHandler.java"));
+        SOURCED.put("LAZY_BEAN_CIRCULAR_INDICATOR", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/context/annotation/Lazy.java"));
+        SOURCED.put("TIMER_STARTED_NOT_STOPPED", List.of(
+                "https://github.com/micrometer-metrics/micrometer/blob/main/micrometer-core/src/main/java/io/micrometer/core/instrument/Timer.java"));
+        SOURCED.put("AOP_ADVICE_NOT_APPLIED", List.of(
+                "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html"));
+        SOURCED.put("AOP_UNMANAGED_ADVICE_TARGET", List.of(
+                "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html"));
     }
 
     private RuleSources() {
