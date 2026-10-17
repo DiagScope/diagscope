@@ -12,6 +12,10 @@ projects=(
   quarkusio/quarkus-quickstarts
   vert-x3/vertx-examples
   spring-projects/spring-data-examples
+  quarkusio/quarkus-super-heroes
+  spring-cloud-samples/spring-cloud-contract-samples
+  spring-guides/tut-spring-boot-kotlin
+  sdeleuze/spring-kotlin-functional
 )
 mkdir -p "$work/src" "$work/out"
 for repo in "${projects[@]}"; do

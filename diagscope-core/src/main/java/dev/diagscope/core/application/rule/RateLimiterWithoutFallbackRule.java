@@ -40,6 +40,7 @@ public final class RateLimiterWithoutFallbackRule implements ProjectRule {
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.annotations().contains("RateLimiter")) return;
 
+        if (!RuleSupport.isResilience4jAnnotation(method, "RateLimiter")) return;
         var attrs = method.annotationAttributes().get("RateLimiter");
         boolean hasFallback = attrs != null && attrs.containsKey("fallbackMethod")
                 && !attrs.get("fallbackMethod").isBlank();

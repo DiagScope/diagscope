@@ -28,6 +28,13 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Scanning quarkusio/quarkus-super-heroes (Quarkus, MicroProfile, Kotlin) and three other new projects showed Spring
+  rules speaking for CDI code: 14 findings became 3. `TRANSACTIONAL_ON_FINAL_METHOD` skips a Jakarta `@Transactional`
+  (Quarkus removes the `final` modifier by default: `quarkus.arc.transform-unproxyable-classes`), `DELETE_ALL_WITHOUT_ID`
+  skips a CDI bean (Panache's `deleteAll()` is a bulk DELETE), and the three Resilience4j fallback rules report only an
+  annotation that has a `name`, as Resilience4j's all do, because MicroProfile's `@CircuitBreaker` and `@Bulkhead` have
+  no `fallbackMethod`. `SPAN_NOT_CLOSED` skips a span that is returned or passed on. Rule versions bumped.
+- `scripts/calibrate.sh` scans four more projects, two of them Kotlin or Quarkus.
 - `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` no longer says that slow runs queue up indefinitely or run concurrently under a
   thread pool: `ScheduledExecutorService` never overlaps a periodic task with itself, it delays the next run
   (text only). `UNGUARDED_THREAD_CREATION` names the operating system's thread limit instead of the

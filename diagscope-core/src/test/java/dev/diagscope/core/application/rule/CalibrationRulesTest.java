@@ -462,6 +462,58 @@ class CalibrationRulesTest {
         assertThat(rule.evaluate(flow(blocking))).hasSize(1);
     }
 
+    // ── Quarkus and MicroProfile: Spring rules must not speak for CDI ────────────
+
+    @Test
+    void aJakartaTransactionalFinalMethod_isNotAProxyProblem() {
+        var jakarta = method("example.LocationService", "deleteAll",
+                Set.of("Final", "Transactional", MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION), "void");
+        var spring = method("example.OrderService", "place", Set.of("Final", "Transactional"), "void");
+
+        assertThat(new TransactionalOnFinalMethodRule().evaluate(project(jakarta))).isEmpty();
+        assertThat(new TransactionalOnFinalMethodRule().evaluate(project(spring))).hasSize(1);
+    }
+
+    @Test
+    void panacheDeleteAllInACdiBean_isABulkDelete() {
+        var call = new InvocationEvidence(location(10), "locationRepository", "LocationRepository", "deleteAll",
+                List.of(), InvocationResultUsage.IGNORED);
+        var cdi = new MethodModel(new MethodId("example.LocationService", "reset", List.of()), location(1),
+                Set.of("ApplicationScoped", "Transactional"), List.of(), List.of(call), List.of(), List.of(), List.of());
+        var spring = new MethodModel(new MethodId("example.OwnerService", "reset", List.of()), location(1),
+                Set.of("Service"), List.of(), List.of(call), List.of(), List.of(), List.of());
+
+        assertThat(new DeleteAllWithoutIdRule().evaluate(project(cdi))).isEmpty();
+        assertThat(new DeleteAllWithoutIdRule().evaluate(project(spring))).hasSize(1);
+    }
+
+    @Test
+    void microProfileFaultToleranceAnnotationsHaveNoFallbackMethod() {
+        var microProfile = new MethodModel(new MethodId("example.HeroClient", "find", List.of()), location(1),
+                Set.of("CircuitBreaker", "Bulkhead"), List.of(), List.of(), List.of(), List.of(), List.of(),
+                ProxyProfile.unknown(), Map.of("CircuitBreaker", Map.of("requestVolumeThreshold", "8"),
+                        "Bulkhead", Map.of("value", "5")), CallableShape.fixed(0), "Uni<Hero>", false);
+        var resilience4j = new MethodModel(new MethodId("example.PayClient", "pay", List.of()), location(1),
+                Set.of("CircuitBreaker", "Bulkhead", "RateLimiter"), List.of(), List.of(), List.of(), List.of(), List.of(),
+                ProxyProfile.unknown(), Map.of("CircuitBreaker", Map.of("name", "pay"), "Bulkhead", Map.of("name", "pay"),
+                        "RateLimiter", Map.of("name", "pay")), CallableShape.fixed(0), "String", false);
+
+        assertThat(new CircuitBreakerWithoutFallbackRule().evaluate(project(microProfile, resilience4j))).hasSize(1);
+        assertThat(new BulkheadWithoutFallbackRule().evaluate(project(microProfile, resilience4j))).hasSize(1);
+        assertThat(new RateLimiterWithoutFallbackRule().evaluate(project(microProfile, resilience4j))).hasSize(1);
+    }
+
+    @Test
+    void aSpanThatIsReturnedIsClosedByTheCaller() {
+        var returned = new InvocationEvidence(location(10), "spanBuilder", "SpanBuilder", "startSpan", List.of(),
+                InvocationResultUsage.RETURNED);
+        var dropped = new InvocationEvidence(location(11), "spanBuilder", "SpanBuilder", "startSpan", List.of(),
+                InvocationResultUsage.IGNORED);
+
+        assertThat(new SpanNotClosedRule().evaluate(flow(service("startsAndReturns", Set.of(), returned)))).isEmpty();
+        assertThat(new SpanNotClosedRule().evaluate(flow(service("startsAndForgets", Set.of(), dropped)))).hasSize(1);
+    }
+
     // ── Noise from repeated or delegating findings ───────────────────────────
 
     @Test

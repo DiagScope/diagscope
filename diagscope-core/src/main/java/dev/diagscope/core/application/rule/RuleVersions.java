@@ -103,8 +103,8 @@ public final class RuleVersions {
         overrides.put(AsyncVoidReturnRule.ID, "1.0.1");
         overrides.put(CacheEvictMissingRule.ID, "1.1.0");
         overrides.put(CorsWildcardOriginRule.ID, "2.0.0");
-        overrides.put(CircuitBreakerWithoutFallbackRule.ID, "1.1.0");
-        overrides.put(BulkheadWithoutFallbackRule.ID, "1.1.0");
+        overrides.put(CircuitBreakerWithoutFallbackRule.ID, "1.1.1");
+        overrides.put(BulkheadWithoutFallbackRule.ID, "1.1.1");
         overrides.put(FeignClientNoFallbackRule.ID, "1.1.0");
         overrides.put(EntityManagerClearInTransactionRule.ID, "1.0.1");
         overrides.put(JdbcTemplateConnectionEscapeRule.ID, "1.1.0");
@@ -121,6 +121,9 @@ public final class RuleVersions {
         overrides.put(TransactionalEventListenerMissingPhaseRule.ID, "2.0.0");
         overrides.put(TransactionalOnRestControllerRule.ID, "2.1.0");
         overrides.put(SilentFailureConversionRule.ID, "1.0.1");
+        overrides.put(TransactionalOnFinalMethodRule.ID, "1.0.1");
+        overrides.put(DeleteAllWithoutIdRule.ID, "1.0.1");
+        overrides.put(SpanNotClosedRule.ID, "1.0.1");
         overrides.put(MissingBulkheadOnHttpClientRule.ID, "1.0.1");
         overrides.put(SystemOutputRule.ID, "1.0.1");
         overrides.put(MapGetDereferencedWithoutCheckRule.ID, "1.0.1");
@@ -137,7 +140,7 @@ public final class RuleVersions {
         overrides.put(SequentialFutureJoinInLoopRule.ID, "2.0.0");
         overrides.put(StreamIoNotClosedRule.ID, "1.1.0");
         overrides.put(ThreadLocalNotRemovedRule.ID, "1.1.0");
-        overrides.put(RateLimiterWithoutFallbackRule.ID, "1.0.1");
+        overrides.put(RateLimiterWithoutFallbackRule.ID, "1.0.2");
         overrides.put(MetricCreatedInLoopRule.ID, "1.0.1");
         return Map.copyOf(overrides);
     }

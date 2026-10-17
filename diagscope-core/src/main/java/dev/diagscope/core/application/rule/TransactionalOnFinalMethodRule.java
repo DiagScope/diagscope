@@ -74,6 +74,9 @@ public final class TransactionalOnFinalMethodRule implements ProjectRule {
 
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.annotations().contains("Final")) return;
+        // Quarkus removes the final modifier when a proxy or interceptor needs it (quarkus.arc.transform-unproxyable-classes
+        // defaults to true), and a Jakarta @Transactional is a CDI interceptor binding, not a Spring proxy.
+        if (method.annotations().contains(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION)) return;
 
         // Find which proxy annotations are present
         List<String> proxyAnnotationsPresent = PROXY_ANNOTATIONS.stream()

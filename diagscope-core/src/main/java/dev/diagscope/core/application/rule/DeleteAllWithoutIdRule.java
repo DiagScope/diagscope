@@ -33,6 +33,8 @@ public final class DeleteAllWithoutIdRule implements ProjectRule {
         var findings = new ArrayList<Finding>();
         for (MethodModel method : project.methods().values()) {
             if (RuleSupport.isTestCode(method)) continue;
+            // Panache's deleteAll() is a bulk DELETE, and a CDI bean is not using Spring Data.
+            if (RuleSupport.isCdiManaged(method)) continue;
             for (InvocationEvidence invocation : method.invocations()) {
                 if (!invocation.methodName().equals("deleteAll") || !invocation.arguments().isEmpty()) continue;
                 String hint = RuleSupport.hint(invocation);

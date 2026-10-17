@@ -4,6 +4,7 @@ import dev.diagscope.core.domain.Confidence;
 import dev.diagscope.core.domain.Finding;
 import dev.diagscope.core.domain.Flow;
 import dev.diagscope.core.domain.InvocationEvidence;
+import dev.diagscope.core.domain.InvocationResultUsage;
 import dev.diagscope.core.domain.RelatedFlow;
 import dev.diagscope.core.domain.Severity;
 
@@ -66,6 +67,9 @@ public final class SpanNotClosedRule implements DiagnosticRule {
             for (var start : starts) {
                 // If the span is resource-managed itself (try-with-resources on Scope), it is safe.
                 if (start.resourceManaged()) continue;
+                // A span that is returned or passed on is closed by whoever receives it.
+                if (start.resultUsage() == InvocationResultUsage.RETURNED
+                        || start.resultUsage() == InvocationResultUsage.USED_AS_ARGUMENT) continue;
 
                 Severity severity = hasUnguardedEnd ? Severity.WARNING : Severity.ERROR;
                 var confidence = Confidence.min(

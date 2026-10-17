@@ -37,6 +37,35 @@ final class RuleSupport {
                 .anyMatch(REST_MAPPINGS::contains);
     }
 
+    /**
+     * True when the method runs in a CDI container (Quarkus, Jakarta EE) and not in Spring: a CDI scope or
+     * a JAX-RS resource on it, or a Jakarta {@code @Transactional}, and no Spring stereotype. Rules that describe
+     * Spring's behaviour (Spring Data, CGLIB proxies) do not apply there.
+     */
+    static boolean isCdiManaged(MethodModel method) {
+        boolean cdi = method.annotations().contains(MethodModel.JAKARTA_TRANSACTIONAL_ANNOTATION)
+                || DiagnosticSignals.hasAnnotation(method, "ApplicationScoped")
+                || DiagnosticSignals.hasAnnotation(method, "RequestScoped")
+                || DiagnosticSignals.hasAnnotation(method, "SessionScoped")
+                || DiagnosticSignals.hasAnnotation(method, "Path");
+        boolean spring = DiagnosticSignals.hasAnnotation(method, "Service")
+                || DiagnosticSignals.hasAnnotation(method, "Component")
+                || DiagnosticSignals.hasAnnotation(method, "Repository")
+                || DiagnosticSignals.hasAnnotation(method, "RestController")
+                || DiagnosticSignals.hasAnnotation(method, "Controller")
+                || DiagnosticSignals.hasAnnotation(method, "Configuration");
+        return cdi && !spring;
+    }
+
+    /**
+     * Resilience4j's annotations all require a {@code name}. An annotation of the same simple name without one is
+     * MicroProfile or SmallRye Fault Tolerance, whose fallback is a separate {@code @Fallback} annotation.
+     */
+    static boolean isResilience4jAnnotation(MethodModel method, String annotation) {
+        var attributes = method.annotationAttributes().get(annotation);
+        return attributes != null && attributes.containsKey("name");
+    }
+
     static boolean isTestCode(MethodModel method) {
         return method.annotations().stream().map(ExecutionContexts::simpleAnnotationName)
                 .anyMatch(TEST_ANNOTATIONS::contains);

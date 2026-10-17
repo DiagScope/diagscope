@@ -41,6 +41,7 @@ public final class BulkheadWithoutFallbackRule implements ProjectRule {
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.annotations().contains("Bulkhead")) return;
 
+        if (!RuleSupport.isResilience4jAnnotation(method, "Bulkhead")) return;
         var attrs = method.annotationAttributes().get("Bulkhead");
         boolean hasFallback = attrs != null && attrs.containsKey("fallbackMethod")
                 && !attrs.get("fallbackMethod").isBlank();

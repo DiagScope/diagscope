@@ -42,6 +42,7 @@ public final class CircuitBreakerWithoutFallbackRule implements ProjectRule {
     private static void check(MethodModel method, List<Finding> findings) {
         if (!method.annotations().contains("CircuitBreaker")) return;
 
+        if (!RuleSupport.isResilience4jAnnotation(method, "CircuitBreaker")) return;
         var attrs = method.annotationAttributes().get("CircuitBreaker");
         boolean hasFallback = attrs != null && attrs.containsKey("fallbackMethod")
                 && !attrs.get("fallbackMethod").isBlank();
