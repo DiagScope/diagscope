@@ -16,7 +16,8 @@ import java.util.TreeMap;
  *       framework's behaviour. A few of them lean on a basic documented behaviour that was not opened one by one;
  *       {@code docs/RULE_AUDIT.md} lists them under "Marked as pattern without reading the source".</li>
  *   <li>{@link Basis#UNVERIFIED}: nothing above applies yet. This is the default, so a new rule is honest until
- *       somebody checks it. {@code RuleSourcesContractTest} forbids it for ERROR rules.</li>
+ *       somebody checks it. {@code RuleSourcesContractTest} forbids it for every rule in the catalog, so a new rule
+ *       cannot be added without declaring its basis.</li>
  * </ul>
  */
 public final class RuleSources {

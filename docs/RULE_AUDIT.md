@@ -10,8 +10,8 @@ the `main` branch of each project's GitHub repository). A blog post or a forum a
 
 Each rule carries a basis, shown by `diagscope explain <RULE>` and kept in `RuleSources`: **sourced** (with the
 references read), **pattern** (the harm follows from the language or the JDK, no framework claim) or **unverified**
-(default for any rule nobody has checked). `RuleSourcesContractTest` fails when an ERROR rule is unverified, so a new
-ERROR rule cannot ship without its claim being checked.
+(default for any rule nobody has checked). `RuleSourcesContractTest` fails when any rule in the catalog is unverified, so a new rule
+cannot ship without declaring where its claim comes from.
 
 ## Corrected or removed
 
@@ -123,7 +123,7 @@ Also read and kept as written: `APPLICATION_CONTEXT_LOCATOR`, `BLOCKING_CALL_ON_
 ## Marked as pattern without reading the source
 
 Every rule is now either sourced or a pattern; none is left unverified by default (a new rule still starts as
-unverified, and a new ERROR rule must be sourced or a pattern). The pattern group is mostly code shape and style
+unverified, and `RuleSourcesContractTest` fails until the rule is declared sourced or a pattern). The pattern group is mostly code shape and style
 (`GOD_CLASS_DETECTED`, `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`, `FIELD_INJECTION_USED`, the logging and
 test rules). These few also rest on a documented framework or library behaviour that was **not** read against its
 source, and are marked as pattern for that reason only:

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.diagscope.core.application.rule.RuleSources.Basis;
-import dev.diagscope.core.domain.Severity;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -41,13 +40,13 @@ class RuleSourcesContractTest {
     }
 
     @Test
-    void errorRulesAreNeverUnverified() {
+    void everyRuleDeclaresItsBasis() {
         for (RuleCatalog.RuleExplanation rule : RuleCatalog.all().values()) {
-            if (rule.defaultSeverity() == Severity.ERROR) {
-                assertTrue(RuleSources.of(rule.ruleId()).basis() != Basis.UNVERIFIED,
-                        rule.ruleId() + " is ERROR but has no source: add it to RuleSources after checking the claim "
-                                + "(see docs/RULE_AUDIT.md) or lower its severity");
-            }
+            assertTrue(RuleSources.of(rule.ruleId()).basis() != Basis.UNVERIFIED,
+                    rule.ruleId() + " has no basis. Add it to RuleSources.SOURCED with the references you read "
+                            + "(framework or library documentation or source), or to RuleSources.PATTERN when the "
+                            + "harm follows from the language, the JDK or a style heuristic and not from a "
+                            + "framework. See docs/RULE_AUDIT.md.");
         }
     }
 }
