@@ -131,12 +131,14 @@ that was **not** read against its source, and are marked as pattern for that rea
 - Spring: `APPLICATION_CONTEXT_LOCATOR`, `SYSTEM_ENV_IN_BEAN`, `CLOCK_DEPENDENCY_NOT_INJECTED`,
   `HTTP_CLIENT_CREATED_PER_REQUEST`.
 - Micrometer: `DYNAMIC_METRIC_NAME`.
-- Reactive: `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` (what the SmallRye failure strategy does with a method that returns
-  normally), `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED` (what Vert.x does with a failed future nobody reads),
-  `OUTBOX_PATTERN_MISSING`.
+- Design: `OUTBOX_PATTERN_MISSING`.
 - Security and design: `MASS_ASSIGNMENT_RISK`, `ENTITY_EXPOSED_IN_REST_RESPONSE`.
 
-Read in the last pass and now sourced: `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (`AutowiredFieldElement` sets the field only
+Read in the last passes and now sourced: `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` (SmallRye Reactive Messaging, "Acknowledgment":
+the message of a payload-consuming method is acknowledged when the method returns and nacked with the exception when it
+throws, and the connector's failure strategy, which fails by default, acts on the nack only),
+`VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED` (`ExecuteBlocking` catches the `Throwable` and calls `promise.fail(t)`, with no
+logging on that path, so the failure lives only in the future), `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (`AutowiredFieldElement` sets the field only
 `if (value != null)`), `VALUE_WITHOUT_DEFAULT` (`PlaceholderParser`: "Could not resolve placeholder"),
 `MISSING_RESPONSE_STATUS` (`ServletInvocableHandlerMethod` leaves the status alone when there is no `@ResponseStatus`),
 `METRIC_CREATED_IN_LOOP` (`MeterRegistry` returns the meter already in its map for the same id),

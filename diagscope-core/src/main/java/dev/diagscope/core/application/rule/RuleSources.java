@@ -106,7 +106,6 @@ public final class RuleSources {
             "OPTIONAL_OR_ELSE_NULL",
             "OUTBOX_PATTERN_MISSING",
             "PRINT_STACK_TRACE",
-            "REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED",
             "STRING_FORMAT_IN_LOOP",
             "SYSTEM_ENV_IN_BEAN",
             "SYSTEM_OUTPUT",
@@ -114,8 +113,7 @@ public final class RuleSources {
             "TEST_DISABLED_WITHOUT_REASON",
             "TEST_SWALLOWS_EXCEPTION",
             "TEST_THREAD_SLEEP",
-            "TEST_WITHOUT_ASSERTION",
-            "VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED");
+            "TEST_WITHOUT_ASSERTION");
 
     static {
         SOURCED.put("EVENT_LISTENER_ON_PRIVATE_METHOD", List.of(
@@ -276,6 +274,10 @@ public final class RuleSources {
                 "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/CompletableFuture.java"));
         SOURCED.put("VIRTUAL_THREAD_WITH_THREAD_LOCAL", List.of(
                 "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/lang/ThreadLocal.java"));
+        SOURCED.put("REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED", List.of(
+                "https://github.com/smallrye/smallrye-reactive-messaging/blob/main/documentation/src/main/docs/concepts/acknowledgement.md"));
+        SOURCED.put("VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED", List.of(
+                "https://github.com/eclipse-vertx/vert.x/blob/master/vertx-core/src/main/java/io/vertx/core/impl/ExecuteBlocking.java"));
     }
 
     private RuleSources() {
