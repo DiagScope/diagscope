@@ -32,7 +32,7 @@ public final class NonProxyableAdviceTargetRule implements DiagnosticRule {
         for (var flowMethod : flow.methods()) {
             var method = flowMethod.method();
             ProxyProfile proxy = method.proxy();
-            if (!proxy.proxied() || proxy.interceptable()) {
+            if (!proxy.advisedOnPurpose() || proxy.interceptable()) {
                 continue;
             }
 

@@ -6,6 +6,10 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `AOP_ADVICE_NOT_APPLIED` and `AOP_SELF_INVOCATION` no longer report a private or static method that only inherits a
+  class-level `@Transactional`/`@Validated` (24 findings on jhipster-sample-app), and `@Transactional` on a protected or
+  package-visible method is no longer reported: Spring 6.0 and CDI interceptors advise it. `ProxyProfile` now records
+  which proxy-dependent annotations are written on the method itself.
 - Calibration on the open-source corpus removed 38 false positives from four ERROR rules: `REACTIVE_RESULT_DISCARDED`
   no longer reports the body of a Java expression lambda (`x -> service.call(x)` returns the value; 17 findings),
   `SENSITIVE_PAYLOAD_LOGGED` ignores a plain string literal such as `"REST request to change password"` (6),

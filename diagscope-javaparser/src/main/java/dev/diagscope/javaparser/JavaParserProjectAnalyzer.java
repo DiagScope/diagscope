@@ -732,6 +732,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         var proxiedAnnotations = new TreeSet<String>();
         annotationNames.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxiedAnnotations::add);
 
+        var declaredAnnotations = new TreeSet<String>();
+        effectiveMethodAnnotations.stream().map(AnnotationDescriptor::name).filter(PROXIED_ANNOTATIONS::contains)
+                .forEach(declaredAnnotations::add);
+
         var target = new AspectPointcutMatcher.Target(
                 raw.id().declaringType(), raw.id().name(), Collections.unmodifiableSet(annotationNames));
         var matchingAdvice = new ArrayList<String>();
@@ -747,7 +751,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         boolean finalType = declaringType != null && declaringType.finalType();
         boolean beanFactoryCandidate = beanFactoryTypes.contains(simpleName(raw.id().declaringType()));
         return new ProxyProfile(raw.visibility(), raw.staticMethod(), raw.finalMethod(), finalType,
-                springManaged, beanFactoryCandidate, proxiedAnnotations, List.copyOf(matchingAdvice));
+                springManaged, beanFactoryCandidate, proxiedAnnotations, List.copyOf(matchingAdvice),
+                declaredAnnotations);
     }
 
     private static Map<MethodId, MethodModel> resolveLocalCalls(

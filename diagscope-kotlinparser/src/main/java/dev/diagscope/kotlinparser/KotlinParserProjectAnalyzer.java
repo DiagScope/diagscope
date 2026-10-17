@@ -789,14 +789,15 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
             // Interface members are abstract and the kotlin-spring plugin opens managed classes: neither is final.
             var effectiveNames = new LinkedHashSet<>(annotationNames);
-            ProxyProfile proxy = proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations);
+            ProxyProfile proxy = proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations,
+                    methodAnnotations);
             if (isInterface || !proxy.finalMethod()) {
                 effectiveNames.remove("Final");
             }
             if (isInterface && proxy.finalMethod()) {
                 proxy = new ProxyProfile(proxy.visibility(), proxy.staticMethod(), false, proxy.finalDeclaringType(),
                         proxy.springManagedType(), proxy.beanFactoryCandidate(), proxy.proxiedAnnotations(),
-                        proxy.matchingAdvice());
+                        proxy.matchingAdvice(), proxy.declaredAnnotations());
             }
             result.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(effectiveNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
@@ -1291,7 +1292,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             Map<String, TypeInfo> types,
             List<AspectAdvice> aspects,
             Set<String> effectiveAnnotations,
-            List<AnnotationDescriptor> effectiveTypeAnnotations
+            List<AnnotationDescriptor> effectiveTypeAnnotations,
+            List<AnnotationDescriptor> declaredAnnotations
     ) {
         TypeInfo type = types.get(method.id().declaringType());
         var proxied = new TreeSet<String>();
@@ -1311,7 +1313,9 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         return new ProxyProfile(method.visibility(), method.staticMethod(),
                 method.finalMethod() && !springOpened,
                 type != null && type.finalType() && !springOpened, springManaged, false,
-                proxied, matchingAdvice);
+                proxied, matchingAdvice,
+                declaredAnnotations.stream().map(AnnotationDescriptor::name).filter(PROXIED_ANNOTATIONS::contains)
+                        .collect(java.util.stream.Collectors.toSet()));
     }
 
     private static Map<String, Map<String, String>> annotationAttributes(

@@ -356,6 +356,30 @@ class JavaParserProjectAnalyzerTest {
     }
 
     @Test
+    void a_class_level_transactional_does_not_promise_anything_for_private_methods() throws IOException {
+        Path project = project("class-level-proxy", Map.of("sample/Users.java", """
+                package sample;
+
+                @org.springframework.stereotype.Service
+                @org.springframework.transaction.annotation.Transactional
+                class Users {
+                    public void register() { clear(); }
+                    private void clear() { }
+                    @org.springframework.transaction.annotation.Transactional
+                    private void explicit() { }
+                }
+                """));
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+        var proxied = new LinkedHashMap<String, Boolean>();
+        for (var method : analyzed.methods().values()) {
+            proxied.put(method.id().name(), method.proxy().advisedOnPurpose());
+        }
+
+        assertThat(proxied).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "register", true, "clear", false, "explicit", true));
+    }
+
+    @Test
     void marks_expression_lambda_bodies_and_catches_in_executor_lambdas() throws IOException {
         Path project = project("lambda-shapes", Map.of("sample/Lambdas.java", """
                 package sample;

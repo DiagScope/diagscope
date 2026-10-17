@@ -287,7 +287,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
             ProxyProfile old = method.proxy();
             var proxy = new ProxyProfile(old.visibility(), old.staticMethod(), old.finalMethod(),
                     old.finalDeclaringType(), old.springManagedType(), old.beanFactoryCandidate(),
-                    old.proxiedAnnotations(), List.copyOf(matchingAdvice));
+                    old.proxiedAnnotations(), List.copyOf(matchingAdvice), old.declaredAnnotations());
             result.put(method.id(), new MethodModel(method.id(), method.location(), method.annotations(),
                     method.catches(), method.invocations(), method.metricTags(), method.metricNames(),
                     method.calls(), proxy, method.annotationAttributes(), method.callableShape(),

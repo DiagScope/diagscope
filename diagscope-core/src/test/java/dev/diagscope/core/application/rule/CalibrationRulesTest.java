@@ -404,6 +404,38 @@ class CalibrationRulesTest {
                 InvocationResultUsage.IGNORED, false, false, "", false, false, true);
     }
 
+    // ── Proxy reach: what a class-level annotation and a non-public method really mean ─────
+
+    @Test
+    void aClassLevelAnnotationDoesNotPromiseAnythingForAPrivateMethod() {
+        var inherited = new ProxyProfile(MethodVisibility.PRIVATE, false, false, false, true, false,
+                Set.of("Transactional"), List.of(), Set.of());
+        var declared = new ProxyProfile(MethodVisibility.PRIVATE, false, false, false, true, false,
+                Set.of("Transactional"), List.of(), Set.of("Transactional"));
+
+        assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("clear", inherited)))).isEmpty();
+        assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("explicit", declared)))).hasSize(1);
+    }
+
+    @Test
+    void protectedTransactionalWorksSinceSpring6_butProtectedCacheableDoesNot() {
+        var transactional = new ProxyProfile(MethodVisibility.PROTECTED, false, false, false, true, false,
+                Set.of("Transactional"), List.of());
+        var cacheable = new ProxyProfile(MethodVisibility.PROTECTED, false, false, false, true, false,
+                Set.of("Cacheable"), List.of());
+        var packagePrivate = new ProxyProfile(MethodVisibility.PACKAGE_PRIVATE, false, false, false, true, false,
+                Set.of("Transactional"), List.of());
+
+        assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("find", transactional)))).isEmpty();
+        assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("schedule", packagePrivate)))).isEmpty();
+        assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("lookup", cacheable)))).hasSize(1);
+    }
+
+    private static MethodModel proxied(String name, ProxyProfile proxy) {
+        return new MethodModel(new MethodId("example.Users", name, List.of()), location(1), Set.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), proxy);
+    }
+
     private static MethodModel repositoryMethod(String name, String returnType, List<String> parameterTypes) {
         return new MethodModel(new MethodId("example.OwnerRepository", name, parameterTypes), location(1),
                 Set.of("Repository"), List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(),

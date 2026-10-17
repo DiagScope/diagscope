@@ -50,6 +50,8 @@ ERROR rule cannot ship without its claim being checked.
 | `TIMER_TASK_EXCEPTION_KILLS_TIMER` | The failure is not logged | The thread's default uncaught exception handler prints it to stderr | Text corrected |
 | `KAFKA_CONSUMER_GROUP_HARDCODED` | A staging consumer joins the production group | Only when the environments share a cluster | Text corrected |
 | `METRIC_CREATED_IN_LOOP` | Each lookup multiplies time series | Re-resolving the same name and tags returns the existing meter; series multiply only when tags differ | Text corrected |
+| `AOP_ADVICE_NOT_APPLIED`, `AOP_SELF_INVOCATION` | A private method under a class-level `@Transactional` loses the transaction | The proxy never sees a private method and its callers already run inside the advised method. Found by scanning jhipster-sample-app (24 findings, all of this kind) | Only an annotation or advice on the method itself counts |
+| `AOP_ADVICE_NOT_APPLIED` | `@Transactional` cannot be applied to a protected or package-visible method | Spring reference (transaction annotations): "As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies"; CDI interceptors (Quarkus) also advise them. The cache annotations still need public methods | Reported for `@Transactional` only when the method is private or static |
 
 ## Checked and kept
 

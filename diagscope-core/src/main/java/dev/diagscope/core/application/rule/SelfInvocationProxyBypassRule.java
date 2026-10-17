@@ -54,7 +54,7 @@ public final class SelfInvocationProxyBypassRule implements DiagnosticRule {
                     continue;
                 }
                 var proxy = target.method().proxy();
-                if (!proxy.proxied()) {
+                if (!proxy.advisedOnPurpose()) {
                     continue;
                 }
                 // CDI interceptors (Quarkus ArC) also intercept self-invocation, unlike Spring's proxies.
