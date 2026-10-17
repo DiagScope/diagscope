@@ -380,6 +380,27 @@ class JavaParserProjectAnalyzerTest {
     }
 
     @Test
+    void marks_default_interface_methods_as_implemented() throws IOException {
+        Path project = project("default-methods", Map.of("sample/OwnerRepository.java", """
+                package sample;
+
+                interface OwnerRepository {
+                    java.util.List<String> findAllWithToOneRelationships();
+                    default java.util.List<String> findAllWithEagerRelationships() { return findAllWithToOneRelationships(); }
+                }
+                """));
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+        var implemented = new LinkedHashMap<String, Boolean>();
+        for (var method : analyzed.methods().values()) {
+            implemented.put(method.id().name(),
+                    method.annotations().contains(dev.diagscope.core.domain.MethodModel.IMPLEMENTED_IN_INTERFACE_ANNOTATION));
+        }
+
+        assertThat(implemented).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "findAllWithToOneRelationships", false, "findAllWithEagerRelationships", true));
+    }
+
+    @Test
     void marks_expression_lambda_bodies_and_catches_in_executor_lambdas() throws IOException {
         Path project = project("lambda-shapes", Map.of("sample/Lambdas.java", """
                 package sample;

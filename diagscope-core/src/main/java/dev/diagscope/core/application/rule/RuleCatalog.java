@@ -2028,6 +2028,7 @@ public final class RuleCatalog {
                 "Methods carrying both @Transactional and @RestController or @Controller in their"
                         + " effective annotation set. Class-level annotations are merged, so a"
                         + " class-level @Transactional on a controller is also detected."
+                        + " One finding per controller class, at its first such method; the evidence lists the rest."
                         + " Confidence HIGH.",
                 "Intentional use of @Transactional at the controller level for simple CRUD"
                         + " endpoints with no service layer will produce false positives."

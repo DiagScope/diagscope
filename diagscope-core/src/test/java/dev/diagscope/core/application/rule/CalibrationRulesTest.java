@@ -431,6 +431,40 @@ class CalibrationRulesTest {
         assertThat(new NonProxyableAdviceTargetRule().evaluate(flow(proxied("lookup", cacheable)))).hasSize(1);
     }
 
+    // ── Noise from repeated or delegating findings ───────────────────────────
+
+    @Test
+    void transactionalControllerMethods_areReportedOncePerClass() {
+        var annotations = Set.of("RestController", "Transactional");
+        var list = method("example.web.OwnerResource", "list", annotations, "List<Owner>");
+        var get = method("example.web.OwnerResource", "get", annotations, "Owner");
+        var other = method("example.web.PetResource", "get", annotations, "Pet");
+        var service = method("example.service.OwnerService", "list", Set.of("Transactional"), "List<Owner>");
+
+        var findings = new TransactionalOnRestControllerRule().evaluate(project(list, get, other, service));
+
+        assertThat(findings).hasSize(2);
+        assertThat(findings).anySatisfy(finding -> {
+            assertThat(finding.evidence()).containsEntry("declaringType", "example.web.OwnerResource")
+                    .containsEntry("methodCount", "2").containsEntry("methods", "get, list");
+            assertThat(finding.message()).contains("2 methods of 'example.web.OwnerResource'");
+        });
+        assertThat(findings).anySatisfy(finding -> assertThat(finding.message())
+                .startsWith("'example.web.PetResource.get()' is both"));
+    }
+
+    @Test
+    void aDefaultRepositoryMethod_isNotReportedBesideTheQueryItDelegatesTo() {
+        var query = method("example.OwnerRepository", "findAllWithToOneRelationships", Set.of("Repository"),
+                "List<Owner>");
+        var delegating = method("example.OwnerRepository", "findAllWithEagerRelationships",
+                Set.of("Repository", MethodModel.IMPLEMENTED_IN_INTERFACE_ANNOTATION), "List<Owner>");
+
+        assertThat(new MissingPaginationRule().evaluate(project(query, delegating)))
+                .singleElement().satisfies(finding -> assertThat(finding.evidence())
+                        .containsEntry("method", query.id().displayName()));
+    }
+
     private static MethodModel proxied(String name, ProxyProfile proxy) {
         return new MethodModel(new MethodId("example.Users", name, List.of()), location(1), Set.of(), List.of(),
                 List.of(), List.of(), List.of(), List.of(), proxy);

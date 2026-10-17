@@ -83,6 +83,8 @@ public final class MissingPaginationRule implements ProjectRule {
 
     private static void check(MethodModel method, List<Finding> findings) {
         if (!isRepositoryType(method)) return;
+        // A default method only delegates to a query method that is reported on its own.
+        if (method.annotations().contains(MethodModel.IMPLEMENTED_IN_INTERFACE_ANNOTATION)) return;
         if (!returnsCollection(method.returnType())) return;
         if (hasPageableParam(method)) return;
         // A method that takes filter arguments is bounded by them as often as not; flag the ones with no filter.

@@ -7,9 +7,12 @@ import dev.diagscope.core.domain.MethodModel;
 import dev.diagscope.core.domain.Severity;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Reports {@code @Transactional} declared directly on a {@code @RestController} or
@@ -39,31 +42,45 @@ public final class TransactionalOnRestControllerRule implements ProjectRule {
 
     @Override
     public List<Finding> evaluate(AnalyzedProject project) {
-        var findings = new ArrayList<Finding>();
+        var byType = new TreeMap<String, List<MethodModel>>();
         for (MethodModel method : project.methods().values()) {
-            check(method, findings);
+            if (!method.annotations().contains("Transactional")) continue;
+            if (method.annotations().stream().noneMatch(CONTROLLER_ANNOTATIONS::contains)) continue;
+            byType.computeIfAbsent(method.id().declaringType(), type -> new ArrayList<>()).add(method);
         }
+        var findings = new ArrayList<Finding>();
+        byType.forEach((type, methods) -> findings.add(finding(type, methods)));
         return List.copyOf(findings);
     }
 
-    private static void check(MethodModel method, List<Finding> findings) {
-        if (!method.annotations().contains("Transactional")) return;
-        if (method.annotations().stream().noneMatch(CONTROLLER_ANNOTATIONS::contains)) return;
-
-        String display = method.id().displayName();
-        findings.add(new Finding(
-                ID, Severity.INFO, Confidence.HIGH, method.location(),
-                "'" + display + "' is both @Transactional and a controller method."
+    /** One finding per controller: the pattern is a decision about the class, not about each endpoint. */
+    private static Finding finding(String type, List<MethodModel> methods) {
+        var ordered = methods.stream()
+                .sorted(Comparator.comparingInt((MethodModel method) -> method.location().startLine())
+                        .thenComparing(method -> method.id().displayName()))
+                .toList();
+        MethodModel first = ordered.getFirst();
+        String names = ordered.stream().map(method -> method.id().name()).distinct()
+                .collect(Collectors.joining(", "));
+        String subject = ordered.size() == 1
+                ? "'" + first.id().displayName() + "' is both @Transactional and a controller method."
+                : ordered.size() + " methods of '" + type + "' are both @Transactional and controller methods ("
+                        + names + ").";
+        return new Finding(
+                ID, Severity.INFO, Confidence.HIGH, first.location(),
+                subject
                         + " The web layer owns the transaction boundary, so the operation cannot be reused from"
-                        + " a scheduler or a message listener, and any non-database work in this method"
+                        + " a scheduler or a message listener, and any non-database work in the method"
                         + " runs while the transaction and its connection are held.",
                 "Move @Transactional to the service-layer method that performs the actual"
                         + " business logic. The controller should delegate to the service and let"
                         + " the transaction boundary live in the service layer.",
                 List.of(),
                 Map.of(
-                        "method", display,
-                        "declaringType", method.id().declaringType()
-                )));
+                        "method", first.id().displayName(),
+                        "declaringType", type,
+                        "methods", names,
+                        "methodCount", Integer.toString(ordered.size())
+                ));
     }
 }

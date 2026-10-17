@@ -6,6 +6,11 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `TRANSACTIONAL_ON_REST_CONTROLLER` reports one finding per controller class (at its first such method, with the
+  method names and count in the evidence) instead of one per endpoint: 25 findings on jhipster-sample-app become 4.
+  Rule version 2.1.0.
+- `MISSING_PAGINATION` skips an interface `default` method, which only delegates to a query method that is reported
+  by itself. The adapters mark such methods with the `ImplementedInInterface` synthetic annotation. Rule version 1.1.1.
 - `AOP_ADVICE_NOT_APPLIED` and `AOP_SELF_INVOCATION` no longer report a private or static method that only inherits a
   class-level `@Transactional`/`@Validated` (24 findings on jhipster-sample-app), and `@Transactional` on a protected or
   package-visible method is no longer reported: Spring 6.0 and CDI interceptors advise it. `ProxyProfile` now records

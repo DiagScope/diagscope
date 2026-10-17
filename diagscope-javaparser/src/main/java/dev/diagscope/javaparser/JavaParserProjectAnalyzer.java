@@ -508,6 +508,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         // Synthesise a "Final" annotation for the Java 'final' keyword so that
         // TRANSACTIONAL_ON_FINAL_METHOD can detect it without a MethodModel change.
         if (method.isFinal()) annotations.add(new AnnotationDescriptor("Final", Map.of()));
+        if (method.isDefault()) {
+            annotations.add(new AnnotationDescriptor(MethodModel.IMPLEMENTED_IN_INTERFACE_ANNOTATION, Map.of()));
+        }
         // Expose parameter names so rules can tell whether an argument comes from the caller.
         if (!method.getParameters().isEmpty()) {
             annotations.add(new AnnotationDescriptor("ParameterNames", Map.of("names", method.getParameters().stream()

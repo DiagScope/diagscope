@@ -302,6 +302,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 && !function.hasModifier(KtTokens.OVERRIDE_KEYWORD)) {
             annotations.add(new AnnotationDescriptor("Final", Map.of()));
         }
+        if (function.hasBody() && function.getParent() != null
+                && function.getParent().getParent() instanceof KtClass owner && owner.isInterface()) {
+            annotations.add(new AnnotationDescriptor(MethodModel.IMPLEMENTED_IN_INTERFACE_ANNOTATION, Map.of()));
+        }
         // Expose the 'suspend' modifier to rules (coroutine execution context) the same way.
         if (function.hasModifier(KtTokens.SUSPEND_KEYWORD)) {
             annotations.add(new AnnotationDescriptor(MethodModel.SUSPEND_ANNOTATION, Map.of()));

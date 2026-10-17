@@ -45,6 +45,8 @@ public record MethodModel(
      * {@code Final} annotation used for effectively final Kotlin methods.
      */
     public static final String SUSPEND_ANNOTATION = "Suspend";
+    /** Synthetic marker on an interface method that has a body (a Java default method). */
+    public static final String IMPLEMENTED_IN_INTERFACE_ANNOTATION = "ImplementedInInterface";
 
     /**
      * Synthetic annotation carrying the method's McCabe cyclomatic complexity in its {@code value} attribute:
