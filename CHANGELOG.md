@@ -6,6 +6,10 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- The HTML report has a new look: warm paper and ink instead of slate and blue, serif headings, rule ids in monospace,
+  square stamps for severity and confidence, a red marker for errors and ink blue for what can be clicked. Light and
+  dark themes both follow it. The file is still one self-contained page with no web fonts and no network requests;
+  the serif is a system stack (Charter, Palatino, Georgia). Structure, filters and keyboard behaviour are unchanged.
 - **Monorepos: a class declared in several modules is analyzed in each of them** (ADR-0006). The second and later
   declarations used to be dropped, which left about 14% of the methods of quarkus-quickstarts unanalyzed. A repeat in
   another module now keeps the module as a qualifier (`MethodId.module`); call resolution prefers the caller's own
