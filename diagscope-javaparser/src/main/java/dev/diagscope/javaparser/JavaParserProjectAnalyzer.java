@@ -21,6 +21,7 @@ import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.LambdaExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
@@ -1449,8 +1450,23 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 returned.map(Node::toString).orElse(""),
                 suppression,
                 preservesCause,
-                stableFailureCode
+                stableFailureCode,
+                runsOnOtherThread(clause)
         );
+    }
+
+    private static final Set<String> THREAD_HANDOFF_METHODS = Set.of(
+            "submit", "execute", "runAsync", "supplyAsync", "schedule", "scheduleAtFixedRate",
+            "scheduleWithFixedDelay", "invokeAll", "invokeAny", "thenRunAsync", "thenApplyAsync",
+            "thenAcceptAsync", "handleAsync", "whenCompleteAsync", "executeBlocking", "runOnContext");
+
+    /** True when the catch sits in a lambda handed to an executor, so it does not run in the caller's transaction. */
+    private static boolean runsOnOtherThread(CatchClause clause) {
+        return clause.findAncestor(LambdaExpr.class)
+                .flatMap(Node::getParentNode)
+                .filter(MethodCallExpr.class::isInstance)
+                .map(parent -> THREAD_HANDOFF_METHODS.contains(((MethodCallExpr) parent).getNameAsString()))
+                .orElse(false);
     }
 
     private static boolean isLoggerCall(
@@ -1503,8 +1519,20 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 insideFinally(call),
                 insideLoop(call),
                 isLoggerCall(call, variableTypes, policy),
-                argumentTypes(call, variableTypes, symbolResolutionEnabled)
+                argumentTypes(call, variableTypes, symbolResolutionEnabled),
+                isExpressionLambdaBody(call)
         );
+    }
+
+    /** True when the call is the whole body of an expression lambda ({@code x -> call(x)}), whose value is returned. */
+    private static boolean isExpressionLambdaBody(MethodCallExpr call) {
+        return call.getParentNode()
+                .filter(ExpressionStmt.class::isInstance)
+                .flatMap(Node::getParentNode)
+                .filter(LambdaExpr.class::isInstance)
+                .map(LambdaExpr.class::cast)
+                .map(lambda -> lambda.getExpressionBody().isPresent())
+                .orElse(false);
     }
 
     /**

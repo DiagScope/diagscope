@@ -356,6 +356,46 @@ class JavaParserProjectAnalyzerTest {
     }
 
     @Test
+    void marks_expression_lambda_bodies_and_catches_in_executor_lambdas() throws IOException {
+        Path project = project("lambda-shapes", Map.of("sample/Lambdas.java", """
+                package sample;
+
+                class Lambdas {
+                    void expressionBody() { mapper.transform(x -> lookup(x)); }
+                    void blockBody() { mapper.transform(x -> { lookup(x); return x; }); }
+                    void statement() { lookup(1); }
+                    void offThread() {
+                        executor.submit(() -> {
+                            try { work(); } catch (Exception e) { recover(e); }
+                        });
+                    }
+                    void inline() {
+                        try { work(); } catch (Exception e) { recover(e); }
+                    }
+                    void sameThreadLambda() {
+                        items.forEach(item -> {
+                            try { work(); } catch (Exception e) { recover(e); }
+                        });
+                    }
+                }
+                """));
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+        var lookupInLambda = new LinkedHashMap<String, Boolean>();
+        var catchOffThread = new LinkedHashMap<String, Boolean>();
+        for (var method : analyzed.methods().values()) {
+            method.invocations().stream().filter(i -> "lookup".equals(i.methodName())).findFirst()
+                    .ifPresent(i -> lookupInLambda.put(method.id().name(), i.lastInLambda()));
+            method.catches().stream().findFirst()
+                    .ifPresent(c -> catchOffThread.put(method.id().name(), c.runsOnOtherThread()));
+        }
+
+        assertThat(lookupInLambda).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "expressionBody", true, "blockBody", false, "statement", false));
+        assertThat(catchOffThread).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "offThread", true, "inline", false, "sameThreadLambda", false));
+    }
+
+    @Test
     void accepts_only_rule_specific_silent_catch_suppressions_with_a_reason() throws IOException {
         Path project = project("suppression-syntax", Map.of("sample/Suppressions.java", """
                 package sample;

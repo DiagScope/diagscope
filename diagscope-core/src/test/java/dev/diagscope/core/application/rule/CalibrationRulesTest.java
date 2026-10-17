@@ -358,6 +358,52 @@ class CalibrationRulesTest {
                 "String", false);
     }
 
+    // ── Open-source corpus: ERROR rules that fired on text, not on code ─────────
+
+    @Test
+    void tokenizerAndTokenFilterSetters_areNotCredentials() {
+        var tokenizer = argumentCall(10, "tokenizer", "\"standard\"");
+        var filters = argumentCall(11, "tokenFilters", "\"asciifolding\"");
+        var token = argumentCall(12, "setToken", "\"abcdef123456\"");
+
+        assertThat(new SecretInStringLiteralRule().evaluate(project(service("analysis", Set.of(), tokenizer, filters, token))))
+                .singleElement().satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(12));
+    }
+
+    @Test
+    void aLogMessageThatMentionsPassword_isNotAPayload_butAConcatenationIs() {
+        var message = loggerCall(10, "\"REST request to change password\"");
+        var concatenated = loggerCall(11, "\"password=\" + password");
+        var argument = loggerCall(12, "password");
+
+        assertThat(new SensitivePayloadLoggedRule().evaluate(flow(service("change", Set.of(), message, concatenated, argument))))
+                .extracting(finding -> finding.location().startLine()).containsExactlyInAnyOrder(11, 12);
+    }
+
+    @Test
+    void aCatchInALambdaHandedToAnExecutor_doesNotDecideTheCallersTransaction() {
+        var location = location(20);
+        var offThread = new CatchEvidence(location, "Exception", false, false, false, false, "",
+                false, false, false, true);
+        var inline = new CatchEvidence(location(30), "Exception", false, false, false, false, "",
+                false, false, false, false);
+        var method = new MethodModel(new MethodId("example.Resource", "run", List.of()), location(1),
+                Set.of("Transactional"), List.of(offThread, inline), List.of(), List.of(), List.of(), List.of());
+
+        assertThat(new TransactionalRollbackSuppressedRule().evaluate(flow(method)))
+                .singleElement().satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(30));
+    }
+
+    private static InvocationEvidence argumentCall(int line, String method, String argument) {
+        return new InvocationEvidence(location(line), "builder", "Builder", method, List.of(argument),
+                InvocationResultUsage.IGNORED);
+    }
+
+    private static InvocationEvidence loggerCall(int line, String argument) {
+        return new InvocationEvidence(location(line), "log", "Logger", "info", List.of(argument),
+                InvocationResultUsage.IGNORED, false, false, "", false, false, true);
+    }
+
     private static MethodModel repositoryMethod(String name, String returnType, List<String> parameterTypes) {
         return new MethodModel(new MethodId("example.OwnerRepository", name, parameterTypes), location(1),
                 Set.of("Repository"), List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(),

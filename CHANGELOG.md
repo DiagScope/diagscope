@@ -4,6 +4,14 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Calibration on the open-source corpus removed 38 false positives from four ERROR rules: `REACTIVE_RESULT_DISCARDED`
+  no longer reports the body of a Java expression lambda (`x -> service.call(x)` returns the value; 17 findings),
+  `SENSITIVE_PAYLOAD_LOGGED` ignores a plain string literal such as `"REST request to change password"` (6),
+  `SECRET_IN_STRING_LITERAL` no longer reads `tokenizer(...)` or `tokenFilters(...)` as a credential (5), and
+  `TX_ROLLBACK_SUPPRESSED` skips a catch inside a lambda handed to an executor, which does not run in the caller's
+  transaction (1). Corpus totals: jhipster 135 → 129, quarkus-quickstarts 79 → 65, spring-data-examples 54 → 47.
 ### Added
 
 - Every rule now has a documented basis (`RuleSources`): sourced (references listed), code pattern, or unverified.

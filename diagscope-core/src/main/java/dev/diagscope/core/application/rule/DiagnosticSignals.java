@@ -84,6 +84,13 @@ public final class DiagnosticSignals {
         return literal != null && GENERIC_MESSAGE.matcher(literal).matches();
     }
 
+    /** True for a single quoted literal with no interpolation: it is text, not a value from the program. */
+    private static final Pattern PLAIN_STRING_LITERAL = Pattern.compile("\"([^\"\\\\$]|\\\\.)*\"");
+
+    public static boolean isPlainStringLiteral(String expression) {
+        return expression != null && PLAIN_STRING_LITERAL.matcher(expression.strip()).matches();
+    }
+
     /** True when the expression carries a word commonly used for sensitive data. */
     public static boolean isSensitive(String expression) {
         return expression != null && SENSITIVE_TERM.matcher(expression).matches();

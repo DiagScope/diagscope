@@ -48,6 +48,9 @@ public final class SecretInStringLiteralRule implements ProjectRule {
             "authtoken", "clientsecret"
     );
 
+    // Words that contain a hint without naming a credential: tokenizer("standard"), tokenFilters(...)
+    private static final Pattern NOT_A_CREDENTIAL = Pattern.compile("tokeniz\\w*|tokenfilters?|tokenstream");
+
     // Names of put/set operations on maps or configuration objects
     private static final Set<String> MAP_PUT_METHODS = Set.of(
             "put", "set", "setproperty", "setvalue", "add", "append", "with"
@@ -113,7 +116,8 @@ public final class SecretInStringLiteralRule implements ProjectRule {
 
     /** True when the normalised word (or its substrings) matches a known secret-hint token. */
     private static boolean isSecretHintWord(String normWord) {
-        return SECRET_HINTS.stream().anyMatch(normWord::contains);
+        String word = NOT_A_CREDENTIAL.matcher(normWord).replaceAll("");
+        return SECRET_HINTS.stream().anyMatch(word::contains);
     }
 
     /**

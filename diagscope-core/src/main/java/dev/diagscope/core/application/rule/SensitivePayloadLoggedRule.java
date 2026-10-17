@@ -33,6 +33,7 @@ public final class SensitivePayloadLoggedRule implements DiagnosticRule {
             for (var invocation : method.invocations()) {
                 if (!DiagnosticSignals.isLoggerCall(invocation)) continue;
                 var sensitive = invocation.arguments().stream()
+                        .filter(argument -> !DiagnosticSignals.isPlainStringLiteral(argument))
                         .filter(argument -> DiagnosticSignals.isSensitive(argument, policy.sensitiveFieldNames()))
                         .findFirst();
                 if (sensitive.isEmpty()) continue;

@@ -41,7 +41,7 @@ public final class TransactionalRollbackSuppressedRule implements DiagnosticRule
                 continue;
             }
             for (CatchEvidence evidence : method.catches()) {
-                if (evidence.hasThrow() || evidence.explicitlySuppressesSilentCatch()) {
+                if (evidence.hasThrow() || evidence.explicitlySuppressesSilentCatch() || evidence.runsOnOtherThread()) {
                     continue;
                 }
                 if (marksRollback(method, evidence.location())) {
