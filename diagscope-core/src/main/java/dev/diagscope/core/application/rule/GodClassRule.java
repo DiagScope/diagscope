@@ -25,7 +25,8 @@ import java.util.Map;
  *
  * <p>Inner classes and anonymous types share the outer class threshold. Interfaces are excluded
  * because their method count describes a contract, not an implementation. Getters, setters, {@code equals},
- * {@code hashCode} and {@code toString} are not counted.</p>
+ * {@code hashCode} and {@code toString} are not counted, nor are fluent methods that return their own type, and a
+ * class whose name ends in {@code Builder} is not reported.</p>
  */
 public final class GodClassRule implements ProjectRule {
 
@@ -50,10 +51,15 @@ public final class GodClassRule implements ProjectRule {
         var findings = new ArrayList<Finding>();
         for (var entry : byType.entrySet()) {
             List<MethodModel> methods = entry.getValue();
+            // A builder has one method per field of what it builds: that is data assembly, not responsibilities.
+            if (simpleTypeName(entry.getKey()).endsWith("Builder")) continue;
+            // The documentation has always excluded interfaces: their method count describes a contract.
+            if (methods.stream().anyMatch(MethodModel::declaringTypeIsInterface)) continue;
             long publicCount = methods.stream()
                     .filter(m -> m.proxy().visibility() == MethodVisibility.PUBLIC)
                     .filter(m -> !m.proxy().staticMethod())
                     .filter(m -> !isAccessorOrObjectMethod(m))
+                    .filter(m -> !returnsOwnType(m, entry.getKey()))
                     .count();
 
             if (publicCount <= MAX_PUBLIC_METHODS) continue;
@@ -93,6 +99,15 @@ public final class GodClassRule implements ProjectRule {
         if (name.startsWith("get") && prefixed) return parameters == 0;
         if (name.startsWith("is") && name.length() > 2 && Character.isUpperCase(name.charAt(2))) return parameters == 0;
         return name.startsWith("set") && prefixed && parameters == 1;
+    }
+
+    /** A fluent method ({@code withName(...)}, {@code name(...)}) that returns its own type adds no behaviour of its own. */
+    private static boolean returnsOwnType(MethodModel method, String declaringType) {
+        String returned = method.returnType();
+        if (returned == null || returned.isBlank()) return false;
+        int generics = returned.indexOf('<');
+        String base = generics >= 0 ? returned.substring(0, generics) : returned;
+        return simpleTypeName(base.strip()).equals(simpleTypeName(declaringType));
     }
 
     private static String simpleTypeName(String qualifiedName) {

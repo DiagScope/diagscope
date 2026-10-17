@@ -534,6 +534,32 @@ class CalibrationRulesTest {
         assertThat(new GodClassRule().evaluate(project(behaviour.toArray(MethodModel[]::new)))).hasSize(1);
     }
 
+    @Test
+    void aBuilderAndFluentMethodsAreNotAGodClass() {
+        var builder = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 20; i++) builder.add(method("example.Response.Builder", "field" + i, Set.of(), "Builder"));
+        var immutable = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 18; i++) immutable.add(method("example.Money", "with" + i, Set.of(), "Money"));
+        var service = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 16; i++) service.add(method("example.Orders", "process" + i, Set.of(), "Order"));
+
+        assertThat(new GodClassRule().evaluate(project(builder.toArray(MethodModel[]::new)))).isEmpty();
+        assertThat(new GodClassRule().evaluate(project(immutable.toArray(MethodModel[]::new)))).isEmpty();
+        assertThat(new GodClassRule().evaluate(project(service.toArray(MethodModel[]::new)))).hasSize(1);
+    }
+
+    @Test
+    void anInterfaceIsAContract_notAGodClass() {
+        var contract = new java.util.ArrayList<MethodModel>();
+        for (int i = 0; i < 20; i++) {
+            contract.add(new MethodModel(new MethodId("example.UserRepository", "findBy" + i, List.of()), location(1),
+                    Set.of(), List.of(), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                    CallableShape.fixed(0), "List<User>", true));
+        }
+
+        assertThat(new GodClassRule().evaluate(project(contract.toArray(MethodModel[]::new)))).isEmpty();
+    }
+
     // ── Noise from repeated or delegating findings ───────────────────────────
 
     @Test

@@ -30,7 +30,9 @@ All notable project changes are recorded in this file.
 
 - `GOD_CLASS_DETECTED` no longer counts getters, setters, `equals`, `hashCode` and `toString`: a data class with ten
   fields has twenty of them. On spring-cloud-contract-samples it went from 14 findings to 4 and on jhipster-sample-app
-  from 4 to 0, all of them DTOs and entities (rule version 1.0.1).
+  from 4 to 0, all of them DTOs and entities (rule version 1.0.1). Fluent methods that return their own type are not
+  counted either, and a class whose name ends in `Builder` is not reported. Interfaces are no longer counted, as the rule's documentation
+  always said (a Spring Data repository with 23 finders is a contract).
 - Scanning quarkusio/quarkus-super-heroes (Quarkus, MicroProfile, Kotlin) and three other new projects showed Spring
   rules speaking for CDI code: 14 findings became 3. `TRANSACTIONAL_ON_FINAL_METHOD` skips a Jakarta `@Transactional`
   (Quarkus removes the `final` modifier by default: `quarkus.arc.transform-unproxyable-classes`), `DELETE_ALL_WITHOUT_ID`
