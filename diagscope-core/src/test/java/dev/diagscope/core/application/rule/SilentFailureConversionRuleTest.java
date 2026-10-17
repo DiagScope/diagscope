@@ -31,4 +31,29 @@ class SilentFailureConversionRuleTest {
                             .isEqualTo(Confidence.LOW);
                 });
     }
+
+    @Test
+    void ignores_a_failed_parse_and_a_handler_that_uses_the_exception() {
+        var parse = new CatchEvidence(loc(10), "NumberFormatException", false, false, false, true, "Optional.empty()");
+        var qualified = new CatchEvidence(loc(20), "java.time.format.DateTimeParseException", false, false, false, true,
+                "null");
+        var used = new CatchEvidence(loc(30), "IOException", false, false, false, true, "null",
+                false, true, false);
+        var silent = new CatchEvidence(loc(40), "IOException", false, false, false, true, "null");
+
+        assertThat(new SilentFailureConversionRule().evaluate(flowOf(parse, qualified, used, silent)))
+                .singleElement().satisfies(finding -> assertThat(finding.location().startLine()).isEqualTo(40));
+    }
+
+    private static SourceLocation loc(int line) {
+        return new SourceLocation(Path.of("Parser.java"), line, line + 2);
+    }
+
+    private static Flow flowOf(CatchEvidence... catches) {
+        var method = new MethodModel(
+                new MethodId("example.Parser", "read", List.of()), loc(1), Set.of(),
+                List.of(catches), List.of(), List.of(), List.of());
+        var entrypoint = new Entrypoint(EntrypointType.REST, method.id(), "GET /read", loc(1));
+        return new Flow(entrypoint, List.of(new FlowMethod(method, 0, Confidence.HIGH, List.of(method.id()))), List.of());
+    }
 }

@@ -506,9 +506,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 .filter(Objects::nonNull).findFirst().orElseGet(() -> fallbackExpression(body));
         String returnedExpression = fallback == null ? "" : fallback.getText();
         boolean hasReturn = !returns.isEmpty() || fallback != null;
-        boolean preservesCause = !exceptionVariable.isBlank()
-                && (returnedExpression.matches("(?s).*\\b" + Pattern.quote(exceptionVariable) + "\\b.*")
-                || throwsFound.stream().anyMatch(item -> item.getText().contains(exceptionVariable)));
+        // Any use of the exception in the handler (printed, wrapped, passed on) keeps the evidence somewhere.
+        boolean preservesCause = !exceptionVariable.isBlank() && body != null
+                && Pattern.compile("(?s).*\\b" + Pattern.quote(exceptionVariable) + "\\b.*")
+                        .matcher(body.getText()).matches();
         boolean stableFailureCode = STABLE_FAILURE_CODE.matcher(stripQuotes(returnedExpression)).matches()
                 || Pattern.compile(".*\\b[A-Z][A-Z0-9_.-]{2,}\\b.*").matcher(returnedExpression).matches();
         boolean suppression = body != null && SILENT_CATCH_SUPPRESSION.matcher(body.getText()).find();

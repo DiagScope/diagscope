@@ -120,6 +120,8 @@ public final class RuleVersions {
         overrides.put(TransactionalAsyncCombinationRule.ID, "1.1.0");
         overrides.put(TransactionalEventListenerMissingPhaseRule.ID, "2.0.0");
         overrides.put(TransactionalOnRestControllerRule.ID, "2.1.0");
+        overrides.put(SilentFailureConversionRule.ID, "1.0.1");
+        overrides.put(MapGetDereferencedWithoutCheckRule.ID, "1.0.1");
         overrides.put(TransactionalReadOnlyMissingRule.ID, "1.0.1");
         overrides.put(UnguardedThreadCreationRule.ID, "1.0.1");
         overrides.put(ValueWithoutDefaultRule.ID, "1.1.0");

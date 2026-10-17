@@ -380,6 +380,31 @@ class JavaParserProjectAnalyzerTest {
     }
 
     @Test
+    void an_argument_is_not_assigned_to_the_variable_of_the_enclosing_call() throws IOException {
+        Path project = project("assigned-variable", Map.of("sample/Assigned.java", """
+                package sample;
+
+                class Assigned {
+                    void run(java.util.Map<String, String> index) {
+                        String direct = index.get("a");
+                        String wrapped = choose(index.get("b"), "c");
+                        String chained = index.get("d").trim();
+                    }
+                    String choose(String first, String second) { return first; }
+                }
+                """));
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+        var assigned = new LinkedHashMap<String, String>();
+        for (var method : analyzed.methods().values()) {
+            method.invocations().stream().filter(i -> "get".equals(i.methodName()))
+                    .forEach(i -> assigned.put(i.arguments().getFirst(), i.assignedTo()));
+        }
+
+        assertThat(assigned).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "\"a\"", "direct", "\"b\"", "", "\"d\"", "chained"));
+    }
+
+    @Test
     void marks_default_interface_methods_as_implemented() throws IOException {
         Path project = project("default-methods", Map.of("sample/OwnerRepository.java", """
                 package sample;

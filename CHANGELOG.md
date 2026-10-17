@@ -6,6 +6,12 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Scanning DiagScope with itself (`--entrypoint PUBLIC_METHOD`) exposed three false positives, now fixed:
+  `MAP_GET_DEREFERENCED_WITHOUT_CHECK` took `Resolution direct = choose(map.get(k), ...)` as a `Map.get` result stored
+  in `direct` (the Java adapter attributed a call argument to the variable of the enclosing call; rule version 1.0.1);
+  `SILENT_FAILURE_CONVERSION` reported a handler that prints the exception, and a failed `Integer.parseInt`-style
+  parse (`NumberFormatException`, `DateTimeParseException`). Any use of the exception variable in the handler now
+  counts as keeping the evidence (rule version 1.0.1). Self-scan findings: 27 → 18.
 - `TRANSACTIONAL_ON_REST_CONTROLLER` reports one finding per controller class (at its first such method, with the
   method names and count in the evidence) instead of one per endpoint: 25 findings on jhipster-sample-app become 4.
   Rule version 2.1.0.

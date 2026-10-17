@@ -1440,11 +1440,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         List<ReturnStmt> returns = body.findAll(ReturnStmt.class);
         Optional<Expression> returned = returns.stream().findFirst().flatMap(ReturnStmt::getExpression);
         String exceptionVariable = clause.getParameter().getNameAsString();
-        boolean preservesCause = returned.stream().anyMatch(expression -> expression.findAll(NameExpr.class).stream()
-                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString())))
-                || body.findAll(ThrowStmt.class).stream()
-                        .anyMatch(statement -> statement.getExpression().findAll(NameExpr.class).stream()
-                                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString())));
+        // Any use of the exception in the handler (printed, wrapped, passed on) keeps the evidence somewhere.
+        boolean preservesCause = body.findAll(NameExpr.class).stream()
+                .anyMatch(name -> exceptionVariable.equals(name.getNameAsString()));
         boolean stableFailureCode = returned.stream().anyMatch(JavaParserProjectAnalyzer::containsStableFailureCode);
         boolean suppression = body.getAllContainedComments().stream().map(Comment::getContent)
                 .anyMatch(content -> SILENT_CATCH_SUPPRESSION.matcher(content.trim()).find());
@@ -1678,6 +1676,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             }
             if (parent instanceof AssignExpr assignment && assignment.getValue() == current) {
                 return assignment.getTarget().toString();
+            }
+            // An argument is consumed by the enclosing call: it is not what the variable receives.
+            if ((parent instanceof MethodCallExpr outer && outer.getArguments().contains(current))
+                    || (parent instanceof ObjectCreationExpr created && created.getArguments().contains(current))) {
+                return "";
             }
             if (parent instanceof Expression) {
                 current = parent;
