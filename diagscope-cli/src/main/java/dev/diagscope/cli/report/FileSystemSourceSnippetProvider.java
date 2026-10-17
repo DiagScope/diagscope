@@ -14,6 +14,8 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Reads snippets from the local filesystem.
@@ -26,6 +28,8 @@ public final class FileSystemSourceSnippetProvider implements SourceSnippetProvi
     private static final long MAX_FILE_BYTES = 2L * 1024 * 1024;
     private static final int MAX_LINE_CHARACTERS = 400;
     private static final String TRUNCATION_MARKER = " \u2026";
+
+    private static final Logger LOG = Logger.getLogger(FileSystemSourceSnippetProvider.class.getName());
 
     private final long maxFileBytes;
 
@@ -69,6 +73,7 @@ public final class FileSystemSourceSnippetProvider implements SourceSnippetProvi
             Path resolved = (file.isAbsolute() ? file : projectRoot.resolve(file)).normalize();
             return Files.isRegularFile(resolved) && Files.isReadable(resolved) ? resolved : null;
         } catch (InvalidPathException | SecurityException exception) {
+            LOG.log(Level.FINE, "No snippet: the path cannot be resolved", exception);
             return null;
         }
     }
@@ -84,6 +89,7 @@ public final class FileSystemSourceSnippetProvider implements SourceSnippetProvi
             }
             return text.split("\n", -1);
         } catch (IOException | SecurityException | OutOfMemoryError exception) {
+            LOG.log(Level.FINE, "No snippet: the file cannot be read", exception);
             return null;
         }
     }

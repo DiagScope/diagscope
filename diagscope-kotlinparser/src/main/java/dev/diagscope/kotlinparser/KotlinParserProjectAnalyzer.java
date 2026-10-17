@@ -62,6 +62,7 @@ import org.jetbrains.kotlin.psi.KtTypeReference;
 import org.jetbrains.kotlin.psi.ValueArgument;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1743,12 +1744,12 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                         String text = Files.readString(path);
                         return text.contains("plugin.spring") || text.contains("kotlin-spring")
                                 || text.matches("(?s).*<compilerPlugin>\\s*spring\\s*</compilerPlugin>.*");
-                    } catch (IOException ignored) {
-                        return false;
+                    } catch (IOException exception) {
+                        throw new UncheckedIOException(exception);
                     }
                 });
                 if (found) return true;
-            } catch (IOException ignored) {
+            } catch (IOException | UncheckedIOException ignored) {
                 // diagscope:ignore SILENT_CATCH -- build-plugin detection only improves proxy precision; sources parse without it
             }
         }
