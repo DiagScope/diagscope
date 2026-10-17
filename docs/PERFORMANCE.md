@@ -191,3 +191,33 @@ before being merged.
 - retain complete ASTs longer than necessary without measuring heap impact;
 - lower flow depth silently to make a benchmark faster;
 - optimize synthetic microbenchmarks while real repositories regress.
+
+## Wall time per scan on the calibration corpus (0.1.2 + gate/agent, cold JVM)
+
+Measured with `java -jar diagscope.jar scan --format AGENT` on a 4-core container, JDK 21, three runs per project
+(median shown). This is the cost of one invocation as a hook or a pre-commit check would pay it. `--files` is
+included because it is the natural per-edit command.
+
+| Project | Source files | Median | `--files` (one file) |
+| --- | ---: | ---: | ---: |
+| spring-petclinic-microservices | 53 | 1.1 s | 1.0 s |
+| spring-petclinic | 30 | 1.3 s | 1.2 s |
+| tut-spring-boot-kotlin | 8 | 1.4 s | 1.4 s |
+| spring-kotlin-functional | 6 | 1.5 s | 1.6 s |
+| jhipster-sample-app | 81 | 1.6 s | 1.5 s |
+| spring-petclinic-kotlin | 24 | 1.7 s | 1.7 s |
+| quarkus-super-heroes | 73 | 2.1 s | 2.1 s |
+| spring-cloud-contract-samples | 271 | 2.9 s | 3.0 s |
+| quarkus-quickstarts | 387 | 3.4 s | 3.7 s |
+| vertx-examples | 438 | 3.3 s | 3.5 s |
+| spring-data-examples | 6,511 | 14.5 s | 13.9 s |
+
+What the numbers say:
+
+- JVM start with the 78 MB jar (`--version`) is 0.56 s, which is the floor.
+- Time is almost entirely parsing. Per phase (from `result.json`): petclinic 460 ms parse / 80 ms rules;
+  quarkus-quickstarts 2.8 s / 0.3 s; spring-data-examples 13.7 s / 0.4 s. Flow construction is under 20 ms everywhere.
+- Kotlin pays a fixed price: the 24-file Kotlin petclinic parses in about 1.1 s, against 0.46 s for the 30-file Java one.
+- **`--files` does not make a scan faster.** It narrows the reported findings, not the analysis, because flow rules
+  need the whole project. A per-edit check costs the same as a full scan.
+- The first run after a cold cache is slower (6.5 s against 3.4 s for quarkus-quickstarts).
