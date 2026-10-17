@@ -1914,7 +1914,9 @@ public final class RuleCatalog {
                         + " MEDIUM for return-type inference.",
                 "supplyAsync() with a custom executor and a chain of downstream operators that"
                         + " themselves switch context (publishOn, subscribeOn) is still reported;"
-                        + " suppress with diagscope:ignore if the context switch is intentional.");
+                        + " suppress with diagscope:ignore if the context switch is intentional. On a"
+                        + " machine where the common pool has a single thread, CompletableFuture runs each"
+                        + " async stage on a thread of its own and the pool-sharing risk does not apply.");
 
         put(catalog, TransactionalEventListenerMissingPhaseRule.ID,
                 "@TransactionalEventListener without explicit phase",
@@ -2690,8 +2692,8 @@ public final class RuleCatalog {
                 "A blocking call (sleep, Future.get, JDBC, HTTP, file I/O) runs inside a"
                         + " parallelStream() pipeline or inside supplyAsync/runAsync/thenXxxAsync called without"
                         + " an Executor.",
-                "Both use ForkJoinPool.commonPool(), which has about one thread per CPU core and is"
-                        + " shared by the whole JVM. A few blocked tasks starve every other parallel stream and"
+                "Both use ForkJoinPool.commonPool(), which typically has one thread fewer than the"
+                        + " processors and is shared by the whole JVM. A few blocked tasks starve every other parallel stream and"
                         + " async stage, including those in unrelated libraries, which looks like a service-wide"
                         + " stall with healthy CPU.",
                 "A terminal operation of a parallelStream()/parallel() pipeline, or an async"
@@ -2700,7 +2702,10 @@ public final class RuleCatalog {
                         + " MEDIUM.",
                 "Enclosure is derived from source line ranges. A blocking call hidden in a helper"
                         + " method called from the lambda is not followed. A custom common-pool parallelism"
-                        + " setting is not visible.");
+                        + " setting is not visible. When the common pool has only one thread (one or two"
+                        + " processors, as in a small container), CompletableFuture runs each async stage on a"
+                        + " thread of its own instead, so the starvation then affects parallel streams but not"
+                        + " supplyAsync.");
 
         put(catalog, UnboundedThreadPoolRule.ID,
                 "Thread pool with no bound on threads or queue",

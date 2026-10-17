@@ -85,11 +85,8 @@ public final class RuleSources {
             "UNBOUNDED_THREAD_POOL",
             "XML_EXTERNAL_ENTITY_RISK",
             "APPLICATION_CONTEXT_LOCATOR",
-            "AUTOWIRED_REQUIRED_FALSE_UNSAFE",
-            "BLOCKING_CALL_ON_COMMON_POOL",
             "CHECK_THEN_ACT_ON_MAP",
             "CLOCK_DEPENDENCY_NOT_INJECTED",
-            "COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT",
             "DUPLICATE_DIAGNOSTIC_SIGNAL",
             "DYNAMIC_METRIC_NAME",
             "ENTITY_EXPOSED_IN_REST_RESPONSE",
@@ -104,9 +101,7 @@ public final class RuleSources {
             "LOG_WITHOUT_THROWABLE",
             "MAP_GET_DEREFERENCED_WITHOUT_CHECK",
             "MASS_ASSIGNMENT_RISK",
-            "METRIC_CREATED_IN_LOOP",
             "MISSING_PAGINATION",
-            "MISSING_RESPONSE_STATUS",
             "N_PLUS_ONE_QUERY_RISK",
             "OPTIONAL_OR_ELSE_NULL",
             "OUTBOX_PATTERN_MISSING",
@@ -120,9 +115,7 @@ public final class RuleSources {
             "TEST_SWALLOWS_EXCEPTION",
             "TEST_THREAD_SLEEP",
             "TEST_WITHOUT_ASSERTION",
-            "VALUE_WITHOUT_DEFAULT",
-            "VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED",
-            "VIRTUAL_THREAD_WITH_THREAD_LOCAL");
+            "VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED");
 
     static {
         SOURCED.put("EVENT_LISTENER_ON_PRIVATE_METHOD", List.of(
@@ -268,6 +261,21 @@ public final class RuleSources {
                 "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html"));
         SOURCED.put("AOP_UNMANAGED_ADVICE_TARGET", List.of(
                 "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html"));
+        SOURCED.put("AUTOWIRED_REQUIRED_FALSE_UNSAFE", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-beans/src/main/java/org/springframework/beans/factory/annotation/AutowiredAnnotationBeanPostProcessor.java"));
+        SOURCED.put("VALUE_WITHOUT_DEFAULT", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-core/src/main/java/org/springframework/util/PlaceholderParser.java"));
+        SOURCED.put("MISSING_RESPONSE_STATUS", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-webmvc/src/main/java/org/springframework/web/servlet/mvc/method/annotation/ServletInvocableHandlerMethod.java"));
+        SOURCED.put("METRIC_CREATED_IN_LOOP", List.of(
+                "https://github.com/micrometer-metrics/micrometer/blob/main/micrometer-core/src/main/java/io/micrometer/core/instrument/MeterRegistry.java"));
+        SOURCED.put("BLOCKING_CALL_ON_COMMON_POOL", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/CompletableFuture.java",
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ForkJoinPool.java"));
+        SOURCED.put("COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/CompletableFuture.java"));
+        SOURCED.put("VIRTUAL_THREAD_WITH_THREAD_LOCAL", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/lang/ThreadLocal.java"));
     }
 
     private RuleSources() {

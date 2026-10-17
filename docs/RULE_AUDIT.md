@@ -56,6 +56,7 @@ cannot ship without declaring where its claim comes from.
 | `KAFKA_RETRY_WITHOUT_BACKOFF` | A zero-delay `FixedBackOff` causes hundreds of attempts per second | `FixedBackOff(interval, maxAttempts)` redelivers each failing record at most `maxAttempts` times. Spring Kafka's own `DefaultErrorHandler()` default is `FixedBackOff(0, 9)` (`SeekUtils.DEFAULT_BACK_OFF`), which the rule does not report | Text corrected, limit added |
 | `SCHEDULED_FIXED_RATE_TOO_AGGRESSIVE` | Slow runs queue up indefinitely; under a thread pool concurrent runs contend | `ScheduledExecutorService.scheduleAtFixedRate`: "subsequent executions may start late, but will not concurrently execute". `ThreadPoolTaskScheduler` delegates to it. A late run delays the next, which then catch up back to back | Text corrected |
 | `UNGUARDED_THREAD_CREATION` | New threads exhaust the file-descriptor limit | "unable to create native thread" is the operating system's thread limit, not file descriptors | Text corrected |
+| `BLOCKING_CALL_ON_COMMON_POOL`, `COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT` | `supplyAsync` without an executor always uses the common pool, which has about one thread per core | `CompletableFuture.defaultExecutor`: the common pool "if it supports more than one parallel thread, or else an Executor using one thread per async task"; `ForkJoinPool` suggests a parallelism of one less than the cores | Text corrected: one thread fewer than the processors, and no pool sharing for async stages when it has a single thread |
 | `AOP_ADVICE_NOT_APPLIED`, `AOP_SELF_INVOCATION` | A private method under a class-level `@Transactional` loses the transaction | The proxy never sees a private method and its callers already run inside the advised method. Found by scanning jhipster-sample-app (24 findings, all of this kind) | Only an annotation or advice on the method itself counts |
 | `AOP_ADVICE_NOT_APPLIED` | `@Transactional` cannot be applied to a protected or package-visible method | Spring reference (transaction annotations): "As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies"; CDI interceptors (Quarkus) also advise them. The cache annotations still need public methods | Reported for `@Transactional` only when the method is private or static |
 
@@ -122,20 +123,25 @@ Also read and kept as written: `APPLICATION_CONTEXT_LOCATOR`, `BLOCKING_CALL_ON_
 
 ## Marked as pattern without reading the source
 
-Every rule is now either sourced or a pattern; none is left unverified by default (a new rule still starts as
-unverified, and `RuleSourcesContractTest` fails until the rule is declared sourced or a pattern). The pattern group is mostly code shape and style
-(`GOD_CLASS_DETECTED`, `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`, `FIELD_INJECTION_USED`, the logging and
-test rules). These few also rest on a documented framework or library behaviour that was **not** read against its
-source, and are marked as pattern for that reason only:
+Every rule is either sourced or a pattern, and `RuleSourcesContractTest` fails for a rule that is neither. The pattern
+group is mostly code shape and style (`GOD_CLASS_DETECTED`, `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`,
+`FIELD_INJECTION_USED`, the logging and test rules). These few also rest on a documented framework or library behaviour
+that was **not** read against its source, and are marked as pattern for that reason only:
 
-- Spring: `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (an absent optional dependency stays `null`), `VALUE_WITHOUT_DEFAULT` (an
-  unresolvable placeholder fails at start-up), `MISSING_RESPONSE_STATUS`, `APPLICATION_CONTEXT_LOCATOR`,
-  `SYSTEM_ENV_IN_BEAN`, `CLOCK_DEPENDENCY_NOT_INJECTED`, `HTTP_CLIENT_CREATED_PER_REQUEST`.
-- Micrometer: `METRIC_CREATED_IN_LOOP`, `DYNAMIC_METRIC_NAME` (corrected earlier, without a recorded reference).
-- Concurrency and reactive: `BLOCKING_CALL_ON_COMMON_POOL`, `VIRTUAL_THREAD_WITH_THREAD_LOCAL`,
-  `COMPLETABLE_FUTURE_IN_REACTIVE_CONTEXT`, `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED`,
-  `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED`, `OUTBOX_PATTERN_MISSING`.
+- Spring: `APPLICATION_CONTEXT_LOCATOR`, `SYSTEM_ENV_IN_BEAN`, `CLOCK_DEPENDENCY_NOT_INJECTED`,
+  `HTTP_CLIENT_CREATED_PER_REQUEST`.
+- Micrometer: `DYNAMIC_METRIC_NAME`.
+- Reactive: `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` (what the SmallRye failure strategy does with a method that returns
+  normally), `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED` (what Vert.x does with a failed future nobody reads),
+  `OUTBOX_PATTERN_MISSING`.
 - Security and design: `MASS_ASSIGNMENT_RISK`, `ENTITY_EXPOSED_IN_REST_RESPONSE`.
+
+Read in the last pass and now sourced: `AUTOWIRED_REQUIRED_FALSE_UNSAFE` (`AutowiredFieldElement` sets the field only
+`if (value != null)`), `VALUE_WITHOUT_DEFAULT` (`PlaceholderParser`: "Could not resolve placeholder"),
+`MISSING_RESPONSE_STATUS` (`ServletInvocableHandlerMethod` leaves the status alone when there is no `@ResponseStatus`),
+`METRIC_CREATED_IN_LOOP` (`MeterRegistry` returns the meter already in its map for the same id),
+`VIRTUAL_THREAD_WITH_THREAD_LOCAL` (`ThreadLocal`: each thread holds its own copy; the claim about millions of virtual
+threads comes from JEP 444, which could not be opened).
 
 Also not read: the MicroProfile `@Retry` default, Quarkus-specific behaviour, and the two web pages that could not be
 opened from the audit environment (JEP 491, PostgreSQL isolation levels). The rules have no field data for Quarkus or
