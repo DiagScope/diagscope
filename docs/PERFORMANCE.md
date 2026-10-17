@@ -192,7 +192,7 @@ before being merged.
 - lower flow depth silently to make a benchmark faster;
 - optimize synthetic microbenchmarks while real repositories regress.
 
-## Wall time per scan on the calibration corpus (0.1.2 + gate/agent, cold JVM)
+## Wall time per scan on the calibration corpus (0.1.3, cold JVM)
 
 Measured with `java -jar diagscope.jar scan --format AGENT` on a 4-core container, JDK 21, three runs per project
 (median shown). This is the cost of one invocation as a hook or a pre-commit check would pay it. `--files` is

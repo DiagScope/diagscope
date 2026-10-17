@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.3 — 2026-10-17
+
 ### Added
 
 - `diagscope init-agent`: writes a marked DiagScope block into `AGENTS.md` and `CLAUDE.md` and installs a Claude
