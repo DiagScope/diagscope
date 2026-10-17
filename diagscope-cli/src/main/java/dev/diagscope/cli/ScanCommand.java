@@ -34,7 +34,7 @@ public final class ScanCommand implements Callable<Integer> {
     private int parallelism;
 
     @Option(names = "--format", split = ",", defaultValue = "MARKDOWN,JSON,HTML",
-            description = "MARKDOWN, JSON, HTML, SARIF, or any combination")
+            description = "MARKDOWN, JSON, HTML, SARIF, AGENT, or any combination. AGENT alone prints compact text to standard output")
     private EnumSet<ReportFormat> formats;
 
     @Option(names = "--fail-on", description = "Exit with code 1 when a finding of this severity or higher exists: ERROR, WARNING, INFO, or NONE. Overrides the gate: section of diagscope.yml")
@@ -62,6 +62,11 @@ public final class ScanCommand implements Callable<Integer> {
     @Option(names = "--changed-since",
             description = "Report only findings in files changed since this Git revision")
     private String changedSince;
+
+    @Option(names = "--files", split = ",",
+            description = "Report only findings in these files (project-relative or absolute inside the project)."
+                    + " The whole project is still analyzed, because flow rules need it; combines with --changed-since")
+    private List<String> files = List.of();
 
     @Option(names = "--config", description = "Project policy file; defaults to diagscope.yml when present")
     private Path configuration;
@@ -98,7 +103,7 @@ public final class ScanCommand implements Callable<Integer> {
             return workflow.run(new ScanWorkflow.Request(
                     project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
                     baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath,
-                    sourceRoots, entrypointTypes, includeTests, gateProfile
+                    sourceRoots, entrypointTypes, includeTests, gateProfile, files
             )).exitCode();
         } catch (UnsupportedProjectException exception) {
             System.err.println("Unsupported project: " + exception.getMessage());

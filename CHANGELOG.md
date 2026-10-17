@@ -6,6 +6,8 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `--format AGENT`: compact plain text for coding assistants, printed to standard output when it is the only
+  format. `--files` limits the reported findings to the listed files. See [CLI.md](docs/CLI.md).
 - `gate:` section in `diagscope.yml`: `failOn` conditions combining minimum severity, minimum confidence and an
   optional rule list, `maxFindings` limits per severity, and named `profiles` selected with `--gate-profile`. An
   explicit `--fail-on` still wins. See [CONFIGURATION.md](docs/CONFIGURATION.md#gate).

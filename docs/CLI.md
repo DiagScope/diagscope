@@ -31,8 +31,9 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 - `--max-depth` — maximum local call depth, from `0` through `32`;
 - `--parallelism` — Java parser worker count; `0` selects the automatic bounded policy (Kotlin PSI is sequential in this increment);
 - `--entrypoint` — comma-separated subset of `REST`, `KAFKA_LISTENER`, `REACTIVE_MESSAGE`, and `SCHEDULED`;
-- `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, and/or `SARIF`;
+- `--format` — comma-separated `MARKDOWN`, `JSON`, `HTML`, `SARIF`, and/or `AGENT`;
 - `--fail-on` — optional severity gate (`ERROR`, `WARNING`, `INFO`, or `NONE`); overrides the `gate:` section of `diagscope.yml`, and `NONE` disables it;
+- `--files` — comma-separated files to report on (project-relative, or absolute inside the project). The whole project is still analyzed because flow rules need it; only the findings are narrowed. Combines with `--changed-since`; excluded findings are counted with the change-scope exclusions. A path outside the project is exit `2`, a missing file only a warning;
 - `--gate-profile` — named profile from the `gate:` section of `diagscope.yml` (see [CONFIGURATION.md](CONFIGURATION.md#gate));
 - `--baseline [path]` — suppress findings whose stable fingerprint is in the selected baseline; when
   the option has no path, `<project>/diagscope-baseline.json` is used;
@@ -197,3 +198,23 @@ Multi-module and mixed Java/Kotlin builds are supported for both tools: every ne
 Java analysis is syntax-first by default. Repeatable `--classpath <jar-or-classes-directory>` opts into JavaParser source/JDK/dependency symbol solving using exactly the declared entries; DiagScope does not run Maven or Gradle to construct that classpath. Kotlin analysis remains source-first but covers transitive hierarchy, defaults/varargs, generic identities, composed annotations, resource `use`, Micrometer evidence, and syntax-decidable Spring AOP. Kotlin compiler-grade dependency resolution and pointcuts requiring runtime state remain outside the boundary.
 
 The effective explicit classpath and additional source roots are recorded in JSON and Markdown scan configuration so a resolution change is auditable.
+
+## Output for coding assistants
+
+`--format AGENT` writes `result.agent.txt` and, when it is the only format, prints the same text to standard output
+instead of the human summary, so a hook or an assistant reads the verdict without opening a file:
+
+```text
+diagscope 0.1.2: 3 finding(s) in 2 file(s)
+
+ERROR HIGH SILENT_CATCH src/main/java/example/PaymentListener.java:6
+  Exception is caught and ignored.
+  fix: Log, propagate, preserve the cause, ...
+```
+
+- one block per finding, worst first (severity, then confidence), at most 30, then a count of the rest;
+- no fingerprints, flows or statistics: those are in `result.json`;
+- a closing line tells the assistant to fix the cause and not to add `diagscope:ignore` comments, waivers, baseline
+  entries or rule overrides without asking the user;
+- the exit code still comes from the gate, so `scan --format AGENT --files A.java,B.java --fail-on ERROR` is a
+  complete post-edit check.

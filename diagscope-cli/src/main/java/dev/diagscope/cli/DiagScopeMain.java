@@ -4,6 +4,7 @@ import dev.diagscope.cli.report.AnalysisReporter;
 import dev.diagscope.cli.report.HtmlReporter;
 import dev.diagscope.cli.report.JsonReporter;
 import dev.diagscope.cli.report.MarkdownReporter;
+import dev.diagscope.cli.report.AgentReporter;
 import dev.diagscope.cli.report.SarifReporter;
 import dev.diagscope.core.application.DiagnosticCoverageService;
 import dev.diagscope.core.application.LocalFlowBuilder;
@@ -597,6 +598,7 @@ public final class DiagScopeMain {
         reporters.put(ReportFormat.JSON, new JsonReporter());
         reporters.put(ReportFormat.HTML, new HtmlReporter());
         reporters.put(ReportFormat.SARIF, new SarifReporter());
+        reporters.put(ReportFormat.AGENT, new AgentReporter());
         return Map.copyOf(reporters);
     }
 

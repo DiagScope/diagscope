@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Scan engine shared by every distribution channel: the CLI, build-tool plugins and CI wrappers.
@@ -60,7 +62,8 @@ public final class ScanWorkflow {
             List<Path> sourceRoots,
             EnumSet<EntrypointType> entrypointTypes,
             boolean includeTests,
-            String gateProfile
+            String gateProfile,
+            List<String> files
     ) {
         /** Request that analyzes production sources only. */
         public Request(
@@ -86,11 +89,25 @@ public final class ScanWorkflow {
                     entrypointTypes, includeTests, null);
         }
 
+        /** Request that is not limited to specific files. */
+        public Request(
+                Path project, Path output, int maxDepth, int parallelism, EnumSet<ReportFormat> formats,
+                FailOn failOn, Path baseline, boolean updateBaseline, List<String> baselineMigrations,
+                boolean pruneRemovedBaseline, String changedSince, Path configuration, List<Path> classpath,
+                List<Path> sourceRoots, EnumSet<EntrypointType> entrypointTypes, boolean includeTests,
+                String gateProfile
+        ) {
+            this(project, output, maxDepth, parallelism, formats, failOn, baseline, updateBaseline,
+                    baselineMigrations, pruneRemovedBaseline, changedSince, configuration, classpath, sourceRoots,
+                    entrypointTypes, includeTests, gateProfile, null);
+        }
+
         public Request {
             Objects.requireNonNull(project, "project");
             formats = formats == null || formats.isEmpty()
                     ? EnumSet.of(ReportFormat.MARKDOWN, ReportFormat.JSON, ReportFormat.HTML)
                     : EnumSet.copyOf(formats);
+            files = files == null ? List.of() : List.copyOf(files);
             baselineMigrations = baselineMigrations == null ? List.of() : List.copyOf(baselineMigrations);
             classpath = classpath == null ? List.of() : List.copyOf(classpath);
             sourceRoots = sourceRoots == null ? List.of() : List.copyOf(sourceRoots);
@@ -133,6 +150,12 @@ public final class ScanWorkflow {
         var changeScope = request.changedSince() == null
                 ? new ChangedFileScope.ScopeApplication(rawResult, 0)
                 : changedFileScope(projectRoot, rawResult, request.changedSince());
+        if (!request.files().isEmpty()) {
+            var scope = new ChangedFileScope();
+            var listed = scope.apply(changeScope.result(), explicitFiles(projectRoot, request.files(), err));
+            changeScope = new ChangedFileScope.ScopeApplication(listed.result(),
+                    changeScope.excludedFindings() + listed.excludedFindings());
+        }
 
         var baselineStore = new FindingBaseline();
         if ((!request.baselineMigrations().isEmpty() || request.pruneRemovedBaseline())
@@ -176,7 +199,9 @@ public final class ScanWorkflow {
         ));
 
         writeReports(result, outputDirectory, request.formats());
-        printSummary(out, new RunSummary(result, outputDirectory, request.changedSince(),
+        if (request.formats().equals(EnumSet.of(ReportFormat.AGENT))) {
+            reporters.get(ReportFormat.AGENT).write(result, out);
+        } else printSummary(out, new RunSummary(result, outputDirectory, request.changedSince(),
                 changeScope.excludedFindings(), baselineApplication.suppressedFindings(), updatedBaseline,
                 baselineLifecycle, suppressionApplication));
         var gate = selectGate(request, loadedConfiguration.gate());
@@ -348,6 +373,24 @@ public final class ScanWorkflow {
             }
         }
         return Map.copyOf(migrations);
+    }
+
+    /** Normalizes {@code --files} to project-relative paths; a path outside the project is a usage error. */
+    private static Set<String> explicitFiles(Path projectRoot, List<String> files, PrintStream err) {
+        var normalized = new TreeSet<String>();
+        for (String value : files) {
+            if (value == null || value.isBlank()) continue;
+            Path path = Path.of(value.trim());
+            Path relative = path.isAbsolute() ? projectRoot.relativize(path.normalize()) : path.normalize();
+            if (relative.startsWith("..") || (path.isAbsolute() && !path.normalize().startsWith(projectRoot))) {
+                throw new IllegalArgumentException("--files entry is outside the project: " + value);
+            }
+            if (!Files.isRegularFile(projectRoot.resolve(relative))) {
+                err.println("Warning: --files entry does not exist: " + value);
+            }
+            normalized.add(relative.toString().replace('\\', '/'));
+        }
+        return Set.copyOf(normalized);
     }
 
     private static ChangedFileScope.ScopeApplication changedFileScope(
