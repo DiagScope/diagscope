@@ -165,9 +165,9 @@ public final class ScanWorkflow {
         ));
 
         writeReports(result, outputDirectory, request.formats());
-        printSummary(out, result, outputDirectory, request.changedSince(), changeScope.excludedFindings(),
-                baselineApplication.suppressedFindings(), updatedBaseline, baselineLifecycle,
-                suppressionApplication);
+        printSummary(out, new RunSummary(result, outputDirectory, request.changedSince(),
+                changeScope.excludedFindings(), baselineApplication.suppressedFindings(), updatedBaseline,
+                baselineLifecycle, suppressionApplication));
         return new Outcome(result, outputDirectory, exitCode(result, request.failOn(), err));
     }
 
@@ -369,8 +369,8 @@ public final class ScanWorkflow {
         }
     }
 
-    private static void printSummary(
-            PrintStream out,
+    /** Everything the closing summary of a run reports. */
+    private record RunSummary(
             AnalysisResult result,
             Path outputDirectory,
             String changedSince,
@@ -379,7 +379,17 @@ public final class ScanWorkflow {
             Path updatedBaseline,
             FindingBaseline.Lifecycle baselineLifecycle,
             FindingSuppressions.Application suppressions
-    ) {
+    ) {}
+
+    private static void printSummary(PrintStream out, RunSummary summary) {
+        AnalysisResult result = summary.result();
+        Path outputDirectory = summary.outputDirectory();
+        String changedSince = summary.changedSince();
+        int changeScopeExcludedFindings = summary.changeScopeExcludedFindings();
+        int suppressedFindings = summary.suppressedFindings();
+        Path updatedBaseline = summary.updatedBaseline();
+        FindingBaseline.Lifecycle baselineLifecycle = summary.baselineLifecycle();
+        FindingSuppressions.Application suppressions = summary.suppressions();
         var statistics = result.statistics();
         long boundaries = result.flows().stream().mapToLong(flow -> flow.boundaries().size()).sum();
         out.printf("DiagScope %s analyzed %d files, %d methods and %d flows in %d ms.%n",

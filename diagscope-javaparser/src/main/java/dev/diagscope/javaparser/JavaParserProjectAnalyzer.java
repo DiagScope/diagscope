@@ -130,9 +130,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         List<Path> sourceFiles = discoverSourceFiles(layout.sourceRoots()).stream()
                 .filter(file -> !options.policy().ignores(root.relativize(file.toAbsolutePath().normalize())))
                 .toList();
-        ParseBatch parseBatch = parseFiles(root, sourceFiles, layout.sourceRoots(),
-                explicitClasspath(root, options.explicitClasspath()),
-                options.parallelism(), options.policy());
+        ParseBatch parseBatch = parseFiles(layout, sourceFiles,
+                explicitClasspath(root, options.explicitClasspath()), options);
         MappedProject mapped = mergeMappedUnits(parseBatch.units());
         List<AspectAdvice> aspects = collectAspects(mapped);
         Map<MethodId, MethodModel> methods = resolveLocalCalls(mapped, aspects);
@@ -162,13 +161,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static ParseBatch parseFiles(
-            Path root,
+            ProjectLayout layout,
             List<Path> files,
-            List<Path> sourceRoots,
             List<Path> explicitClasspath,
-            int parallelism,
-            AnalysisPolicy policy
+            AnalysisOptions options
     ) {
+        Path root = layout.root();
+        List<Path> sourceRoots = layout.sourceRoots();
+        int parallelism = options.parallelism();
+        AnalysisPolicy policy = options.policy();
         var units = new MappedUnit[files.size()];
         var failures = new ParseFailure[files.size()];
         ParserResources parserResources = parserResources(sourceRoots, explicitClasspath);
@@ -183,7 +184,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 try {
                     var result = new JavaParser(configuration).parse(file);
                     result.getResult().ifPresent(unit -> units[index] = mapUnit(
-                            root, file, unit, policy, symbolResolutionEnabled));
+                            new SourceContext(root, file, policy, symbolResolutionEnabled), unit));
                     if (!result.getProblems().isEmpty()) {
                         failures[index] = new ParseFailure(relativeFile, problemMessage(result.getProblems()));
                     } else if (result.getResult().isEmpty()) {
@@ -265,9 +266,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 : throwable.getMessage();
     }
 
-    private static MappedUnit mapUnit(
-            Path root, Path file, CompilationUnit unit, AnalysisPolicy policy,
-            boolean symbolResolutionEnabled) {
+    private static MappedUnit mapUnit(SourceContext context, CompilationUnit unit) {
+        Path root = context.root();
+        Path file = context.file();
         var rawMethods = new ArrayList<RawMethod>();
         var types = new ArrayList<TypeInfo>();
         String packageName = unit.getPackageDeclaration().map(node -> node.getNameAsString()).orElse("");
@@ -287,8 +288,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
 
             for (BodyDeclaration<?> member : type.getMembers()) {
                 if (!member.isMethodDeclaration()) continue;
-                rawMethods.add(mapMethod(root, file, qualifiedName, member.asMethodDeclaration(),
-                        declaredVariables, typeAnnotations, policy, symbolResolutionEnabled));
+                rawMethods.add(mapMethod(context, qualifiedName, member.asMethodDeclaration(),
+                        declaredVariables, typeAnnotations));
             }
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()),
@@ -440,15 +441,16 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static RawMethod mapMethod(
-            Path root,
-            Path file,
+            SourceContext context,
             String declaringType,
             MethodDeclaration method,
             Map<String, String> declaredVariables,
-            List<AnnotationDescriptor> typeAnnotations,
-            AnalysisPolicy policy,
-            boolean symbolResolutionEnabled
+            List<AnnotationDescriptor> typeAnnotations
     ) {
+        Path root = context.root();
+        Path file = context.file();
+        AnalysisPolicy policy = context.policy();
+        boolean symbolResolutionEnabled = context.symbolResolutionEnabled();
         MethodId id = methodId(declaringType, method);
         SourceLocation methodLocation = location(root, file, method);
         List<AnnotationDescriptor> methodAnnotations = methodAnnotationsOf(method);
@@ -722,11 +724,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static ProxyProfile proxyProfile(
             RawMethod raw,
             TypeInfo declaringType,
-            List<AspectAdvice> aspects,
-            Set<String> beanFactoryTypes,
+            ProxyContext context,
             List<AnnotationDescriptor> effectiveTypeAnnotations,
             List<AnnotationDescriptor> effectiveMethodAnnotations
     ) {
+        List<AspectAdvice> aspects = context.aspects();
+        Set<String> beanFactoryTypes = context.beanFactoryTypes();
         var annotationNames = new TreeSet<String>();
         effectiveMethodAnnotations.forEach(annotation -> annotationNames.add(annotation.name()));
         Set<String> typeAnnotations = typeAnnotationNames(effectiveTypeAnnotations);
@@ -761,6 +764,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static Map<MethodId, MethodModel> resolveLocalCalls(
             MappedProject project, List<AspectAdvice> aspects) {
         Set<String> beanFactoryTypes = beanFactoryTypes(project);
+        var proxyContext = new ProxyContext(aspects, beanFactoryTypes);
         var byQualifiedTypeAndName = new HashMap<String, List<RawMethod>>();
         var bySimpleTypeAndName = new HashMap<String, List<RawMethod>>();
         for (var method : project.rawMethods().values()) {
@@ -815,7 +819,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
             resolved.put(raw.id(), new MethodModel(raw.id(), raw.location(), Set.copyOf(effectiveNames), raw.catches(),
                     invocations, raw.metricTags(), raw.metricNames(), calls,
-                    proxyProfile(raw, declaringTypeInfo, aspects, beanFactoryTypes,
+                    proxyProfile(raw, declaringTypeInfo, proxyContext,
                             typeAnnotations, methodAnnotations),
                     annotationAttributes(typeAnnotations, methodAnnotations),
                     new CallableShape(raw.minimumArity(), raw.maximumArity(),
@@ -1867,6 +1871,12 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         }
         return List.copyOf(unique.values());
     }
+
+    /** What stays the same for every method of one source file. */
+    private record SourceContext(Path root, Path file, AnalysisPolicy policy, boolean symbolResolutionEnabled) {}
+
+    /** The project-wide facts a proxy profile is computed against. */
+    private record ProxyContext(List<AspectAdvice> aspects, Set<String> beanFactoryTypes) {}
 
     private record MappedUnit(Path file, List<RawMethod> rawMethods, List<TypeInfo> types,
             boolean producerListenerVisible) {}

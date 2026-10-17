@@ -184,7 +184,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 try {
                     String source = Files.readString(file);
                     KtFile ktFile = factory.createFile(file.getFileName().toString(), source);
-                    units.add(mapFile(root, file, ktFile, new LineIndex(source), kotlinSpringEnabled, policy));
+                    units.add(mapFile(new FileContext(root, file, new LineIndex(source), kotlinSpringEnabled, policy), ktFile));
                     var errors = PsiTreeUtil.findChildrenOfType(ktFile, PsiErrorElement.class);
                     if (!errors.isEmpty()) {
                         String message = errors.stream().limit(3).map(PsiErrorElement::getErrorDescription)
@@ -207,14 +207,11 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 ? "No diagnostic message" : throwable.getMessage();
     }
 
-    private static MappedUnit mapFile(
-            Path root,
-            Path file,
-            KtFile ktFile,
-            LineIndex lines,
-            boolean kotlinSpringEnabled,
-            AnalysisPolicy policy
-    ) {
+    private static MappedUnit mapFile(FileContext context, KtFile ktFile) {
+        Path root = context.root();
+        Path file = context.file();
+        LineIndex lines = context.lines();
+        boolean kotlinSpringEnabled = context.kotlinSpringEnabled();
         String packageName = ktFile.getPackageFqName().asString();
         var types = new ArrayList<TypeInfo>();
         for (KtClassOrObject type : PsiTreeUtil.findChildrenOfType(ktFile, KtClassOrObject.class)) {
@@ -231,24 +228,24 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     : qualifiedTypeName(packageName, owner);
             List<AnnotationDescriptor> typeAnnotations = owner == null
                     ? List.of() : annotations(owner);
-            methods.add(mapFunction(root, file, lines, declaringType, owner, function,
-                    typeAnnotations, kotlinSpringEnabled, policy));
+            methods.add(mapFunction(context, declaringType, owner, function, typeAnnotations));
         }
         return new MappedUnit(root.relativize(file.toAbsolutePath().normalize()), methods, types,
                 ktFile.getText().contains("ProducerListener") || ktFile.getText().contains("setProducerListener("));
     }
 
     private static RawMethod mapFunction(
-            Path root,
-            Path file,
-            LineIndex lines,
+            FileContext context,
             String declaringType,
             KtClassOrObject owner,
             KtNamedFunction function,
-            List<AnnotationDescriptor> typeAnnotations,
-            boolean kotlinSpringEnabled,
-            AnalysisPolicy policy
+            List<AnnotationDescriptor> typeAnnotations
     ) {
+        Path root = context.root();
+        Path file = context.file();
+        LineIndex lines = context.lines();
+        boolean kotlinSpringEnabled = context.kotlinSpringEnabled();
+        AnalysisPolicy policy = context.policy();
         MethodId id = new MethodId(declaringType, Objects.requireNonNullElse(function.getName(), "<anonymous>"),
                 function.getValueParameters().stream().map(KotlinParserProjectAnalyzer::parameterType).toList());
         SourceLocation location = location(root, file, lines, function);
@@ -795,8 +792,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             boolean isInterface = declaringTypeInfo != null && declaringTypeInfo.interfaceType();
             // Interface members are abstract and the kotlin-spring plugin opens managed classes: neither is final.
             var effectiveNames = new LinkedHashSet<>(annotationNames);
-            ProxyProfile proxy = proxyProfile(raw, project.types(), aspects, Set.copyOf(annotationNames), typeAnnotations,
-                    methodAnnotations);
+            ProxyProfile proxy = proxyProfile(raw, project.types(), aspects, typeAnnotations, methodAnnotations);
             if (isInterface || !proxy.finalMethod()) {
                 effectiveNames.remove("Final");
             }
@@ -1297,10 +1293,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             RawMethod method,
             Map<String, TypeInfo> types,
             List<AspectAdvice> aspects,
-            Set<String> effectiveAnnotations,
             List<AnnotationDescriptor> effectiveTypeAnnotations,
             List<AnnotationDescriptor> declaredAnnotations
     ) {
+        var names = new TreeSet<String>();
+        effectiveTypeAnnotations.forEach(annotation -> names.add(annotation.name()));
+        declaredAnnotations.forEach(annotation -> names.add(annotation.name()));
+        Set<String> effectiveAnnotations = Set.copyOf(names);
         TypeInfo type = types.get(method.id().declaringType());
         var proxied = new TreeSet<String>();
         effectiveAnnotations.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxied::add);
@@ -1851,6 +1850,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             return arity >= minimumArity && arity <= maximumArity;
         }
     }
+
+    /** What stays the same for every function of one source file. */
+    private record FileContext(
+            Path root, Path file, LineIndex lines, boolean kotlinSpringEnabled, AnalysisPolicy policy) {}
 
     private record MappedUnit(Path file, List<RawMethod> methods, List<TypeInfo> types,
             boolean producerListenerVisible) {}

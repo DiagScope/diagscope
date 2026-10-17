@@ -99,8 +99,7 @@ public final class RuleEngine {
     private static Finding applySeverityOverride(Finding finding, AnalysisPolicy policy) {
         Severity severity = policy.severityOverrides().get(finding.ruleId());
         if (severity == null || severity == finding.severity()) return finding;
-        return copy(finding, severity, finding.confidence(), finding.relatedFlows(),
-                finding.message(), finding.recommendation());
+        return finding.withSeverity(severity);
     }
 
     /**
@@ -115,8 +114,7 @@ public final class RuleEngine {
         }
         var relatedFlows = new ArrayList<>(finding.relatedFlows());
         relatedFlows.add(fallback);
-        return copy(finding, finding.severity(), finding.confidence(), relatedFlows,
-                finding.message(), finding.recommendation());
+        return finding.withRelatedFlows(relatedFlows);
     }
 
 
@@ -133,7 +131,8 @@ public final class RuleEngine {
         String message = lexicographicallyFirst(left.message(), right.message());
         String recommendation = lexicographicallyFirst(left.recommendation(), right.recommendation());
         Finding base = deterministicBase(left, right);
-        return copy(base, severity, confidence, relatedFlows, message, recommendation);
+        return new Finding(base.ruleId(), severity, confidence, base.location(), message, recommendation,
+                relatedFlows, base.evidence());
     }
 
     private static Finding deterministicBase(Finding left, Finding right) {
@@ -149,17 +148,5 @@ public final class RuleEngine {
 
     private static String lexicographicallyFirst(String left, String right) {
         return left.compareTo(right) <= 0 ? left : right;
-    }
-
-    private static Finding copy(
-            Finding source,
-            Severity severity,
-            Confidence confidence,
-            List<RelatedFlow> relatedFlows,
-            String message,
-            String recommendation
-    ) {
-        return new Finding(source.ruleId(), severity, confidence, source.location(), message, recommendation,
-                relatedFlows, source.evidence());
     }
 }

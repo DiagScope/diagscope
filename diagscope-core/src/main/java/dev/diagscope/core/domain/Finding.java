@@ -57,6 +57,16 @@ public record Finding(
         evidence = Collections.unmodifiableMap(new TreeMap<>(Map.copyOf(evidence)));
     }
 
+    /** The same finding reported at another severity. */
+    public Finding withSeverity(Severity other) {
+        return new Finding(ruleId, other, confidence, location, message, recommendation, relatedFlows, evidence);
+    }
+
+    /** The same finding with another set of flows that lead to it. */
+    public Finding withRelatedFlows(List<RelatedFlow> other) {
+        return new Finding(ruleId, severity, confidence, location, message, recommendation, other, evidence);
+    }
+
     /**
      * Returns the stable identity used to deduplicate findings and to compare runs over time.
      *
