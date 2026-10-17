@@ -6,6 +6,8 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Every rule now has a documented basis (`RuleSources`): sourced (references listed), code pattern, or unverified.
+  `diagscope explain` prints it, and a contract test refuses an ERROR rule without one.
 - `VERTX_EXECUTE_BLOCKING_FAILURE_IGNORED` (157th rule): a Vert.x `executeBlocking` whose returned future is discarded,
   whose chain registers no failure handler, or whose callback never checks `failed()`/`cause()`. It runs on the whole
   project, since Vert.x code rarely has the entrypoints that start a flow.

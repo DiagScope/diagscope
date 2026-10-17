@@ -8,6 +8,11 @@ When a rule's claim is changed, add the check here.
 Method: read the reference text or the source of the exact class that implements the behaviour (the sources are
 the `main` branch of each project's GitHub repository). A blog post or a forum answer is not evidence.
 
+Each rule carries a basis, shown by `diagscope explain <RULE>` and kept in `RuleSources`: **sourced** (with the
+references read), **pattern** (the harm follows from the language or the JDK, no framework claim) or **unverified**
+(default for any rule nobody has checked). `RuleSourcesContractTest` fails when an ERROR rule is unverified, so a new
+ERROR rule cannot ship without its claim being checked.
+
 ## Corrected or removed
 
 | Rule | Claim made | What the source says | Result |

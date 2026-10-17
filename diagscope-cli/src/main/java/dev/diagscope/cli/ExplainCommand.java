@@ -2,6 +2,7 @@ package dev.diagscope.cli;
 
 import dev.diagscope.core.application.rule.RuleCatalog;
 import dev.diagscope.core.application.rule.RuleLifecycle;
+import dev.diagscope.core.application.rule.RuleSources;
 import dev.diagscope.core.application.rule.RuleVersions;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
@@ -54,7 +55,20 @@ public final class ExplainCommand implements Callable<Integer> {
         if (doc.knownLimitations() != null) {
             System.out.printf("%nKnown limitations%n  %s%n", doc.knownLimitations());
         }
+        printSource(doc.ruleId());
         return 0;
+    }
+
+    private static void printSource(String ruleId) {
+        RuleSources.Source source = RuleSources.of(ruleId);
+        switch (source.basis()) {
+            case SOURCED -> {
+                System.out.printf("%nSource (checked against the project's own documentation or code)%n");
+                source.references().forEach(reference -> System.out.printf("  %s%n", reference));
+            }
+            case PATTERN -> System.out.printf("%nSource%n  Code pattern; the harm follows from the language or the JDK, not from a framework.%n");
+            case UNVERIFIED -> System.out.printf("%nSource%n  Not yet checked against the documentation or code of the library it concerns.%n");
+        }
     }
 
     private static String lifecycleNote(RuleLifecycle.Entry lifecycle) {

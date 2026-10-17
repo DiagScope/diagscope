@@ -2142,7 +2142,7 @@ public final class RuleCatalog {
 
         put(catalog, ThreadLocalNotRemovedRule.ID,
                 "ThreadLocal.set() without ThreadLocal.remove() — per-request data leak in thread pool",
-                "concurrency", Severity.ERROR, ALL_LANGUAGES,
+                "concurrency", Severity.WARNING, ALL_LANGUAGES,
                 "Methods that set a ThreadLocal value in a thread-pool context",
                 "A method calls ThreadLocal.set() without a visible ThreadLocal.remove() in the"
                         + " same method body.",

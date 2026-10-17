@@ -1241,6 +1241,7 @@ EAGER)` fields and `@Lazy` constructor parameters become synthetic class-level m
 | Wave 12 | 2026-10-16 | +1 | 151 |
 | Wave 13 | 2026-10-16 | +5 | 156 |
 | Wave 14 | 2026-10-16 | +1 | 157 |
-| Audit | 2026-10-16 | −2 (removed) | **155** |
+| Audit | 2026-10-16 | −2 (removed) | 155 |
+| Audit (2nd pass) | 2026-10-16 | −1 (removed) | **154** |
 
 > Note: `LAZY_LOAD_OUTSIDE_TRANSACTION` remains `candidate` — genuinely blocked pending field-access tracking in the domain model.
