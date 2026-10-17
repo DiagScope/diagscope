@@ -52,6 +52,8 @@ ERROR rule cannot ship without its claim being checked.
 | `METRIC_CREATED_IN_LOOP` | Each lookup multiplies time series | Re-resolving the same name and tags returns the existing meter; series multiply only when tags differ | Text corrected |
 | `TRANSACTION_WITH_HTTP_CALL` | The database connection is held for the whole HTTP roundtrip | `DataSourceTransactionManager.doBegin` takes the connection at the start. `HibernateJpaDialect` prepares it at the start only for a read-only transaction or an explicit isolation level, and Hibernate's resource-local default is delayed acquisition (`DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION`), so under JPA a call before the first statement holds the transaction but no connection yet | Text and limits corrected |
 | `PROPAGATION_SUPPORTS_WRITE_RISK` | Each write commits immediately in auto-commit mode | True for JDBC. A Spring Data call runs in its own transaction (its methods are `@Transactional`), and `persist`/`merge`/`remove` on the shared `EntityManager` throw `TransactionRequiredException` outside a transaction (`SharedEntityManagerCreator`) | Text corrected |
+| `MISSING_BULKHEAD_ON_HTTP_CLIENT` | A slow downstream holds a request thread per in-flight call | True for a blocking client (`RestTemplate`, `RestClient`, `HttpClient.send`). A `WebClient` call or `HttpClient.sendAsync` returns before the response arrives and holds no thread unless the method then waits (`block`, `join`, `get`) | Non-blocking calls reported only when the method waits; `java.net.http.HttpClient` was already matched, and the limits said it was not |
+| `KAFKA_RETRY_WITHOUT_BACKOFF` | A zero-delay `FixedBackOff` causes hundreds of attempts per second | `FixedBackOff(interval, maxAttempts)` redelivers each failing record at most `maxAttempts` times. Spring Kafka's own `DefaultErrorHandler()` default is `FixedBackOff(0, 9)` (`SeekUtils.DEFAULT_BACK_OFF`), which the rule does not report | Text corrected, limit added |
 | `AOP_ADVICE_NOT_APPLIED`, `AOP_SELF_INVOCATION` | A private method under a class-level `@Transactional` loses the transaction | The proxy never sees a private method and its callers already run inside the advised method. Found by scanning jhipster-sample-app (24 findings, all of this kind) | Only an annotation or advice on the method itself counts |
 | `AOP_ADVICE_NOT_APPLIED` | `@Transactional` cannot be applied to a protected or package-visible method | Spring reference (transaction annotations): "As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies"; CDI interceptors (Quarkus) also advise them. The cache annotations still need public methods | Reported for `@Transactional` only when the method is private or static |
 
@@ -71,6 +73,17 @@ Boot's scheduler pool size defaults to 1, which `spring.task.scheduling.pool.siz
 `find` returns `null` for a missing row), `CACHE_EVICT_WITHOUT_ALL_ENTRIES_ON_VOID` (`SimpleKeyGenerator` returns
 `SimpleKey.EMPTY` for no arguments), `CACHE_EVICT_MISSING` (the default `ConcurrentMapCacheManager` cache never evicts)
 and `CACHE_NAME_MISMATCH` (a code-shape check, no framework claim).
+
+Kafka and Resilience4j: `CIRCUIT_BREAKER_WITHOUT_FALLBACK`, `BULKHEAD_WITHOUT_FALLBACK` and `RATE_LIMITER_WITHOUT_FALLBACK`
+(`FallbackExecutor.execute` returns `primaryFunction.get()` when no fallback is configured, so
+`CallNotPermittedException`, `BulkheadFullException` and `RequestNotPermitted` reach the caller; the annotations all
+have `fallbackMethod`), `RETRY_ON_ALL_EXCEPTIONS` (spring-retry `@Retryable`: with `include`/`retryFor` and `exclude`
+empty, all exceptions are retried; with only `exclude` set, all that are not excluded), `KAFKA_TOPIC_HARDCODED`
+(`ContainerProperties.missingTopicsFatal` is `false` by default, so a missing topic does not stop the listener),
+`KAFKA_LISTENER_ERROR_NOT_PROPAGATED` (the container's error handler runs only for an exception that leaves the
+listener). `KAFKA_CONSUMER_GROUP_HARDCODED` is a statement about Kafka group membership, `RETRY_WITHOUT_DIAGNOSTICS` and
+`FALLBACK_HIDES_FAILURE` about observability: no framework behaviour to check. The MicroProfile `@Retry` default was not
+read.
 
 `ASYNC_ON_PRIVATE_METHOD`, `CACHEABLE_ON_PRIVATE_METHOD`, `TRANSACTIONAL_ON_FINAL_METHOD` (a CGLIB proxy cannot
 intercept private or final methods), `AOP_SELF_INVOCATION`, `BULKHEAD_WITHOUT_FALLBACK` and

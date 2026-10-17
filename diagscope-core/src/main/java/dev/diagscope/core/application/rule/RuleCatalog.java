@@ -1065,17 +1065,20 @@ public final class RuleCatalog {
                 "A FixedBackOff is constructed with an interval below 100ms and more than one"
                         + " retry attempt. This causes rapid retry storms against a failing"
                         + " downstream, amplifying the failure rather than allowing recovery.",
-                "A rapid retry loop hammers the already-failing downstream — broker, database,"
-                        + " or external API — at hundreds of attempts per second. This extends"
-                        + " the outage, triggers rate limiting, and may exhaust connection pools"
-                        + " before the downstream has any chance to recover.",
+                "Each failing record is redelivered up to maxAttempts times in rapid succession, one"
+                        + " attempt every few milliseconds, while the partition waits. A downstream that"
+                        + " is failing gets that many extra calls per record and no time to recover;"
+                        + " under a burst of failing records this extends the outage, triggers rate"
+                        + " limiting, and may exhaust connection pools.",
                 "DiagScope detects constructor calls to FixedBackOff(interval, maxAttempts)"
                         + " (captured via ObjectCreationExpr in the Java parser and as a regular"
                         + " call expression in the Kotlin parser). The interval argument is parsed"
                         + " as a numeric literal; variable references are not resolved.",
                 "Variable-based interval values (e.g., FixedBackOff(intervalMs, 3)) cannot be"
                         + " resolved statically and are skipped, producing false negatives when"
-                        + " the variable happens to be zero.");
+                        + " the variable happens to be zero. Spring Kafka's own default is not reported"
+                        + " either: a DefaultErrorHandler created without a BackOff uses FixedBackOff(0, 9),"
+                        + " that is, nine immediate retries.");
 
         // ── Exception handling: throw in finally suppresses original exception ──
         put(catalog, ExceptionSuppressedInFinallyRule.ID,
@@ -2592,14 +2595,19 @@ public final class RuleCatalog {
                 "Services calling downstream HTTP APIs with RestTemplate, WebClient or RestClient",
                 "A method makes an outbound HTTP call and no method on the path from the entrypoint"
                         + " carries @Bulkhead or @CircuitBreaker.",
-                "Without isolation one slow downstream holds a request thread per in-flight call"
-                        + " until the pool is exhausted, and every endpoint of the service stops answering,"
-                        + " including unrelated ones.",
-                "A call on a RestTemplate, WebClient or RestClient receiver, evaluated along the"
+                "Without isolation one slow downstream holds a request thread per in-flight blocking"
+                        + " call until the pool is exhausted, and every endpoint of the service stops"
+                        + " answering, including unrelated ones.",
+                "A call on a RestTemplate, RestClient, WebClient or HttpClient receiver, evaluated along the"
                         + " flow: every method from the entrypoint to the call is checked for a Bulkhead or"
-                        + " CircuitBreaker annotation. Confidence is capped at MEDIUM and by the path.",
+                        + " CircuitBreaker annotation. A WebClient call or HttpClient.sendAsync does not block"
+                        + " a thread, so it is reported only when the same method also waits for the result"
+                        + " (block, blockFirst, blockLast, blockOptional, join or get). Confidence is capped at"
+                        + " MEDIUM and by the path.",
                 "Isolation applied outside the application (gateway, service mesh, HTTP client pool"
-                        + " limits) is invisible. Feign clients and java.net.http.HttpClient are not covered.");
+                        + " limits) is invisible. Feign clients are not covered. A non-blocking call that is"
+                        + " returned to the caller is not reported, although it can still pile up in-flight"
+                        + " requests without a bulkhead.");
 
         put(catalog, HttpClientNoErrorHandlerRule.ID,
                 "RestTemplate created without an error handler",

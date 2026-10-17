@@ -24,6 +24,10 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- `MISSING_BULKHEAD_ON_HTTP_CLIENT` no longer reports a non-blocking `WebClient` call or `HttpClient.sendAsync` unless the
+  same method waits for the result: such a call holds no request thread, so the stated harm did not apply (rule version
+  1.0.1). `KAFKA_RETRY_WITHOUT_BACKOFF` text corrected: retries are bounded by `maxAttempts` per record, and Spring
+  Kafka's default `FixedBackOff(0, 9)` is not reported.
 - `SYSTEM_OUTPUT` skips `@Command` classes and `main` methods, where printing is the program's output (rule version
   1.0.1). The remaining self-scan findings are the 8 oversized signatures and 3 `orElse(null)`.
 - Scanning DiagScope with itself (`--entrypoint PUBLIC_METHOD`) exposed three false positives, now fixed:

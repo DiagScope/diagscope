@@ -20,7 +20,7 @@ import java.util.Set;
  * Reports an outbound HTTP call that no method on the path from the entrypoint isolates with a bulkhead or a
  * circuit breaker.
  *
- * <p>Without isolation, one slow downstream holds a request thread per in-flight call until the pool is
+ * <p>Without isolation, one slow downstream holds a request thread per in-flight blocking call until the pool is
  * exhausted, and every endpoint of the service — including unrelated ones — stops answering. A
  * {@code @Bulkhead} bounds the concurrency, a {@code @CircuitBreaker} stops calling a failing dependency.</p>
  *
@@ -37,6 +37,9 @@ public final class MissingBulkheadOnHttpClientRule implements DiagnosticRule {
             "getForObject", "getForEntity", "postForObject", "postForEntity", "postForLocation", "put", "delete",
             "exchange", "execute", "patchForObject", "retrieve", "exchangeToMono", "exchangeToFlux", "send", "sendAsync");
     private static final Set<String> ISOLATION = Set.of("Bulkhead", "CircuitBreaker");
+    /** Calls that return before the response arrives: they hold no thread unless the method then waits. */
+    private static final Set<String> NON_BLOCKING_CALLS = Set.of("retrieve", "exchangeToMono", "exchangeToFlux", "sendAsync");
+    private static final Set<String> WAITS = Set.of("block", "blockFirst", "blockLast", "blockOptional", "join", "get");
 
     @Override
     public String id() {
@@ -52,7 +55,7 @@ public final class MissingBulkheadOnHttpClientRule implements DiagnosticRule {
         for (FlowMethod flowMethod : flow.methods()) {
             MethodModel method = flowMethod.method();
             InvocationEvidence call = method.invocations().stream().filter(MissingBulkheadOnHttpClientRule::isHttpCall)
-                    .findFirst().orElse(null);
+                    .filter(candidate -> blocksThread(candidate, method)).findFirst().orElse(null);
             if (call == null || isolatedOnPath(flowMethod, methods)) continue;
             Confidence confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
             findings.add(new Finding(
@@ -72,6 +75,11 @@ public final class MissingBulkheadOnHttpClientRule implements DiagnosticRule {
         if (!CLIENT_CALLS.contains(invocation.methodName())) return false;
         String receiver = ExecutionContexts.simpleTypeName(invocation.receiverType());
         return HTTP_CLIENTS.contains(receiver);
+    }
+
+    private static boolean blocksThread(InvocationEvidence call, MethodModel method) {
+        if (!NON_BLOCKING_CALLS.contains(call.methodName())) return true;
+        return method.invocations().stream().anyMatch(other -> WAITS.contains(other.methodName()));
     }
 
     private static boolean isolatedOnPath(FlowMethod reached, Map<MethodId, MethodModel> methods) {

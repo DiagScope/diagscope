@@ -447,6 +447,21 @@ class CalibrationRulesTest {
         assertThat(new SystemOutputRule().evaluate(flow(service))).hasSize(1);
     }
 
+    @Test
+    void aNonBlockingHttpCallHoldsNoThread_unlessTheMethodWaitsForIt() {
+        var reactive = service("reactive", Set.of(), invocation(10, "webClient", "WebClient", "retrieve"));
+        var waiting = service("waiting", Set.of(), invocation(10, "webClient", "WebClient", "retrieve"),
+                invocation(11, "spec", "Mono", "block"));
+        var blocking = service("blocking", Set.of(), invocation(10, "restTemplate", "RestTemplate", "exchange"));
+        var async = service("async", Set.of(), invocation(10, "httpClient", "HttpClient", "sendAsync"));
+
+        var rule = new MissingBulkheadOnHttpClientRule();
+        assertThat(rule.evaluate(flow(reactive))).isEmpty();
+        assertThat(rule.evaluate(flow(async))).isEmpty();
+        assertThat(rule.evaluate(flow(waiting))).hasSize(1);
+        assertThat(rule.evaluate(flow(blocking))).hasSize(1);
+    }
+
     // ── Noise from repeated or delegating findings ───────────────────────────
 
     @Test

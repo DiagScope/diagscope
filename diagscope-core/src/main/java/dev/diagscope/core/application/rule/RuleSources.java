@@ -37,6 +37,10 @@ public final class RuleSources {
             "COMPLETABLEFUTURE_EXCEPTION_NOT_HANDLED",
             "COROUTINE_EXCEPTION_NOT_HANDLED",
             "CACHE_NAME_MISMATCH",
+            "FALLBACK_HIDES_FAILURE",
+            "KAFKA_CONSUMER_GROUP_HARDCODED",
+            "MISSING_BULKHEAD_ON_HTTP_CLIENT",
+            "RETRY_WITHOUT_DIAGNOSTICS",
             "COUNT_DOWN_LATCH_NOT_IN_FINALLY",
             "DB_RESOURCE_CLOSE_NOT_GUARDED",
             "EXCEPTION_SUPPRESSED_IN_FINALLY",
@@ -167,6 +171,25 @@ public final class RuleSources {
                 "https://github.com/spring-projects/spring-framework/blob/main/spring-jdbc/src/main/java/org/springframework/jdbc/datasource/DataSourceTransactionManager.java",
                 "https://github.com/spring-projects/spring-framework/blob/main/spring-orm/src/main/java/org/springframework/orm/jpa/vendor/HibernateJpaDialect.java",
                 "https://github.com/hibernate/hibernate-orm/blob/main/hibernate-core/src/main/java/org/hibernate/resource/transaction/backend/jdbc/internal/JdbcResourceLocalTransactionCoordinatorBuilderImpl.java"));
+        SOURCED.put("KAFKA_LISTENER_ERROR_NOT_PROPAGATED", List.of(
+                "https://github.com/spring-projects/spring-kafka/blob/main/spring-kafka/src/main/java/org/springframework/kafka/listener/KafkaMessageListenerContainer.java",
+                "https://github.com/spring-projects/spring-kafka/blob/main/spring-kafka/src/main/java/org/springframework/kafka/listener/DefaultErrorHandler.java"));
+        SOURCED.put("KAFKA_RETRY_WITHOUT_BACKOFF", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-core/src/main/java/org/springframework/util/backoff/FixedBackOff.java",
+                "https://github.com/spring-projects/spring-kafka/blob/main/spring-kafka/src/main/java/org/springframework/kafka/listener/SeekUtils.java"));
+        SOURCED.put("KAFKA_TOPIC_HARDCODED", List.of(
+                "https://github.com/spring-projects/spring-kafka/blob/main/spring-kafka/src/main/java/org/springframework/kafka/listener/ContainerProperties.java"));
+        SOURCED.put("CIRCUIT_BREAKER_WITHOUT_FALLBACK", List.of(
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-spring6/src/main/java/io/github/resilience4j/spring6/fallback/FallbackExecutor.java",
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-circuitbreaker/src/main/java/io/github/resilience4j/circuitbreaker/CallNotPermittedException.java"));
+        SOURCED.put("BULKHEAD_WITHOUT_FALLBACK", List.of(
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-spring6/src/main/java/io/github/resilience4j/spring6/fallback/FallbackExecutor.java",
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-bulkhead/src/main/java/io/github/resilience4j/bulkhead/BulkheadFullException.java"));
+        SOURCED.put("RATE_LIMITER_WITHOUT_FALLBACK", List.of(
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-spring6/src/main/java/io/github/resilience4j/spring6/fallback/FallbackExecutor.java",
+                "https://github.com/resilience4j/resilience4j/blob/master/resilience4j-ratelimiter/src/main/java/io/github/resilience4j/ratelimiter/RequestNotPermitted.java"));
+        SOURCED.put("RETRY_ON_ALL_EXCEPTIONS", List.of(
+                "https://github.com/spring-projects/spring-retry/blob/main/src/main/java/org/springframework/retry/annotation/Retryable.java"));
     }
 
     private RuleSources() {
