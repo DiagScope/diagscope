@@ -84,6 +84,16 @@ module is analyzed with the method bodies of its own module but with the type in
 Two modules that declare the same class name with different supertypes can resolve an interface call through the wrong
 hierarchy. Keying types by module is the next step if this shows up in practice.
 
+Measured on the calibration corpus, it does not show up. Classes declared in more than one module: 39 in
+quarkus-quickstarts, 21 in spring-data-examples, 3 in vertx-examples, none in the other four projects. Of those, 2, 8 and 1
+have a different declaration header between modules (class versus record, a different `extends` or `implements`), and every
+difference is a library type (`PanacheEntity`, `CrudRepository`, `ValueObject`) that the analysis cannot resolve through
+anyway. Resolved calls into a repeated type: 42, 15 and 0; the 20 of them that go through a receiver type or a single
+implementation all land on types whose headers are identical in every module, so the first declaration's type facts are
+the right ones. No resolved call goes into a type whose header differs. Not measured: Kotlin (the only Kotlin project
+has no repeated types) and repeated types declared inside another type. The change is not worth its cost until a
+project with a repeated project-local supertype appears.
+
 ## Plan and acceptance
 
 1. `MethodId.module`, `qualifiedName()`, and assignment on collision in the Java, Kotlin and composite merges.
