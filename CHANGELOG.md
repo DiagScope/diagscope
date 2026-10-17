@@ -4,6 +4,12 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.4 — 2026-10-17
+
+### Added
+
+- `--fail-on-confidence`: with `--fail-on`, only findings of at least that confidence break the build.
+
 ### Fixed
 
 - The `init-agent` hook now gates on ERROR findings of HIGH confidence instead of every ERROR, and honours
@@ -29,7 +35,6 @@ All notable project changes are recorded in this file.
 
 ### Added
 
-- `--fail-on-confidence`: with `--fail-on`, only findings of at least that confidence break the build.
 - `diagscope init-agent`: writes a marked DiagScope block into `AGENTS.md` and `CLAUDE.md` and installs a Claude
   Code `Stop` hook that scans the changed files at the end of a task and hands the findings back once. Idempotent and
   additive. See [CLI.md](docs/CLI.md#init-agent).
