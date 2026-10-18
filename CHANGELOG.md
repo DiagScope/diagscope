@@ -53,6 +53,13 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Eight rules that were marked as pattern were read against the framework sources (see `docs/RULE_AUDIT.md`) and are
+  now sourced. Four changed behaviour (1.1.0): `CLOCK_DEPENDENCY_NOT_INJECTED` now reports `now(ZoneId)` too, which is
+  the system clock; `HTTP_CLIENT_CREATED_PER_REQUEST` reports only `OkHttpClient`, because `RestTemplate` and a default
+  `WebClient` keep no pool of their own; `MASS_ASSIGNMENT_RISK` is no longer silenced by an `@InitBinder` for a
+  `@RequestBody`, which the binder does not fill; `APPLICATION_CONTEXT_LOCATOR` needs a receiver that looks like a
+  context and skips `main`. The texts of `OUTBOX_PATTERN_MISSING` (an `AFTER_COMMIT` listener narrows the window, it
+  does not close it) and `ENTITY_EXPOSED_IN_REST_RESPONSE` were corrected.
 - The `init-agent` hook now gates on ERROR findings of HIGH confidence instead of every ERROR, and honours
   `diagscope-baseline.json` when present. On the calibration corpus the ERROR/MEDIUM class was where the false
   positives were. Re-run `diagscope init-agent` to regenerate the hook.

@@ -84,30 +84,22 @@ public final class RuleSources {
             "TIMER_TASK_EXCEPTION_KILLS_TIMER",
             "UNBOUNDED_THREAD_POOL",
             "XML_EXTERNAL_ENTITY_RISK",
-            "APPLICATION_CONTEXT_LOCATOR",
             "CHECK_THEN_ACT_ON_MAP",
-            "CLOCK_DEPENDENCY_NOT_INJECTED",
             "DUPLICATE_DIAGNOSTIC_SIGNAL",
-            "DYNAMIC_METRIC_NAME",
-            "ENTITY_EXPOSED_IN_REST_RESPONSE",
             "EXCEPTION_CONSTRUCTOR_WITHOUT_MESSAGE",
             "EXCESSIVE_METHOD_PARAMETERS",
             "FIELD_INJECTION_USED",
             "GENERIC_EXCEPTION_MESSAGE",
             "GOD_CLASS_DETECTED",
             "HIGH_METHOD_COMPLEXITY",
-            "HTTP_CLIENT_CREATED_PER_REQUEST",
             "LOG_MESSAGE_STRING_CONCAT",
             "LOG_WITHOUT_THROWABLE",
             "MAP_GET_DEREFERENCED_WITHOUT_CHECK",
-            "MASS_ASSIGNMENT_RISK",
             "MISSING_PAGINATION",
             "N_PLUS_ONE_QUERY_RISK",
             "OPTIONAL_OR_ELSE_NULL",
-            "OUTBOX_PATTERN_MISSING",
             "PRINT_STACK_TRACE",
             "STRING_FORMAT_IN_LOOP",
-            "SYSTEM_ENV_IN_BEAN",
             "SYSTEM_OUTPUT",
             "TEST_BROAD_EXPECTED_EXCEPTION",
             "TEST_DISABLED_WITHOUT_REASON",
@@ -116,6 +108,25 @@ public final class RuleSources {
             "TEST_WITHOUT_ASSERTION");
 
     static {
+        SOURCED.put("APPLICATION_CONTEXT_LOCATOR", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-beans/src/main/java/org/springframework/beans/factory/BeanFactory.java"));
+        SOURCED.put("CLOCK_DEPENDENCY_NOT_INJECTED", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/time/LocalDateTime.java"));
+        SOURCED.put("DYNAMIC_METRIC_NAME", List.of(
+                "https://github.com/micrometer-metrics/micrometer/blob/main/micrometer-core/src/main/java/io/micrometer/core/instrument/MeterRegistry.java"));
+        SOURCED.put("ENTITY_EXPOSED_IN_REST_RESPONSE", List.of(
+                "https://github.com/FasterXML/jackson-databind/blob/2.x/src/main/java/com/fasterxml/jackson/databind/MapperFeature.java"));
+        SOURCED.put("HTTP_CLIENT_CREATED_PER_REQUEST", List.of(
+                "https://github.com/square/okhttp/blob/master/okhttp/src/commonJvmAndroid/kotlin/okhttp3/OkHttpClient.kt", 
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-web/src/main/java/org/springframework/http/client/SimpleClientHttpRequestFactory.java", 
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-web/src/main/java/org/springframework/http/client/reactive/ReactorClientHttpConnector.java"));
+        SOURCED.put("MASS_ASSIGNMENT_RISK", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-web/src/main/java/org/springframework/web/bind/annotation/InitBinder.java", 
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-webmvc/src/main/java/org/springframework/web/servlet/mvc/method/annotation/RequestResponseBodyMethodProcessor.java"));
+        SOURCED.put("OUTBOX_PATTERN_MISSING", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-tx/src/main/java/org/springframework/transaction/event/TransactionalEventListener.java"));
+        SOURCED.put("SYSTEM_ENV_IN_BEAN", List.of(
+                "https://github.com/spring-projects/spring-framework/blob/main/spring-core/src/main/java/org/springframework/core/env/StandardEnvironment.java"));
         SOURCED.put("CAUSE_LOST_ON_RETHROW", List.of(
                 "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/lang/Throwable.java"));
         SOURCED.put("EVENT_LISTENER_ON_PRIVATE_METHOD", List.of(

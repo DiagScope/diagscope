@@ -16,7 +16,7 @@ import java.util.Set;
  * Reports Spring MVC controller methods that accept a JPA {@code @Entity} (or {@code @Table})
  * class directly as a {@code @RequestBody} parameter.
  *
- * <p><b>Why it matters:</b> Jackson deserializes every JSON field that matches a field in the
+ * <p><b>Why it matters:</b> Jackson deserializes every JSON property that matches a property of the
  * entity — including fields the client should never be allowed to set ({@code id}, {@code role},
  * {@code createdAt}, {@code ownerId}). An attacker can send extra JSON keys to overwrite
  * server-controlled fields. This is a mass-assignment / parameter-tampering vulnerability.</p>
@@ -73,7 +73,9 @@ public final class MassAssignmentRiskRule implements ProjectRule {
         }
         if (entitySimpleNames.isEmpty()) return List.of();
 
-        // A controller that restricts data binding with an @InitBinder method has dealt with the risk.
+        // A controller that restricts data binding with an @InitBinder method has dealt with the risk for the
+        // parameters the WebDataBinder fills (form, query, @ModelAttribute). A @RequestBody is read by an
+        // HttpMessageConverter (RequestResponseBodyMethodProcessor), which the binder only validates, so it is not covered.
         var guardedControllers = new HashSet<String>();
         for (MethodModel method : project.methods().values()) {
             if (method.annotations().contains("InitBinder")) guardedControllers.add(method.id().declaringType());
@@ -82,13 +84,12 @@ public final class MassAssignmentRiskRule implements ProjectRule {
         // Pass 2: find controller write-endpoint methods whose params include entity types
         var findings = new ArrayList<Finding>();
         for (MethodModel method : project.methods().values()) {
-            if (guardedControllers.contains(method.id().declaringType())) continue;
-            check(method, entitySimpleNames, findings);
+            check(method, entitySimpleNames, guardedControllers.contains(method.id().declaringType()), findings);
         }
         return List.copyOf(findings);
     }
 
-    private static void check(MethodModel method, Set<String> entitySimpleNames,
+    private static void check(MethodModel method, Set<String> entitySimpleNames, boolean hasInitBinder,
             List<Finding> findings) {
         // Must be in a controller OR carry a write-mapping annotation directly
         boolean isController = method.annotations().stream().anyMatch(CONTROLLER_ANNOTATIONS::contains);
@@ -100,7 +101,9 @@ public final class MassAssignmentRiskRule implements ProjectRule {
         var parameterTypes = method.id().parameterTypes();
         for (int index = 0; index < parameterTypes.size(); index++) {
             String paramType = parameterTypes.get(index);
-            if (method.parameterAnnotations(index).stream().anyMatch(NON_PAYLOAD_PARAMETER_ANNOTATIONS::contains)) continue;
+            var parameterAnnotations = method.parameterAnnotations(index);
+            if (parameterAnnotations.stream().anyMatch(NON_PAYLOAD_PARAMETER_ANNOTATIONS::contains)) continue;
+            if (hasInitBinder && !parameterAnnotations.contains("RequestBody")) continue;
             String simpleName = simpleTypeName(stripGenerics(paramType));
             if (entitySimpleNames.contains(simpleName)) {
                 findings.add(new Finding(

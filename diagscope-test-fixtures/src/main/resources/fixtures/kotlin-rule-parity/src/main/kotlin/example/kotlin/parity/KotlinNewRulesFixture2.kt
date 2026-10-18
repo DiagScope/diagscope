@@ -120,9 +120,15 @@ class KotlinTxHttpService(
 class KotlinHttpClientService(private val sharedRestTemplate: RestTemplate) {
 
     /**
-     * HTTP_CLIENT_CREATED_PER_REQUEST: new RestTemplate() on each call.
+     * HTTP_CLIENT_CREATED_PER_REQUEST: an OkHttpClient on each call owns a new connection pool.
      */
     fun fetchData(url: String): String? { // → HTTP_CLIENT_CREATED_PER_REQUEST
+        val client = OkHttpClient()
+        return client.newCall(url).execute()
+    }
+
+    /** Not reported: a RestTemplate keeps no pool of its own. */
+    fun fetchWithRestTemplate(url: String): String? {
         val client = RestTemplate()
         return client.getForObject(url)
     }

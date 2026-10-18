@@ -1141,8 +1141,10 @@ public final class RuleCatalog {
                         + " parameter type's simple name appears in that set.",
                 "The heuristic uses simple-type-name matching, so a non-entity class that happens"
                         + " to have the same simple name as an entity will produce a false positive."
-                        + " The rule also cannot detect @RequestBody annotation on parameters"
-                        + " directly — it applies to all parameters of write-endpoint methods.");
+                        + " It applies to every payload parameter of a write endpoint, with or without @RequestBody,"
+                        + " and cannot see @JsonIgnore or read-only properties on the entity. A controller with an"
+                        + " @InitBinder method is skipped for form and @ModelAttribute parameters, which the data"
+                        + " binder fills, but not for @RequestBody, which Jackson fills and the binder does not touch.");
 
         // ── Resilience: retry scope ────────────────────────────────────────────
         put(catalog, RetryOnAllExceptionsRule.ID,
@@ -1240,24 +1242,19 @@ public final class RuleCatalog {
 
         // ── Performance: HTTP client created per request ───────────────────────
         put(catalog, HttpClientCreatedPerRequestRule.ID,
-                "HTTP client constructed inside method body instead of as a shared bean",
+                "OkHttpClient constructed inside a method body instead of shared",
                 "performance", Severity.WARNING, ALL_LANGUAGES,
-                "Spring applications using RestTemplate, WebClient, or OkHttp",
-                "An HTTP client instance is created inside a regular method body. HTTP client"
-                        + " construction allocates a thread pool, a connection pool, and SSL"
-                        + " context — one per call.",
-                "In a hot path (request handler, Kafka listener, scheduled job), this creates"
-                        + " a new client on every invocation. None of the clients share"
-                        + " connections, so the connection pool is never reused. File-descriptor"
-                        + " exhaustion, heap pressure, and SSL handshake overhead accumulate"
-                        + " quickly under load. The correct pattern is a single shared bean"
-                        + " injected at construction time.",
-                "A constructor call (e.g. new RestTemplate(), new OkHttpClient()) or a"
-                        + " builder-pattern call (.build() on a WebClient.Builder receiver) in"
-                        + " a method body not annotated with @Bean or @Configuration.",
-                "HTTP client construction in @Bean methods or test lifecycle methods (@Before,"
-                        + " @BeforeEach) is excluded. A builder call whose receiver scope does"
-                        + " not explicitly name a known HTTP client type may be missed.");
+                "Applications using OkHttp",
+                "An OkHttpClient is created inside a regular method body.",
+                "An OkHttpClient owns a connection pool and a dispatcher, and its documentation says it"
+                        + " performs best as a single shared instance. Built per call, connections are never"
+                        + " reused and every instance holds its own pool and threads.",
+                "new OkHttpClient() or new OkHttpClient.Builder().build() in a method body not annotated"
+                        + " with @Bean or @Configuration.",
+                "new RestTemplate() and a default WebClient are not reported: RestTemplate opens an"
+                        + " HttpURLConnection per request without a pool of its own, and WebClient shares Reactor"
+                        + " Netty's global resources. Construction in @Bean methods or test lifecycle methods is"
+                        + " excluded. A builder call whose receiver does not name OkHttpClient may be missed.");
 
         // ── Security: CORS wildcard origin ────────────────────────────────────
         put(catalog, CorsWildcardOriginRule.ID,
@@ -2078,14 +2075,12 @@ public final class RuleCatalog {
                 "A Spring-managed bean calls applicationContext.getBean(Type.class) or"
                         + " applicationContext.getBean(\"beanName\") to retrieve a dependency at"
                         + " runtime instead of declaring it as a constructor parameter.",
-                "The dependency obtained via getBean() is invisible to the framework: Spring"
-                        + " cannot detect circular dependencies at startup, the dependency cannot"
-                        + " be mocked in unit tests without mocking the entire ApplicationContext,"
-                        + " and the class cannot be instantiated outside a Spring context at all."
-                        + " Scoped beans (request-scoped, session-scoped) may behave unexpectedly"
-                        + " when looked up outside their natural lifecycle.",
-                "Methods on Spring stereotype-annotated classes containing an invocation with"
-                        + " methodName == 'getBean', outside @Bean factory methods and test"
+                "BeanFactory's Javadoc: it is generally better to rely on Dependency Injection than on lookup."
+                        + " A getBean() call hides the dependency from the constructor, so callers and tests"
+                        + " cannot see it and need an application context to supply it. It is a design finding:"
+                        + " the lookup also happens to be the way out of a circular dependency.",
+                "Methods on Spring stereotype-annotated classes containing a getBean() call whose receiver"
+                        + " is named or typed like a context or bean factory, outside @Bean factory methods and test"
                         + " lifecycle methods. Confidence HIGH.",
                 "Legitimate uses inside @Bean factory methods (producing prototype beans) are"
                         + " suppressed. ObjectProvider<T> injection is the preferred alternative"

@@ -17,6 +17,12 @@ cannot ship without declaring where its claim comes from.
 
 | Rule | Claim made | What the source says | Result |
 | --- | --- | --- | --- |
+| `CLOCK_DEPENDENCY_NOT_INJECTED` | `now(ZoneId)` is "externally controlled" and skipped | `LocalDateTime.now(ZoneId)` is `now(Clock.system(zone))`: the system clock again. The catalog already said it was flagged; the code skipped it | Code fixed (1.1.0) |
+| `HTTP_CLIENT_CREATED_PER_REQUEST` | Every HTTP client allocates a thread pool and connection pool | True for `OkHttpClient` (its Javadoc: "performs best when you create a single instance and reuse it"). `new RestTemplate()` uses `SimpleClientHttpRequestFactory` over `HttpURLConnection`, no pool of its own; a default `WebClient` uses Reactor Netty's global `HttpResources` | Narrowed to OkHttp (1.1.0). On the corpus the two removed findings were WebClient |
+| `MASS_ASSIGNMENT_RISK` | A controller with `@InitBinder` has restricted the binding | `@InitBinder` configures the `WebDataBinder` that fills command and form objects. A `@RequestBody` is read by `readWithMessageConverters` (Jackson); the binder only validates it | `@RequestBody` no longer exempted by an `@InitBinder` (1.1.0) |
+| `APPLICATION_CONTEXT_LOCATOR` | Spring cannot detect circular dependencies at startup; scoped beans misbehave | Neither is in `BeanFactory`'s Javadoc, which says only that it is "generally better to rely on Dependency Injection". A lookup is also the way out of a circular dependency | Text reduced to the sourced claim; receiver must look like a context; `main` skipped (1.1.0) |
+| `OUTBOX_PATTERN_MISSING` | An `AFTER_COMMIT` listener "decouples the commit from the send correctly" | `TransactionalEventListener`: the transaction "will have been committed already". A crash after the commit still loses the event | Text corrected: it narrows the window, only an outbox row closes it. Suppression kept |
+| `ENTITY_EXPOSED_IN_REST_RESPONSE` | Jackson serialises every mapped field | Jackson detects public getters by default (`MapperFeature.AUTO_DETECT_GETTERS`) and honours `@JsonIgnore`, which the rule cannot see | Text corrected |
 | `AOP_ADVICE_ON_PRIVATE_METHOD` | A private `@Around` method never runs | `AbstractAspectJAdvice` calls `ReflectionUtils.makeAccessible(aspectJAdviceMethod)` before invoking it | Removed |
 | `SYNCHRONIZED_ON_SPRING_BEAN` | `synchronized` locks the proxy, not the bean | A proxy delegates to the target, so the target's monitor is taken | Removed |
 | `EVENT_LISTENER_ON_PRIVATE_METHOD` | A private listener is silently never called | `ApplicationListenerMethodAdapter` makes it accessible; `AopUtils.selectInvocableMethod` throws `IllegalStateException` at start-up only when the bean is a proxy | Rewritten (2.0.0) |
@@ -71,6 +77,8 @@ Read against the source in a later pass and now listed with their references (`d
 `CAUSE_LOST_ON_RETHROW` (`Throwable`'s Javadoc: a cause is associated through a constructor argument or `initCause`, and
 "the detail message associated with `cause` is not automatically incorporated" in the new exception; the rule was added
 after that reading and found nothing on the 12-project calibration corpus, so its recall on real code is untested),
+`SYSTEM_ENV_IN_BEAN` (`StandardEnvironment` registers `systemProperties` and `systemEnvironment` as property sources, so `Environment` and `@Value` reach both),
+`DYNAMIC_METRIC_NAME` (`MeterRegistry` keeps one meter per `Meter.Id`, name plus tags, in its `meterMap`),
 `TIMED_ON_PRIVATE_METHOD` (`TimedAspect` is a proxy-based `@Around` on `execution(@Timed * *.*(..))`),
 `DELETE_ALL_WITHOUT_ID` (`SimpleJpaRepository.deleteAll` loads `findAll()` and deletes one by one),
 `DRIVER_MANAGER_DATASOURCE_USED` (Javadoc: "not an actual connection pool", a new connection on every call),
@@ -133,14 +141,10 @@ Also read and kept as written: `APPLICATION_CONTEXT_LOCATOR`, `BLOCKING_CALL_ON_
 
 Every rule is either sourced or a pattern, and `RuleSourcesContractTest` fails for a rule that is neither. The pattern
 group is mostly code shape and style (`GOD_CLASS_DETECTED`, `HIGH_METHOD_COMPLEXITY`, `EXCESSIVE_METHOD_PARAMETERS`,
-`FIELD_INJECTION_USED`, the logging and test rules). These few also rest on a documented framework or library behaviour
-that was **not** read against its source, and are marked as pattern for that reason only:
-
-- Spring: `APPLICATION_CONTEXT_LOCATOR`, `SYSTEM_ENV_IN_BEAN`, `CLOCK_DEPENDENCY_NOT_INJECTED`,
-  `HTTP_CLIENT_CREATED_PER_REQUEST`.
-- Micrometer: `DYNAMIC_METRIC_NAME`.
-- Design: `OUTBOX_PATTERN_MISSING`.
-- Security and design: `MASS_ASSIGNMENT_RISK`, `ENTITY_EXPOSED_IN_REST_RESPONSE`.
+`FIELD_INJECTION_USED`, the logging and test rules). The eight rules that used to be listed here (`APPLICATION_CONTEXT_LOCATOR`, `SYSTEM_ENV_IN_BEAN`,
+`CLOCK_DEPENDENCY_NOT_INJECTED`, `HTTP_CLIENT_CREATED_PER_REQUEST`, `DYNAMIC_METRIC_NAME`, `OUTBOX_PATTERN_MISSING`,
+`MASS_ASSIGNMENT_RISK`, `ENTITY_EXPOSED_IN_REST_RESPONSE`) were read against the sources and are now sourced; what the
+reading found is in the table above. No rule is currently marked as pattern for lack of a reading.
 
 Read in the last passes and now sourced: `REACTIVE_MESSAGE_ERROR_NOT_PROPAGATED` (SmallRye Reactive Messaging, "Acknowledgment":
 the message of a payload-consuming method is acknowledged when the method returns and nacked with the exception when it

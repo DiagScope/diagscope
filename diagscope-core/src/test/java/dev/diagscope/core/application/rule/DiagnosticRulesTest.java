@@ -1095,12 +1095,12 @@ class DiagnosticRulesTest {
     // ── HttpClientCreatedPerRequestRule ───────────────────────────────────────
 
     @Test
-    void httpClientPerRequest_restTemplateConstructor_reported() {
+    void httpClientPerRequest_okHttpClientConstructor_reported() {
         var m = new MethodModel(
                 new MethodId("example.OrderService", "sendNotification", List.of()),
                 location(10), Set.of("Service"), List.of(),
-                List.of(new InvocationEvidence(location(15), "", "RestTemplate",
-                        "RestTemplate", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(new InvocationEvidence(location(15), "", "OkHttpClient",
+                        "OkHttpClient", List.of(), InvocationResultUsage.ASSIGNED)),
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(0), "void", false);
         var findings = new HttpClientCreatedPerRequestRule().evaluate(project(m));
@@ -1116,8 +1116,8 @@ class DiagnosticRulesTest {
         var m = new MethodModel(
                 new MethodId("example.AppConfig", "restTemplate", List.of()),
                 location(5), Set.of("Bean", "Configuration"), List.of(),
-                List.of(new InvocationEvidence(location(6), "", "RestTemplate",
-                        "RestTemplate", List.of(), InvocationResultUsage.ASSIGNED)),
+                List.of(new InvocationEvidence(location(6), "", "OkHttpClient",
+                        "OkHttpClient", List.of(), InvocationResultUsage.ASSIGNED)),
                 List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
                 CallableShape.fixed(0), "RestTemplate", false);
         assertThat(new HttpClientCreatedPerRequestRule().evaluate(project(m))).isEmpty();

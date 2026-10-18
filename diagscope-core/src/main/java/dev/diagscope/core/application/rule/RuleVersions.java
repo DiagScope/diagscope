@@ -59,6 +59,14 @@ public final class RuleVersions {
         // A factory that returns the resource, and a resource kept in a field, are not leaks of the acquiring method.
         overrides.put(JdbcResourceLeakRule.ID, "1.1.0");
         overrides.put(EntityManagerLeakRule.ID, "1.1.0");
+        // now(ZoneId) is the system clock too, so it is reported; the doc already said so but the code skipped it.
+        overrides.put(ClockDependencyNotInjectedRule.ID, "1.1.0");
+        // Only OkHttpClient is reported: RestTemplate and a default WebClient keep no pool of their own.
+        overrides.put(HttpClientCreatedPerRequestRule.ID, "1.1.0");
+        // getBean() must be called on something that looks like a context or bean factory.
+        overrides.put(ApplicationContextLocatorRule.ID, "1.1.0");
+        // An @InitBinder does not guard a @RequestBody: Jackson fills it, the data binder does not.
+        overrides.put(MassAssignmentRiskRule.ID, "1.1.0");
         overrides.put(IgnoredKafkaSendResultRule.ID, "1.2.0");
         // Manual acknowledgement detection was extended to class-level listeners and @KafkaHandler.
         overrides.put(KafkaManualAckMissingRule.ID, "1.1.0");

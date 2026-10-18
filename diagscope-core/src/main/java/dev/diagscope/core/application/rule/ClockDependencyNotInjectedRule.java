@@ -33,8 +33,9 @@ import java.util.Set;
  *   <li>Find methods in Spring-managed beans (those whose annotations include a Spring stereotype).</li>
  *   <li>Inside those methods, find invocations of known "current time" methods:
  *       {@code now()}, {@code currentTimeMillis()}, and the {@code Date} constructor.</li>
- *   <li>Suppress if the {@code now()} call has an argument — a {@code Clock} or {@code ZoneId}
- *       argument means the clock source is externally controlled.</li>
+ *   <li>Suppress if the {@code now()} call has an argument that is not a zone. A {@code Clock} argument means
+ *       the clock source is externally controlled; {@code now(ZoneId)} is {@code now(Clock.system(zone))}, the
+ *       system clock again, so a zone argument is still reported.</li>
  *   <li>Suppress for {@code @Bean} and test lifecycle methods.</li>
  *   <li>Confidence: HIGH for zero-argument {@code now()} calls; MEDIUM for {@code new Date()}
  *       and {@code currentTimeMillis()} which have no parameterised variant.</li>
@@ -58,6 +59,10 @@ public final class ClockDependencyNotInjectedRule implements ProjectRule {
             "LocalDateTime", "LocalDate", "Instant", "ZonedDateTime", "OffsetDateTime",
             "LocalTime", "MonthDay", "Year", "YearMonth"
     );
+
+    /** An argument that names a zone, not a clock: {@code ZoneId.of(..)}, {@code ZoneOffset.UTC}, {@code zone}. */
+    private static final java.util.regex.Pattern ZONE_ARGUMENT =
+            java.util.regex.Pattern.compile("(?i)zone|\\bUTC\\b|\\bGMT\\b");
 
     @Override
     public String id() {
@@ -129,8 +134,9 @@ public final class ClockDependencyNotInjectedRule implements ProjectRule {
             boolean isDateTimeType = DATETIME_TYPE_HINTS.stream()
                     .anyMatch(hint -> scope.contains(hint) || receiver.contains(hint));
             if (!isDateTimeType) return false;
-            // Suppress if a Clock or ZoneId argument is already passed
-            return inv.arguments().isEmpty();
+            // now(ZoneId) is now(Clock.system(zone)): still the system clock. Only another argument, a Clock, is injectable.
+            return inv.arguments().isEmpty()
+                    || (inv.arguments().size() == 1 && ZONE_ARGUMENT.matcher(inv.arguments().get(0)).find());
         }
 
         return false;

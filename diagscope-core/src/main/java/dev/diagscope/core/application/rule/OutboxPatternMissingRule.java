@@ -26,13 +26,14 @@ import java.util.regex.Pattern;
  *
  * <p>The idiomatic fix is the <em>Transactional Outbox</em> pattern: persist the outbound event to
  * an outbox table inside the same database transaction, then relay it asynchronously (Debezium CDC,
- * a polling relay, etc.). A lighter-weight alternative is to use
- * {@code ApplicationEventPublisher.publishEvent()} inside the transaction and handle the publish in
- * a {@code @TransactionalEventListener(phase = AFTER_COMMIT)} method.</p>
+ * a polling relay, etc.).</p>
  *
  * <p>Suppression: if the method is annotated with {@code @TransactionalEventListener} or delegates
- * the send via {@code publishEvent()}, the finding is skipped — those patterns decouple the commit
- * from the send correctly.</p>
+ * the send via {@code publishEvent()}, the finding is skipped. That is a trade-off, not a guarantee: an
+ * {@code AFTER_COMMIT} listener runs once the transaction "will have been committed already"
+ * ({@code TransactionalEventListener} Javadoc), so a crash between the commit and the listener still loses the
+ * event. It narrows the window and stops a send from failing a transaction that already committed; it does not close
+ * it. Only an outbox row written in the same transaction does.</p>
  */
 public final class OutboxPatternMissingRule implements ProjectRule {
 
@@ -116,8 +117,9 @@ public final class OutboxPatternMissingRule implements ProjectRule {
                         + " leaving the database and consumers in inconsistent state.",
                 "Use the Transactional Outbox pattern: write the event to an outbox table in the same"
                         + " transaction and relay it asynchronously via CDC (Debezium) or a polling relay."
-                        + " A lighter alternative: call ApplicationEventPublisher.publishEvent() inside"
-                        + " the transaction and publish in a @TransactionalEventListener(AFTER_COMMIT).",
+                        + " Publishing from a @TransactionalEventListener(AFTER_COMMIT) is weaker: it avoids"
+                        + " sending for a rolled-back transaction, but an event is still lost if the process"
+                        + " dies after the commit.",
                 List.of(),
                 Map.of(
                         "method", method.id().displayName(),

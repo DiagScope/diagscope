@@ -99,8 +99,8 @@ public final class EntityExposedInRestResponseRule implements ProjectRule {
                 ID, Severity.WARNING, Confidence.MEDIUM, method.location(),
                 "REST endpoint '" + method.id().displayName() + "' returns '"
                         + simpleTypeName(returnType) + "', which is a JPA entity. Jackson will"
-                        + " serialise every mapped field including internal and sensitive ones,"
-                        + " exposing the full persistence model to API consumers.",
+                        + " serialise every property it detects (public getters by default) unless the entity"
+                        + " hides it with @JsonIgnore or similar, which this rule cannot see.",
                 "Return a dedicated response DTO that declares only the fields the client should"
                         + " receive. Map the entity to the DTO manually or with a mapper framework"
                         + " (e.g. MapStruct). This also prevents recursive serialisation caused by"

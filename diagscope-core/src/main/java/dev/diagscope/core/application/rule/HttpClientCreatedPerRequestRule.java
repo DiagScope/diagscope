@@ -16,12 +16,14 @@ import java.util.Set;
  * Reports HTTP client instances created inside regular method bodies (per-call construction),
  * as opposed to being declared as shared Spring beans.
  *
- * <p><b>Why it matters:</b> HTTP client construction is expensive: each instance allocates a
- * thread pool, a connection pool, and SSL context. In a hot path — a request handler, a Kafka
- * listener, a scheduled job — this creates a new client on every invocation. None of the
- * clients share connections, so effective concurrency is zero. File-descriptor exhaustion and
- * heap pressure follow quickly. The correct pattern is a single shared bean injected at
- * construction time, which amortises the cost and shares the connection pool.</p>
+ * <p><b>Why it matters:</b> an {@code OkHttpClient} owns its connection pool and dispatcher, and its Javadoc says
+ * it "performs best when you create a single {@code OkHttpClient} instance and reuse it". Built per call,
+ * connections are never reused and each instance holds its own pool and threads.</p>
+ *
+ * <p><b>Not reported, on purpose:</b> {@code new RestTemplate()} uses {@code SimpleClientHttpRequestFactory}, which
+ * opens an {@code HttpURLConnection} per request and keeps no pool or threads of its own, and a default
+ * {@code WebClient} takes part in Reactor Netty's global {@code HttpResources}, shared by every client. Neither
+ * allocates a pool per instance, so the rule's old claim did not hold for them.</p>
  *
  * <p><b>Detection strategy:</b></p>
  * <ol>
@@ -42,14 +44,10 @@ public final class HttpClientCreatedPerRequestRule implements ProjectRule {
     public static final String ID = "HTTP_CLIENT_CREATED_PER_REQUEST";
 
     /** Constructor names (= class names) that signal per-request HTTP client construction. */
-    private static final Set<String> HTTP_CLIENT_CONSTRUCTORS = Set.of(
-            "RestTemplate", "OkHttpClient", "AsyncRestTemplate"
-    );
+    private static final Set<String> HTTP_CLIENT_CONSTRUCTORS = Set.of("OkHttpClient");
 
     /** Builder {@code build()} receivers whose type indicates HTTP client construction. */
-    private static final Set<String> HTTP_CLIENT_BUILDER_SCOPES = Set.of(
-            "WebClient", "OkHttpClient"
-    );
+    private static final Set<String> HTTP_CLIENT_BUILDER_SCOPES = Set.of("OkHttpClient");
 
     /** Annotations that mark intentional factory / lifecycle methods — suppress findings. */
     private static final Set<String> FACTORY_ANNOTATIONS = Set.of(
@@ -79,14 +77,12 @@ public final class HttpClientCreatedPerRequestRule implements ProjectRule {
                 findings.add(new Finding(
                         ID, Severity.WARNING, Confidence.HIGH, inv.location(),
                         "'" + method.id().displayName() + "' creates a new HTTP client ("
-                                + inv.methodName() + ") on each call. HTTP clients allocate a"
-                                + " thread pool and connection pool per instance; creating them"
-                                + " per-request exhausts file descriptors and prevents connection"
-                                + " reuse.",
-                        "Declare the HTTP client as a shared Spring @Bean and inject it as a"
-                                + " constructor dependency. One shared instance amortises the"
-                                + " construction cost and allows the connection pool to be"
-                                + " properly sized and reused across requests.",
+                                + inv.methodName() + ") on each call. An OkHttpClient owns a"
+                                + " connection pool and a dispatcher; one per call means connections"
+                                + " are never reused.",
+                        "Declare the client as a shared Spring @Bean and inject it, or keep one"
+                                + " instance in a field. Use client.newBuilder() for per-call variants:"
+                                + " they share the pool.",
                         List.of(),
                         Map.of(
                                 "method", method.id().displayName(),

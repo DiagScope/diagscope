@@ -148,10 +148,15 @@ class JavaHttpClientService {
     }
 
     /**
-     * HTTP_CLIENT_CREATED_PER_REQUEST: new RestTemplate() on each call allocates a new
-     * thread pool and connection pool.
+     * HTTP_CLIENT_CREATED_PER_REQUEST: an OkHttpClient on each call owns a new connection pool.
      */
     String fetchData(String url) { // → HTTP_CLIENT_CREATED_PER_REQUEST
+        OkHttpClient client = new OkHttpClient();
+        return client.newCall(url).execute();
+    }
+
+    /** Not reported: a RestTemplate keeps no pool of its own (it opens an HttpURLConnection per request). */
+    String fetchWithRestTemplate(String url) {
         RestTemplate client = new RestTemplate();
         return client.getForObject(url);
     }

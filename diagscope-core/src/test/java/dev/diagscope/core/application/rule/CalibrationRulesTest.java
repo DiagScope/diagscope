@@ -124,6 +124,52 @@ class CalibrationRulesTest {
                         "example.OwnerRepository.findAll()"));
     }
 
+    // ── CLOCK_DEPENDENCY_NOT_INJECTED / HTTP_CLIENT_CREATED_PER_REQUEST / APPLICATION_CONTEXT_LOCATOR ──
+
+    @Test
+    void nowWithAZone_isStillTheSystemClock_butNowWithAClockIsNot() {
+        var zoned = service("a", Set.of("Service"), nowCall("ZoneId.of(\"UTC\")"));
+        var utc = service("b", Set.of("Service"), nowCall("ZoneOffset.UTC"));
+        var injected = service("c", Set.of("Service"), nowCall("clock"));
+        assertThat(new ClockDependencyNotInjectedRule().evaluate(project(zoned, utc))).hasSize(2);
+        assertThat(new ClockDependencyNotInjectedRule().evaluate(project(injected))).isEmpty();
+    }
+
+    @Test
+    void restTemplateAndWebClientPerCall_areNotReported_butOkHttpClientIs() {
+        var rest = service("a", Set.of("Service"), construct("RestTemplate"));
+        var web = service("b", Set.of("Service"), construct("WebClient"));
+        var okHttp = service("c", Set.of("Service"), construct("OkHttpClient"));
+        assertThat(new HttpClientCreatedPerRequestRule().evaluate(project(rest, web))).isEmpty();
+        assertThat(new HttpClientCreatedPerRequestRule().evaluate(project(okHttp))).hasSize(1);
+    }
+
+    @Test
+    void getBeanIsReportedOnAContextOnly() {
+        var onContext = service("a", Set.of("Service"), receiverCall("applicationContext", "ApplicationContext", "getBean"));
+        var onOther = service("b", Set.of("Service"), receiverCall("registry", "ServiceRegistry", "getBean"));
+        assertThat(new ApplicationContextLocatorRule().evaluate(project(onContext))).hasSize(1);
+        assertThat(new ApplicationContextLocatorRule().evaluate(project(onOther))).isEmpty();
+        var bootstrap = new MethodModel(new MethodId("example.Application", "main", List.of("String[]")), location(1),
+                Set.of("Component"), List.of(),
+                List.of(receiverCall("context", "ConfigurableApplicationContext", "getBean")), List.of(), List.of(),
+                List.of());
+        assertThat(new ApplicationContextLocatorRule().evaluate(project(bootstrap))).isEmpty();
+    }
+
+    private static InvocationEvidence nowCall(String argument) {
+        return new InvocationEvidence(location(12), "LocalDateTime", "LocalDateTime", "now", List.of(argument),
+                InvocationResultUsage.ASSIGNED);
+    }
+
+    private static InvocationEvidence construct(String type) {
+        return new InvocationEvidence(location(12), "", type, type, List.of(), InvocationResultUsage.ASSIGNED);
+    }
+
+    private static InvocationEvidence receiverCall(String scope, String type, String name) {
+        return new InvocationEvidence(location(12), scope, type, name, List.of(), InvocationResultUsage.ASSIGNED);
+    }
+
     // ── MASS_ASSIGNMENT_RISK ─────────────────────────────────────────────────
 
     @Test
@@ -132,7 +178,11 @@ class CalibrationRulesTest {
         var endpoint = controllerPost("create", List.of("Owner"), Map.of("p0", "RequestBody"));
         var binder = method("example.OrderController", "setAllowedFields", Set.of("InitBinder"), "void");
         assertThat(new MassAssignmentRiskRule().evaluate(project(entity, endpoint))).hasSize(1);
-        assertThat(new MassAssignmentRiskRule().evaluate(project(entity, endpoint, binder))).isEmpty();
+        // The binder fills form and @ModelAttribute parameters; a @RequestBody is read by Jackson and not guarded by it.
+        assertThat(new MassAssignmentRiskRule().evaluate(project(entity, endpoint, binder))).hasSize(1);
+        var formEndpoint = controllerPost("submit", List.of("Owner"), Map.of());
+        assertThat(new MassAssignmentRiskRule().evaluate(project(entity, formEndpoint))).hasSize(1);
+        assertThat(new MassAssignmentRiskRule().evaluate(project(entity, formEndpoint, binder))).isEmpty();
     }
 
     @Test
