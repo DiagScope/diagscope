@@ -19,7 +19,7 @@ here matches the command line.
 <plugin>
   <groupId>dev.diagscope</groupId>
   <artifactId>diagscope-maven-plugin</artifactId>
-  <version>0.1.4</version>
+  <version>0.1.5</version>
   <executions>
     <execution>
       <goals><goal>scan</goal></goals>   <!-- bound to the verify phase -->
@@ -28,7 +28,7 @@ here matches the command line.
 </plugin>
 ```
 
-Or on demand: `mvn dev.diagscope:diagscope-maven-plugin:0.1.4:scan -Ddiagscope.failOn=ERROR`.
+Or on demand: `mvn dev.diagscope:diagscope-maven-plugin:0.1.5:scan -Ddiagscope.failOn=ERROR`.
 
 With no gate configured the scan only reports. Reports go to `target/diagscope` of each module.
 

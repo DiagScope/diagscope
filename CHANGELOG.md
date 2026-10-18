@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.5 — 2026-10-18
+
 ### Changed
 
 - **The artifacts now target Java 17 instead of Java 25** and run on 17 or newer. Building needs JDK 21 or newer. CI
