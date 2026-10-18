@@ -69,7 +69,7 @@ public record RelatedFlow(
 
     /** Method holding the evidence reached through this flow. */
     public String affectedMethod() {
-        return path.getLast();
+        return path.get(path.size() - 1);
     }
 
     /** Callers between the entrypoint and the evidence method, entrypoint first. */

@@ -27,7 +27,7 @@ public final class GenericExceptionMessageRule implements DiagnosticRule {
             for (var invocation : method.invocations()) {
                 if (!DiagnosticSignals.isFailureLogCall(invocation)) continue;
                 if (invocation.arguments().isEmpty()) continue;
-                String first = invocation.arguments().getFirst();
+                String first = invocation.arguments().get(0);
                 String literal = DiagnosticSignals.firstStringLiteral(first);
                 if (literal.isBlank() || !DiagnosticSignals.isGenericMessage(literal)) continue;
                 var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());

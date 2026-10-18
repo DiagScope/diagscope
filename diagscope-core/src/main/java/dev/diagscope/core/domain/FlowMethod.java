@@ -28,7 +28,7 @@ public record FlowMethod(
         if (path.size() != depth + 1) {
             throw new IllegalArgumentException("path must contain exactly depth + 1 methods");
         }
-        if (!path.getLast().equals(method.id())) {
+        if (!path.get(path.size() - 1).equals(method.id())) {
             throw new IllegalArgumentException("path must end at the reached method");
         }
     }

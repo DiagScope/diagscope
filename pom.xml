@@ -24,7 +24,7 @@
     </modules>
 
     <properties>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <project.build.outputTimestamp>2026-10-17T18:05:26Z</project.build.outputTimestamp>
@@ -184,7 +184,8 @@
                         <goals><goal>enforce</goal></goals>
                         <configuration>
                             <rules>
-                                <requireJavaVersion><version>[25,26)</version></requireJavaVersion>
+                                <!-- The build JDK, not the runtime: checkstyle 13 needs 21+. The artifacts target Java 17 (ADR-0009). -->
+                                <requireJavaVersion><version>[21,)</version></requireJavaVersion>
                                 <requireMavenVersion><version>[3.9.0,4.0.0)</version></requireMavenVersion>
                                 <dependencyConvergence/>
                             </rules>

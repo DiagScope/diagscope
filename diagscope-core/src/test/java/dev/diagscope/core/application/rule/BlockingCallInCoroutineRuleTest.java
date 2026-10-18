@@ -60,7 +60,7 @@ class BlockingCallInCoroutineRuleTest {
                 builder(10, 12, "GlobalScope", "launch", "{ Thread.sleep(500) }"),
                 call(11, "Thread", "sleep", 1));
 
-        assertThat(rule.evaluate(project(method)).getFirst().evidence().keySet())
+        assertThat(rule.evaluate(project(method)).get(0).evidence().keySet())
                 .containsExactlyInAnyOrder("method", "coroutineBuilder", "blockingPattern", "scope");
     }
 

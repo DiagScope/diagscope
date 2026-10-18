@@ -23,10 +23,10 @@ public record SourceSnippet(List<SourceLine> lines, int highlightedStartLine, in
     }
 
     public int firstLineNumber() {
-        return lines.getFirst().lineNumber();
+        return lines.get(0).lineNumber();
     }
 
     public int lastLineNumber() {
-        return lines.getLast().lineNumber();
+        return lines.get(lines.size() - 1).lineNumber();
     }
 }

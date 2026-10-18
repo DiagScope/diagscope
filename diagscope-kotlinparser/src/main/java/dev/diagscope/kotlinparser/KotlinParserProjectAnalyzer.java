@@ -520,7 +520,8 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
     /** Returns the value of a Kotlin catch expression only when it visibly converts failure to a benign value. */
     private static KtExpression fallbackExpression(KtExpression body) {
         if (!(body instanceof KtBlockExpression block) || block.getStatements().isEmpty()) return null;
-        KtExpression last = block.getStatements().getLast();
+        var statements = block.getStatements();
+        KtExpression last = statements.get(statements.size() - 1);
         String text = last.getText().replace(" ", "");
         if (text.matches("null|false|true|0|-1|empty(List|Set|Map|Sequence)\\(\\)|Result\\.success\\(.*\\)")) {
             return last;
@@ -898,7 +899,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
         TypeInfo receiverInfo = Optional.ofNullable(index.types().get(baseTypeName(declaredReceiverType)))
-                .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.getFirst() : null);
+                .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.get(0) : null);
         if (receiverInfo == null) return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
         if (!receiverInfo.interfaceType()) return resolveConcreteReceiver(call, receiverInfo, index);
         return resolveInterfaceReceiver(call, receiver, receiverInfo, index);
@@ -928,7 +929,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         if (implementations.size() > 1) {
             List<RawMethod> typed = bestTypedMatches(List.copyOf(implementations.values()), call.argumentTypes());
             if (typed.size() == 1) {
-                return new Resolution(Optional.of(typed.getFirst().id()), ResolutionReason.SINGLE_IMPLEMENTATION);
+                return new Resolution(Optional.of(typed.get(0).id()), ResolutionReason.SINGLE_IMPLEMENTATION);
             }
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
@@ -1030,7 +1031,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         TypeInfo qualified = types.get(baseTypeName(typeName));
         if (qualified != null) return qualified;
         List<TypeInfo> simpleMatches = typesBySimpleName.getOrDefault(simpleName(typeName), List.of());
-        return simpleMatches.size() == 1 ? simpleMatches.getFirst() : null;
+        return simpleMatches.size() == 1 ? simpleMatches.get(0) : null;
     }
 
     private static TypeInfo findType(String typeName, Map<String, TypeInfo> types) {
@@ -1039,7 +1040,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         List<TypeInfo> simpleMatches = types.values().stream()
                 .filter(type -> type.simpleName().equals(simpleName(typeName)))
                 .limit(2).toList();
-        return simpleMatches.size() == 1 ? simpleMatches.getFirst() : null;
+        return simpleMatches.size() == 1 ? simpleMatches.get(0) : null;
     }
 
     private static Resolution choose(List<RawMethod> candidates, RawCall call, ResolutionReason success) {
@@ -1047,10 +1048,10 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         List<RawMethod> matches = candidates.stream()
                 .filter(candidate -> candidate.acceptsArity(call.argumentCount()))
                 .toList();
-        if (matches.size() == 1) return new Resolution(Optional.of(matches.getFirst().id()), success);
+        if (matches.size() == 1) return new Resolution(Optional.of(matches.get(0).id()), success);
         if (matches.size() > 1) {
             List<RawMethod> typed = bestTypedMatches(matches, call.argumentTypes());
-            if (typed.size() == 1) return new Resolution(Optional.of(typed.getFirst().id()), success);
+            if (typed.size() == 1) return new Resolution(Optional.of(typed.get(0).id()), success);
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
         return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
@@ -1451,7 +1452,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                     .filter(TypeInfo::annotationType)
                     .filter(type -> type.simpleName().equals(annotation.name()))
                     .limit(2).toList();
-            TypeInfo annotationType = annotationTypes.size() == 1 ? annotationTypes.getFirst() : null;
+            TypeInfo annotationType = annotationTypes.size() == 1 ? annotationTypes.get(0) : null;
             if (annotationType != null && visited.add(annotationType.qualifiedName())) {
                 collectExpandedAnnotations(annotationType.declaredAnnotations(), types, result, visited);
             }

@@ -384,7 +384,7 @@ class KotlinParserProjectAnalyzerTest {
 
         MethodModel controller = method(analyzed, "Controller", "identity");
         assertThat(controller.calls()).filteredOn(call -> "load".equals(call.methodName()))
-                .extracting(call -> call.target().orElseThrow().parameterTypes().getFirst())
+                .extracting(call -> call.target().orElseThrow().parameterTypes().get(0))
                 .containsExactly("String", "Int");
         assertThat(controller.calls()).filteredOn(call -> "consume".equals(call.methodName()))
                 .singleElement().satisfies(call ->

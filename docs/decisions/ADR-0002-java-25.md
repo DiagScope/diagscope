@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR-0009](ADR-0009-java-17-runtime-baseline.md): the artifacts now target Java 17 and are built with JDK 21 or newer.
 
 ## Context
 

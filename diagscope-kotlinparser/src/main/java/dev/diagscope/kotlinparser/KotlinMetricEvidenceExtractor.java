@@ -90,7 +90,7 @@ final class KotlinMetricEvidenceExtractor {
         List<KtExpression> arguments = arguments(call);
         if (arguments.isEmpty()) return Optional.empty();
         String method = methodName(call);
-        KtExpression name = arguments.getFirst();
+        KtExpression name = arguments.get(0);
 
         if ("builder".equals(method) && BUILDER_TYPES.contains(simpleScopeName(call))) {
             return Optional.of(new MetricNameEvidence(location, simpleScopeName(call), name.getText(),

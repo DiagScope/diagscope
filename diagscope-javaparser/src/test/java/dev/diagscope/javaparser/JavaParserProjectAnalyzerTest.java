@@ -264,7 +264,7 @@ class JavaParserProjectAnalyzerTest {
 
         var flow = new LocalFlowBuilder().build(analyzed, rest, 3);
 
-        assertThat(flow.edges().getFirst()).satisfies(edge -> {
+        assertThat(flow.edges().get(0)).satisfies(edge -> {
             assertThat(edge.resolutionReason()).isEqualTo(ResolutionReason.SINGLE_IMPLEMENTATION);
             assertThat(edge.callee()).hasValueSatisfying(target ->
                     assertThat(target.declaringType()).isEqualTo("sample.OnlyGateway"));
@@ -397,7 +397,7 @@ class JavaParserProjectAnalyzerTest {
         var assigned = new LinkedHashMap<String, String>();
         for (var method : analyzed.methods().values()) {
             method.invocations().stream().filter(i -> "get".equals(i.methodName()))
-                    .forEach(i -> assigned.put(i.arguments().getFirst(), i.assignedTo()));
+                    .forEach(i -> assigned.put(i.arguments().get(0), i.assignedTo()));
         }
 
         assertThat(assigned).containsExactlyInAnyOrderEntriesOf(Map.of(
@@ -492,11 +492,11 @@ class JavaParserProjectAnalyzerTest {
 
         AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
 
-        assertThat(method(analyzed, "sample.Suppressions", "valid").catches().getFirst()
+        assertThat(method(analyzed, "sample.Suppressions", "valid").catches().get(0)
                 .explicitlySuppressesSilentCatch()).isTrue();
-        assertThat(method(analyzed, "sample.Suppressions", "missingReason").catches().getFirst()
+        assertThat(method(analyzed, "sample.Suppressions", "missingReason").catches().get(0)
                 .explicitlySuppressesSilentCatch()).isFalse();
-        assertThat(method(analyzed, "sample.Suppressions", "wrongRule").catches().getFirst()
+        assertThat(method(analyzed, "sample.Suppressions", "wrongRule").catches().get(0)
                 .explicitlySuppressesSilentCatch()).isFalse();
     }
 

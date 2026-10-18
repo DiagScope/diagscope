@@ -89,7 +89,7 @@ public final class SecretInStringLiteralRule implements ProjectRule {
         // methodName itself contains a secret-hint word → first argument must be a hardcoded literal
         if (isSecretHintWord(methodNameNorm)) {
             if (!inv.arguments().isEmpty()) {
-                String firstArg = inv.arguments().getFirst();
+                String firstArg = inv.arguments().get(0);
                 if (isHardcodedLiteral(firstArg)) {
                     findings.add(buildFinding(
                             method, inv, firstArg,

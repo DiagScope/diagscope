@@ -9,13 +9,46 @@ permissions:
   contents: read
 
 jobs:
+  # The artifacts target Java 17 (ADR-0009). They are built with JDK 25 and every test runs on the JVM named by
+  # test-jdk, so a Java 21 or 25 API leaking into the code fails the 17 leg, and a 17 runtime that the code no longer
+  # supports is caught before a release.
   verify:
+    name: verify (tests on JDK ${{ matrix.test-jdk }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test-jdk: ['17', '21', '25']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # The first version is the build JDK; the others are exposed as JAVA_HOME_<version>_X64.
+          java-version: |
+            25
+            21
+            17
+          cache: maven
+      - name: Build and test
+        run: |
+          TEST_JAVA="$(printenv JAVA_HOME_${{ matrix.test-jdk }}_X64)/bin/java"
+          "$TEST_JAVA" -version
+          mvn --batch-mode --no-transfer-progress clean verify -Djvm="$TEST_JAVA"
+
+  # The Maven plugin runs inside Maven's own JVM, so it needs a leg where Maven itself runs on the oldest supported JDK.
+  maven-plugin-on-java-17:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: |
+            25
+            17
           cache: maven
-      - run: mvn --batch-mode --no-transfer-progress clean verify
+      - name: Install the artifacts
+        run: mvn --batch-mode --no-transfer-progress -DskipTests install
+      - name: Run the plugin with Maven on Java 17
+        run: JAVA_HOME="$JAVA_HOME_17_X64" scripts/ci/maven-plugin-smoke.sh

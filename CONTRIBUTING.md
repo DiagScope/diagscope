@@ -13,7 +13,8 @@
 
 ## Pull request checklist
 
-- [ ] `mvn clean verify` passes with JDK 25.
+- [ ] `mvn clean verify` passes with JDK 21 or newer, and with `-Djvm=<path to a Java 17 binary>` if you touched anything
+      that might use a newer API (CI runs the tests on 17, 21 and 25).
 - [ ] New rules include positive, negative, and boundary cases.
 - [ ] Public behavior and rule semantics are documented.
 - [ ] Performance-sensitive changes include measurements from the same corpus and environment.

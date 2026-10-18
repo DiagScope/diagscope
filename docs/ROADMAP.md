@@ -18,7 +18,7 @@ Do not implement a future phase before the current phase meets its own continuat
 
 Delivered:
 
-- modular Java 25 build with a JDK-only core and separate Java/Kotlin adapters;
+- modular build targeting Java 17 with a JDK-only core and separate Java/Kotlin adapters;
 - Maven **and** Gradle projects, including multi-module builds, discovered per scan;
 - direct REST, Kafka-listener, and scheduled entrypoints;
 - Quarkus REST JAX-RS entrypoints and Quarkus scheduler metadata (`every`, `delay`, and `identity`);

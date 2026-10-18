@@ -85,8 +85,9 @@ class LocalFlowBuilderTest {
                         ResolutionReason.EXTERNAL,
                         ResolutionReason.UNRESOLVED,
                         ResolutionReason.MAX_DEPTH);
-        assertThat(flow.boundaries().getLast().confidence()).isEqualTo(Confidence.MEDIUM);
-        assertThat(flow.boundaries().getLast().callee()).contains(targetId);
+        var lastBoundary = flow.boundaries().get(flow.boundaries().size() - 1);
+        assertThat(lastBoundary.confidence()).isEqualTo(Confidence.MEDIUM);
+        assertThat(lastBoundary.callee()).contains(targetId);
     }
 
     private static AnalyzedProject project(MethodModel... methods) {

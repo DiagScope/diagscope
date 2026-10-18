@@ -33,13 +33,12 @@ and its own logging, and a plugin is how organisations enforce a check on every 
 
 - **Publication.** Maven Central needs a verified namespace; a repository on the site would need to host the 78 MB jar
   per release. Until one is chosen the plugin is installed from source or from an internal repository.
-- **The Java baseline.** Maven must run on JDK 25. The code compiles with `--release 17` today, but supporting 17 or 21
-  means a CI matrix and a change to ADR-0002, which is a separate decision.
 - **Opt-in project classpath, `PUBLIC_METHOD` by default, an aggregate goal.**
 
 ## Consequences
 
 - A build fails on `mvn verify` with no CI changes, and the same `diagscope.yml` governs the CLI, CI and the build.
-- Anyone adopting it needs JDK 25 for Maven until the baseline decision is made.
+- Maven can run on JDK 17 or newer ([ADR-0009](ADR-0009-java-17-runtime-baseline.md)); CI starts Maven on 17 and runs the
+  plugin to prove it.
 - The CLI's embedding API is now load-bearing: changing `ScanWorkflow.Request` breaks the plugin, so it keeps compatible
   constructors, as the CLI already does.

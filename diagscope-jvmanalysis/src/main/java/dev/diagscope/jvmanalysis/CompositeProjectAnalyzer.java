@@ -50,7 +50,7 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
         var fragments = analyzers.stream()
                 .map(analyzer -> analyzer.analyze(projectDirectory, options))
                 .toList();
-        ProjectLayout layout = fragments.getFirst().layout();
+        ProjectLayout layout = fragments.get(0).layout();
         for (AnalyzedProject fragment : fragments) {
             if (!layout.equals(fragment.layout())) {
                 throw new IllegalStateException("Language analyzers disagreed on the project layout");
@@ -203,13 +203,13 @@ public final class CompositeProjectAnalyzer implements ProjectAnalyzer {
                 .toList();
         if (matching.size() == 1) {
             return new MethodCall(original.location(), original.scope(), original.methodName(),
-                    original.argumentCount(), Optional.of(matching.getFirst().id()), success);
+                    original.argumentCount(), Optional.of(matching.get(0).id()), success);
         }
         if (matching.size() > 1) {
             List<MethodModel> typed = bestTypedMatches(matching, argumentTypes);
             if (typed.size() == 1) {
                 return new MethodCall(original.location(), original.scope(), original.methodName(),
-                        original.argumentCount(), Optional.of(typed.getFirst().id()), success);
+                        original.argumentCount(), Optional.of(typed.get(0).id()), success);
             }
             return new MethodCall(original.location(), original.scope(), original.methodName(),
                     original.argumentCount(), Optional.empty(), ResolutionReason.AMBIGUOUS);

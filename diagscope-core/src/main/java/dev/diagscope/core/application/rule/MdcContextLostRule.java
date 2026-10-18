@@ -47,7 +47,7 @@ public final class MdcContextLostRule implements DiagnosticRule {
                 var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
                 var evidence = new LinkedHashMap<String, String>();
                 evidence.put("method", method.id().displayName());
-                evidence.put("contextKeySetAtLine", String.valueOf(writes.getFirst().location().startLine()));
+                evidence.put("contextKeySetAtLine", String.valueOf(writes.get(0).location().startLine()));
                 evidence.put("dispatch", dispatch.methodName());
                 findings.add(new Finding(
                         ID, Severity.WARNING, confidence, dispatch.location(),
@@ -60,11 +60,11 @@ public final class MdcContextLostRule implements DiagnosticRule {
             }
 
             if (!cleared) {
-                var first = writes.getFirst();
+                var first = writes.get(0);
                 var confidence = Confidence.min(Confidence.MEDIUM, flowMethod.confidence());
                 var evidence = new LinkedHashMap<String, String>();
                 evidence.put("method", method.id().displayName());
-                evidence.put("contextKey", first.arguments().isEmpty() ? "" : first.arguments().getFirst());
+                evidence.put("contextKey", first.arguments().isEmpty() ? "" : first.arguments().get(0));
                 findings.add(new Finding(
                         ID, Severity.WARNING, confidence, first.location(),
                         "MDC key is written but never removed, so it leaks into the next task that"

@@ -82,7 +82,7 @@ class RuleEngineTest {
 
             @Override
             public List<Finding> evaluate(Flow flow) {
-                var reached = flow.methods().getFirst();
+                var reached = flow.methods().get(0);
                 var confidence = reached.confidence();
                 return List.of(new Finding(
                         id,

@@ -9,8 +9,8 @@ here matches the command line.
 - **Not published to Maven Central yet.** Build it from source (`mvn install`) or deploy it to your organisation's
   repository (`mvn deploy -DaltDeploymentRepository=...`). The plugin jar is small; it depends on the
   `diagscope-cli` jar (about 78 MB, the analyzer, both parsers and the Kotlin compiler), which Maven downloads once.
-- **Maven must run on JDK 25**, like the CLI ([ADR-0002](decisions/ADR-0002-java-25.md)). The code itself compiles for
-  Java 17, but that is not the supported baseline and is not tested on a 17 runtime.
+- **Maven must run on JDK 17 or newer** ([ADR-0009](decisions/ADR-0009-java-17-runtime-baseline.md)). CI starts Maven
+  on 17 and runs the plugin against a sample project. Building the plugin itself needs JDK 21 or newer.
 - Maven 3.9 or newer.
 
 ## Use

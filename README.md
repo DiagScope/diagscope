@@ -33,12 +33,13 @@ This repository is the analyzer itself. It is under active development (alpha).
 
 ## Requirements
 
-- **JDK 25** (the build enforces it; see [ADR-0002](docs/decisions/ADR-0002-java-25.md))
+- **JDK 21 or newer** to build (the build enforces it). The artifacts target Java 17 and run on 17 or newer; see
+  [ADR-0009](docs/decisions/ADR-0009-java-17-runtime-baseline.md)
 - **Maven 3.9+**
 - Git
 
 ```bash
-java -version    # must report 25
+java -version    # must report 21 or newer
 mvn -version     # must report 3.9.x
 ```
 
@@ -252,7 +253,8 @@ end. Parsers do not read `src/test`; only `src/main/java` and `src/main/kotlin` 
 
 ## CI and releases
 
-`.github/workflows/build.yml` runs `mvn clean verify` on JDK 25 for every push to `main` and every pull request.
+`.github/workflows/build.yml` builds on JDK 25 and runs the tests on JDK 17, 21 and 25 for every push to `main` and every
+pull request, plus a job that runs the Maven plugin inside a Maven on Java 17.
 `action.yml` is the composite GitHub Action other repositories use to run DiagScope
 ([docs/CI.md](docs/CI.md)).
 

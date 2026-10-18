@@ -59,7 +59,7 @@ class BlockingCallInReactiveContextRuleTest {
     void evidence_keys_stay_stable_so_existing_fingerprints_survive() {
         var handler = method("handler", Set.of("NonBlocking"), "", call(10, "Thread", "", "sleep", 1));
 
-        assertThat(rule.evaluate(flow(Confidence.HIGH, handler)).getFirst().evidence().keySet())
+        assertThat(rule.evaluate(flow(Confidence.HIGH, handler)).get(0).evidence().keySet())
                 .containsExactlyInAnyOrder("method", "blockingCall", "receiver");
     }
 

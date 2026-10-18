@@ -4,6 +4,13 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The artifacts now target Java 17 instead of Java 25** and run on 17 or newer. Building needs JDK 21 or newer. CI
+  runs the tests on 17, 21 and 25 and the Maven plugin inside a Maven on 17. See
+  [ADR-0009](docs/decisions/ADR-0009-java-17-runtime-baseline.md). The Homebrew formula and the install pages still
+  say Java 25 until a release built this way ships.
+
 ### Added
 
 - `diagscope-maven-plugin`: a `scan` goal, bound to `verify`, that runs DiagScope in the Maven build and fails it

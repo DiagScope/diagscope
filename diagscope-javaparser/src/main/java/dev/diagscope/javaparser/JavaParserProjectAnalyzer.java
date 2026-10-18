@@ -977,7 +977,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             result.putIfAbsent(annotation.name(), annotation);
             List<TypeInfo> matches = types.values().stream().filter(TypeInfo::annotationType)
                     .filter(type -> type.simpleName().equals(annotation.name())).limit(2).toList();
-            TypeInfo annotationType = matches.size() == 1 ? matches.getFirst() : null;
+            TypeInfo annotationType = matches.size() == 1 ? matches.get(0) : null;
             if (annotationType != null && visited.add(annotationType.qualifiedName())) {
                 collectExpandedAnnotations(annotationType.declaredAnnotations(), types, result, visited);
             }
@@ -989,7 +989,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         if (exact != null) return exact;
         List<TypeInfo> candidates = types.values().stream()
                 .filter(type -> type.simpleName().equals(simpleName(typeName))).limit(2).toList();
-        return candidates.size() == 1 ? candidates.getFirst() : null;
+        return candidates.size() == 1 ? candidates.get(0) : null;
     }
 
     /** The lookup tables call resolution consults, bundled so the resolution steps stay readable. */
@@ -1056,7 +1056,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
         TypeInfo receiverInfo = Optional.ofNullable(index.types().get(baseTypeName(declaredType)))
-                .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.getFirst() : null);
+                .orElseGet(() -> receiverTypes.size() == 1 ? receiverTypes.get(0) : null);
         if (receiverInfo == null) return new Resolution(Optional.empty(), ResolutionReason.EXTERNAL);
         if (!receiverInfo.interfaceType()) return resolveConcreteReceiver(call, receiverInfo, index);
         return resolveInterfaceReceiver(call, receiver, receiverInfo, index);
@@ -1087,7 +1087,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             List<RawMethod> typed = bestTypedMatches(List.copyOf(implementationCandidates.values()),
                     call.argumentTypes());
             if (typed.size() == 1) {
-                return new Resolution(Optional.of(typed.getFirst().id()), ResolutionReason.SINGLE_IMPLEMENTATION);
+                return new Resolution(Optional.of(typed.get(0).id()), ResolutionReason.SINGLE_IMPLEMENTATION);
             }
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
@@ -1098,10 +1098,10 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         if (candidates == null) return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
         List<RawMethod> matches = candidates.stream().filter(RawMethod::executableBody)
                 .filter(candidate -> candidate.acceptsArity(call.argumentCount())).toList();
-        if (matches.size() == 1) return new Resolution(Optional.of(matches.getFirst().id()), successReason);
+        if (matches.size() == 1) return new Resolution(Optional.of(matches.get(0).id()), successReason);
         if (matches.size() > 1) {
             List<RawMethod> typed = bestTypedMatches(matches, call.argumentTypes());
-            if (typed.size() == 1) return new Resolution(Optional.of(typed.getFirst().id()), successReason);
+            if (typed.size() == 1) return new Resolution(Optional.of(typed.get(0).id()), successReason);
             return new Resolution(Optional.empty(), ResolutionReason.AMBIGUOUS);
         }
         return new Resolution(Optional.empty(), ResolutionReason.UNRESOLVED);
@@ -1160,7 +1160,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         TypeInfo exact = types.get(baseTypeName(typeName));
         if (exact != null) return exact;
         List<TypeInfo> candidates = typesBySimpleName.getOrDefault(simpleName(typeName), List.of());
-        return candidates.size() == 1 ? candidates.getFirst() : null;
+        return candidates.size() == 1 ? candidates.get(0) : null;
     }
 
     private static String resolveScopedReceiverType(

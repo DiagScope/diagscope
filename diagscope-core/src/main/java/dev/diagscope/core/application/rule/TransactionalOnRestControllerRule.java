@@ -59,7 +59,7 @@ public final class TransactionalOnRestControllerRule implements ProjectRule {
                 .sorted(Comparator.comparingInt((MethodModel method) -> method.location().startLine())
                         .thenComparing(method -> method.id().displayName()))
                 .toList();
-        MethodModel first = ordered.getFirst();
+        MethodModel first = ordered.get(0);
         String names = ordered.stream().map(method -> method.id().name()).distinct()
                 .collect(Collectors.joining(", "));
         String subject = ordered.size() == 1

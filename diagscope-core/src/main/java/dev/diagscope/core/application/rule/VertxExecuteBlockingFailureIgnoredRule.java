@@ -79,13 +79,13 @@ public final class VertxExecuteBlockingFailureIgnoredRule implements ProjectRule
     /** The reported shape, or {@code null} when the failure is observed or handed to the caller. */
     private static String ignoredShape(MethodModel method, InvocationEvidence call) {
         List<String> arguments = call.arguments();
-        if (arguments.size() >= 2 && arguments.getLast().contains("->")) {
-            return RESULT_HANDLER_CHECKS_FAILURE.matcher(arguments.getLast()).find() ? null : "callback";
+        if (arguments.size() >= 2 && arguments.get(arguments.size() - 1).contains("->")) {
+            return RESULT_HANDLER_CHECKS_FAILURE.matcher(arguments.get(arguments.size() - 1)).find() ? null : "callback";
         }
         if (call.resultUsage() == InvocationResultUsage.IGNORED) return "discarded";
         if (call.resultUsage() != InvocationResultUsage.CHAINED) return null;
 
-        String futureText = arguments.isEmpty() ? "" : arguments.getFirst();
+        String futureText = arguments.isEmpty() ? "" : arguments.get(0);
         boolean terminalIsStatement = false;
         for (InvocationEvidence member : method.invocations()) {
             if (member == call || !member.scope().contains("executeBlocking")) continue;
