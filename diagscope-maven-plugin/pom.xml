@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>dev.diagscope</groupId>
+        <groupId>io.github.diagscope</groupId>
         <artifactId>diagscope-parent</artifactId>
         <version>0.1.5</version>
     </parent>
@@ -22,7 +22,7 @@
         <!-- The CLI jar is shaded: it already carries the analyzer, the parsers, Jackson and Picocli, so nothing else is
              pulled in. The plugin only calls its public embedding entry point, ScanWorkflow. -->
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-cli</artifactId>
             <version>${project.version}</version>
             <exclusions>
@@ -32,7 +32,7 @@
         <!-- Compile-time only: the shaded CLI jar carries these classes at run time, and the reactor resolves the CLI to
              its class directory (without core) before the jar exists. -->
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-core</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
@@ -57,7 +57,7 @@
         </dependency>
 
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-test-fixtures</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

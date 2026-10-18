@@ -12,7 +12,7 @@ cp -r "$root/diagscope-test-fixtures/src/main/resources/fixtures/mixed-flow" "$w
 cd "$work/sample"
 
 echo "Maven on: $(mvn -B -version | grep 'Java version')"
-goal="dev.diagscope:diagscope-maven-plugin:${version}:scan"
+goal="io.github.diagscope:diagscope-maven-plugin:${version}:scan"
 
 mvn -B -q "$goal"
 [ -f target/diagscope/result.json ] || { echo "no report was written"; exit 1; }

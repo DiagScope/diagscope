@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.diagscope</groupId>
+    <groupId>io.github.diagscope</groupId>
     <artifactId>diagscope-parent</artifactId>
     <version>0.1.5</version>
     <packaging>pom</packaging>
 
     <name>DiagScope</name>
     <description>Static diagnostic coverage analysis for Java, Kotlin, and Spring Boot applications.</description>
-    <url>https://diagscope.dev</url>
+    <url>https://diagscope.github.io</url>
 
     <modules>
         <module>diagscope-core</module>
@@ -196,6 +196,23 @@
         </plugins>
     </build>
 
+    <scm>
+        <connection>scm:git:https://github.com/DiagScope/diagscope.git</connection>
+        <developerConnection>scm:git:https://github.com/DiagScope/diagscope.git</developerConnection>
+        <url>https://github.com/DiagScope/diagscope</url>
+    </scm>
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/DiagScope/diagscope/issues</url>
+    </issueManagement>
+    <developers>
+        <developer>
+            <id>diagscope</id>
+            <name>DiagScope</name>
+            <url>https://github.com/DiagScope</url>
+        </developer>
+    </developers>
+
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -203,4 +220,83 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <profiles>
+        <!-- Everything Maven Central requires on top of a normal build: source and javadoc jars, signatures, and the
+             upload. Not part of a normal build or of CI's verify; see docs/PUBLISHING.md. -->
+        <profile>
+            <id>release</id>
+            <properties>
+                <!-- false leaves the validated deployment waiting in the Central Portal for a human to publish it. -->
+                <central.autoPublish>false</central.autoPublish>
+                <central.skipUpload>false</central.skipUpload>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals><goal>jar-no-fork</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <configuration>
+                            <release>${maven.compiler.release}</release>
+                            <doclint>none</doclint>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals><goal>jar</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <configuration>
+                            <!-- The passphrase comes from MAVEN_GPG_PASSPHRASE; loopback keeps gpg from asking a terminal. -->
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals><goal>sign</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.12.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <!-- The server id whose credentials (a Portal user token) settings.xml provides. -->
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>${central.autoPublish}</autoPublish>
+                            <skipUpload>${central.skipUpload}</skipUpload>
+                            <waitUntil>validated</waitUntil>
+                            <excludeArtifacts>
+                                <excludeArtifact>diagscope-test-fixtures</excludeArtifact>
+                            </excludeArtifacts>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

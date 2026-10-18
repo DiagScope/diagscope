@@ -4,6 +4,18 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The Maven groupId is now `io.github.diagscope`** (was `dev.diagscope`), the namespace the GitHub organization can
+  prove on Maven Central. Java package names are unchanged. Nothing had been published under the old groupId.
+
+### Added
+
+- Publishing to Maven Central, prepared: a `release` profile (sources, javadoc, signing, upload), a manual
+  `publish-central` workflow, a CI job that assembles and checks the bundle on every push, and POM metadata (SCM,
+  developer, issue tracker). The first publication needs the owner's namespace verification, token and signing key. See
+  [PUBLISHING.md](docs/PUBLISHING.md) and [ADR-0010](docs/decisions/ADR-0010-maven-central-publishing.md).
+
 ## 0.1.5 — 2026-10-18
 
 ### Changed

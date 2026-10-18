@@ -279,6 +279,7 @@ published as pre-releases. The Homebrew formula lives in
 | Writing and testing code here | [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/CODE_GUIDELINES.md](docs/CODE_GUIDELINES.md), [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) |
 | CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md), [docs/MAVEN_PLUGIN.md](docs/MAVEN_PLUGIN.md) |
 | Rules: reference, backlog, lifecycle | [docs/RULES.md](docs/RULES.md), [docs/RULE_CANDIDATES.md](docs/RULE_CANDIDATES.md), [docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md) |
+| Releasing and publishing | [docs/PUBLISHING.md](docs/PUBLISHING.md) |
 | Output contracts | [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md), [docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md) |
 | Rule audit and calibration | [docs/RULE_AUDIT.md](docs/RULE_AUDIT.md), `scripts/calibrate.sh` |
 | Using it with AI assistants | [docs/CLI.md](docs/CLI.md#init-agent), [docs/CONFIGURATION.md](docs/CONFIGURATION.md#gate) |

@@ -54,3 +54,32 @@ jobs:
         run: JAVA_HOME="$JAVA_HOME_25_X64" mvn --batch-mode --no-transfer-progress -DskipTests install
       - name: Run the plugin with Maven on Java 17
         run: JAVA_HOME="$JAVA_HOME_17_X64" scripts/ci/maven-plugin-smoke.sh
+
+  # Publishing to Maven Central cannot be undone, so the bundle is assembled here on every push, with a throwaway key:
+  # a broken javadoc, a missing source jar or a signing misconfiguration fails now and not on release day. Nothing is
+  # uploaded (central.skipUpload).
+  central-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Throwaway signing key
+        run: |
+          cat > /tmp/key-params <<'KEY'
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 3072
+          Name-Real: CI bundle check
+          Name-Email: ci@example.invalid
+          Expire-Date: 1d
+          %commit
+          KEY
+          gpg --batch --gen-key /tmp/key-params
+      - name: Assemble the bundle
+        run: mvn --batch-mode --no-transfer-progress -Prelease -Dcentral.skipUpload=true -DskipTests deploy
+      - name: Check what Central requires
+        run: scripts/ci/check-central-bundle.sh target/central-publishing/central-bundle.zip

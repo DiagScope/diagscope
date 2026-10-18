@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>dev.diagscope</groupId>
+        <groupId>io.github.diagscope</groupId>
         <artifactId>diagscope-parent</artifactId>
         <version>0.1.5</version>
     </parent>
@@ -13,12 +13,12 @@
 
     <dependencies>
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-core</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-jvmanalysis</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -31,7 +31,7 @@
             <artifactId>javaparser-symbol-solver-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>dev.diagscope</groupId>
+            <groupId>io.github.diagscope</groupId>
             <artifactId>diagscope-test-fixtures</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
