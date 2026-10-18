@@ -206,7 +206,7 @@ The effective explicit classpath and additional source roots are recorded in JSO
 instead of the human summary, so a hook or an assistant reads the verdict without opening a file:
 
 ```text
-diagscope 0.1.6: 3 finding(s) in 2 file(s)
+diagscope 0.1.7: 3 finding(s) in 2 file(s)
 
 ERROR HIGH SILENT_CATCH src/main/java/example/PaymentListener.java:6
   Exception is caught and ignored.

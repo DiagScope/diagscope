@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.7 — 2026-10-18
+
 ### Added
 
 - `CAUSE_LOST_ON_RETHROW` (WARNING): a catch block throws a new exception without the caught one as its cause, so the
