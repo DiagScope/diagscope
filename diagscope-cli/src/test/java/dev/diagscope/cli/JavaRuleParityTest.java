@@ -47,6 +47,15 @@ class JavaRuleParityTest {
     }
 
     @Test
+    void reports_a_rethrow_that_loses_the_cause_and_keeps_the_chained_variants_silent() {
+        assertThat(methodsFor("CAUSE_LOST_ON_RETHROW"))
+                .anyMatch(method -> method.contains("CauseLostController.lost"))
+                .anyMatch(method -> method.contains("CauseLostController.messageOnly"))
+                .noneMatch(method -> method.contains("chained") || method.contains("initCause")
+                        || method.contains("parse"));
+    }
+
+    @Test
     void exercises_every_enabled_rule_on_java_source() throws Exception {
         JsonNode metrics = scanFixture("metric-patterns", "metrics");
         var covered = new TreeSet<>(ruleIds(result));

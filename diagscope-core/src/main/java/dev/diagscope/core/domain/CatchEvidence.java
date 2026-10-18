@@ -13,7 +13,8 @@ public record CatchEvidence(
         boolean explicitlySuppressesSilentCatch,
         boolean preservesCause,
         boolean hasStableFailureCode,
-        boolean runsOnOtherThread
+        boolean runsOnOtherThread,
+        boolean losesCauseOnRethrow
 ) {
     public CatchEvidence {
         Objects.requireNonNull(location, "location");
@@ -31,7 +32,24 @@ public record CatchEvidence(
             String returnedExpression
     ) {
         this(location, exceptionType, empty, hasLog, hasThrow, hasReturn, returnedExpression,
-                false, false, false, false);
+                false, false, false, false, false);
+    }
+
+    public CatchEvidence(
+            SourceLocation location,
+            String exceptionType,
+            boolean empty,
+            boolean hasLog,
+            boolean hasThrow,
+            boolean hasReturn,
+            String returnedExpression,
+            boolean explicitlySuppressesSilentCatch,
+            boolean preservesCause,
+            boolean hasStableFailureCode,
+            boolean runsOnOtherThread
+    ) {
+        this(location, exceptionType, empty, hasLog, hasThrow, hasReturn, returnedExpression,
+                explicitlySuppressesSilentCatch, preservesCause, hasStableFailureCode, runsOnOtherThread, false);
     }
 
     public CatchEvidence(
@@ -47,6 +65,6 @@ public record CatchEvidence(
             boolean hasStableFailureCode
     ) {
         this(location, exceptionType, empty, hasLog, hasThrow, hasReturn, returnedExpression,
-                explicitlySuppressesSilentCatch, preservesCause, hasStableFailureCode, false);
+                explicitlySuppressesSilentCatch, preservesCause, hasStableFailureCode, false, false);
     }
 }

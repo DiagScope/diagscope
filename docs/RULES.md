@@ -76,6 +76,22 @@ Known limitation: Alpha 1 does not fully prove whether a custom result construct
 
 Recommended response: preserve the cause, rethrow with chaining, emit a structured diagnostic signal, or return a stable failure code with enough context for investigation.
 
+## `CAUSE_LOST_ON_RETHROW`
+
+Detects a catch block that throws a newly built exception without passing the caught one as its cause, such as `throw new ServiceException("failed")` or `throw new ServiceException(e.getMessage())`.
+
+- Default severity: `WARNING`.
+- Typical evidence: the caught exception is never used as a value in the handler (HIGH confidence), or only through `getMessage()` (MEDIUM: the text survives, the stack trace does not).
+- Final confidence: capped by reachability of the containing method.
+
+`Throwable` keeps a cause only when it is given through a constructor or `initCause`; the message of the cause is not copied into the new exception. Without it the log shows where the wrapper was thrown, not where the failure happened.
+
+Not reported: a handler that passes the exception anywhere (constructor argument, `initCause`, a logger) or uses `getCause`, `getStackTrace` or `addSuppressed`; a handler that also logs (reported by `DUPLICATE_DIAGNOSTIC_SIGNAL`); a failed number or date parse; a variable named `ignored`, `expected` or `unused`.
+
+Known limitation: a custom exception without a constructor that takes a cause cannot be fixed by passing `e`; `initCause` or a new constructor is then needed. The rule does not see that.
+
+Recommended response: `new X(message, e)`.
+
 ## `KAFKA_SEND_RESULT_IGNORED`
 
 Detects a Kafka-like `send(...)` result that does not participate in the analyzed local decision path.

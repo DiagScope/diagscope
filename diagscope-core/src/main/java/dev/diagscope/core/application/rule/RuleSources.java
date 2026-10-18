@@ -116,6 +116,8 @@ public final class RuleSources {
             "TEST_WITHOUT_ASSERTION");
 
     static {
+        SOURCED.put("CAUSE_LOST_ON_RETHROW", List.of(
+                "https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/lang/Throwable.java"));
         SOURCED.put("EVENT_LISTENER_ON_PRIVATE_METHOD", List.of(
                 "https://github.com/spring-projects/spring-framework/blob/main/spring-context/src/main/java/org/springframework/context/event/ApplicationListenerMethodAdapter.java"));
         SOURCED.put("TRANSACTIONAL_ON_INTERFACE", List.of(

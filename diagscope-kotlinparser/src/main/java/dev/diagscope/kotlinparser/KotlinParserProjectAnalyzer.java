@@ -53,11 +53,13 @@ import org.jetbrains.kotlin.psi.KtLambdaExpression;
 import org.jetbrains.kotlin.psi.KtLoopExpression;
 import org.jetbrains.kotlin.psi.KtNamedDeclaration;
 import org.jetbrains.kotlin.psi.KtNamedFunction;
+import org.jetbrains.kotlin.psi.KtNameReferenceExpression;
 import org.jetbrains.kotlin.psi.KtObjectDeclaration;
 import org.jetbrains.kotlin.psi.KtParameter;
 import org.jetbrains.kotlin.psi.KtProperty;
 import org.jetbrains.kotlin.psi.KtQualifiedExpression;
 import org.jetbrains.kotlin.psi.KtReturnExpression;
+import org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry;
 import org.jetbrains.kotlin.psi.KtThrowExpression;
 import org.jetbrains.kotlin.psi.KtTryExpression;
 import org.jetbrains.kotlin.psi.KtTypeReference;
@@ -514,7 +516,45 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         boolean suppression = body != null && SILENT_CATCH_SUPPRESSION.matcher(body.getText()).find();
         boolean empty = body instanceof KtBlockExpression block && block.getStatements().isEmpty();
         return new CatchEvidence(location(root, file, lines, clause), exceptionType, empty, hasLog,
-                !throwsFound.isEmpty(), hasReturn, returnedExpression, suppression, preservesCause, stableFailureCode);
+                !throwsFound.isEmpty(), hasReturn, returnedExpression, suppression, preservesCause, stableFailureCode,
+                false, losesCauseOnRethrow(throwsFound, body, exceptionVariable));
+    }
+
+    private static final Set<String> UNUSED_EXCEPTION_NAMES = Set.of("ignored", "ignore", "expected", "unused", "_");
+
+    /** Selectors that carry the cause or its stack trace onward when used on the caught exception. */
+    private static final Set<String> CAUSE_CARRIERS = Set.of(
+            "cause", "initCause", "addSuppressed", "suppressed", "stackTrace", "setStackTrace", "printStackTrace");
+
+    /**
+     * True when the handler throws a newly built exception and the caught one never travels with it: it is not
+     * passed as a bare value anywhere in the handler (argument, logger, {@code initCause}) and none of its
+     * cause-carrying members is used. {@code e.message} and {@code "$e"} keep only text, not the cause.
+     */
+    private static boolean losesCauseOnRethrow(List<KtThrowExpression> throwsFound, KtExpression body, String variable) {
+        if (body == null || variable.isBlank() || UNUSED_EXCEPTION_NAMES.contains(variable)) return false;
+        boolean throwsNewException = throwsFound.stream().anyMatch(thrown -> {
+            KtExpression expression = thrown.getThrownExpression();
+            return expression instanceof KtCallExpression call && call.getCalleeExpression() != null
+                    && !call.getCalleeExpression().getText().isEmpty()
+                    && Character.isUpperCase(call.getCalleeExpression().getText().charAt(0));
+        });
+        if (!throwsNewException) return false;
+        boolean carriesException = PsiTreeUtil.findChildrenOfType(body, KtNameReferenceExpression.class).stream()
+                .filter(reference -> variable.equals(reference.getReferencedName()))
+                .anyMatch(reference -> {
+                    PsiElement parent = reference.getParent();
+                    if (parent instanceof KtSimpleNameStringTemplateEntry) return false;
+                    if (parent instanceof KtQualifiedExpression qualified
+                            && qualified.getReceiverExpression() == reference) {
+                        KtExpression selector = qualified.getSelectorExpression();
+                        String name = selector instanceof KtCallExpression call && call.getCalleeExpression() != null
+                                ? call.getCalleeExpression().getText() : selector == null ? "" : selector.getText();
+                        return CAUSE_CARRIERS.contains(name);
+                    }
+                    return true;
+                });
+        return !carriesException;
     }
 
     /** Returns the value of a Kotlin catch expression only when it visibly converts failure to a benign value. */

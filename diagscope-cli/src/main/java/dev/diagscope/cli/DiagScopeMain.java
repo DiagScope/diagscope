@@ -162,6 +162,7 @@ import dev.diagscope.core.application.rule.PrintStackTraceRule;
 import dev.diagscope.core.application.rule.RuleEngine;
 import dev.diagscope.core.application.rule.SelfInvocationProxyBypassRule;
 import dev.diagscope.core.application.rule.SilentCatchRule;
+import dev.diagscope.core.application.rule.CauseLostOnRethrowRule;
 import dev.diagscope.core.application.rule.SilentFailureConversionRule;
 import dev.diagscope.core.application.rule.SystemOutputRule;
 import dev.diagscope.core.application.rule.UnmanagedAdviceTargetRule;
@@ -187,6 +188,7 @@ public final class DiagScopeMain {
         var flowRules = List.of(
                 new SilentCatchRule(),
                 new SilentFailureConversionRule(),
+                new CauseLostOnRethrowRule(),
                 new IgnoredKafkaSendResultRule(),
                 new KafkaManualAckMissingRule(),
                 new KafkaListenerFailureNotPropagatedRule(),
@@ -400,6 +402,7 @@ public final class DiagScopeMain {
         return List.of(
                 dev.diagscope.core.application.rule.SilentCatchRule.ID,
                 dev.diagscope.core.application.rule.SilentFailureConversionRule.ID,
+                dev.diagscope.core.application.rule.CauseLostOnRethrowRule.ID,
                 dev.diagscope.core.application.rule.IgnoredKafkaSendResultRule.ID,
                 dev.diagscope.core.application.rule.KafkaManualAckMissingRule.ID,
                 dev.diagscope.core.application.rule.KafkaListenerFailureNotPropagatedRule.ID,

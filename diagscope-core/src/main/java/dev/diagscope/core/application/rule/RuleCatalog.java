@@ -150,6 +150,18 @@ public final class RuleCatalog {
                 "The catch block returns a constant or empty value and never logs, rethrows, or"
                         + " records the cause.");
 
+        put(catalog, CauseLostOnRethrowRule.ID,
+                "Exception rethrown without its cause",
+                "exception-handling", Severity.WARNING, ALL_LANGUAGES,
+                "Any Java or Kotlin application",
+                "A catch block throws a new exception without passing the caught one as its cause, for example"
+                        + " throw new X(\"failed\") or throw new X(e.getMessage()).",
+                "The stack trace of the real failure, where it was raised and through which calls, never reaches"
+                        + " a log. Triage sees only the wrapper, thrown from the catch block.",
+                "The catch block throws a newly built exception, does not log, and the caught exception is not passed"
+                        + " as a value anywhere in it (constructor argument, initCause, a logger) nor used through"
+                        + " getCause, getStackTrace or addSuppressed. Number and date parse failures are skipped.");
+
         put(catalog, DuplicateDiagnosticSignalRule.ID,
                 "Duplicate or contradictory failure record",
                 "exception-handling", Severity.WARNING, ALL_LANGUAGES,

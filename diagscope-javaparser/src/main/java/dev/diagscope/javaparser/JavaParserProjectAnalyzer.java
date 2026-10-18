@@ -28,6 +28,7 @@ import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
@@ -1495,8 +1496,36 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 suppression,
                 preservesCause,
                 stableFailureCode,
-                runsOnOtherThread(clause)
+                runsOnOtherThread(clause),
+                losesCauseOnRethrow(body, exceptionVariable)
         );
+    }
+
+    private static final Set<String> UNUSED_EXCEPTION_NAMES = Set.of("ignored", "ignore", "expected", "unused", "_");
+
+    /** Selectors that carry the cause or its stack trace onward when called on the caught exception. */
+    private static final Set<String> CAUSE_CARRIERS = Set.of(
+            "getCause", "initCause", "addSuppressed", "getSuppressed", "getStackTrace", "setStackTrace",
+            "printStackTrace", "fillInStackTrace");
+
+    /**
+     * True when the handler throws a newly built exception and the caught one never travels with it: the caught
+     * exception is not passed as a bare value anywhere in the handler (as a constructor or method argument, to
+     * {@code initCause} or to a logger) and none of its cause-carrying methods is called.
+     */
+    private static boolean losesCauseOnRethrow(BlockStmt body, String exceptionVariable) {
+        if (UNUSED_EXCEPTION_NAMES.contains(exceptionVariable)) return false;
+        boolean throwsNewException = body.findAll(ThrowStmt.class).stream()
+                .anyMatch(statement -> statement.getExpression() instanceof ObjectCreationExpr);
+        if (!throwsNewException) return false;
+        boolean carriesException = body.findAll(NameExpr.class).stream()
+                .filter(name -> exceptionVariable.equals(name.getNameAsString()))
+                .anyMatch(name -> name.getParentNode()
+                        .map(parent -> !(parent instanceof MethodCallExpr call && call.getScope()
+                                .filter(name::equals).isPresent() && !CAUSE_CARRIERS.contains(call.getNameAsString()))
+                                && !(parent instanceof FieldAccessExpr))
+                        .orElse(true));
+        return !carriesException;
     }
 
     private static final Set<String> THREAD_HANDOFF_METHODS = Set.of(

@@ -68,6 +68,9 @@ cannot ship without declaring where its claim comes from.
 ## Checked and kept
 
 Read against the source in a later pass and now listed with their references (`diagscope explain`):
+`CAUSE_LOST_ON_RETHROW` (`Throwable`'s Javadoc: a cause is associated through a constructor argument or `initCause`, and
+"the detail message associated with `cause` is not automatically incorporated" in the new exception; the rule was added
+after that reading and found nothing on the 12-project calibration corpus, so its recall on real code is untested),
 `TIMED_ON_PRIVATE_METHOD` (`TimedAspect` is a proxy-based `@Around` on `execution(@Timed * *.*(..))`),
 `DELETE_ALL_WITHOUT_ID` (`SimpleJpaRepository.deleteAll` loads `findAll()` and deletes one by one),
 `DRIVER_MANAGER_DATASOURCE_USED` (Javadoc: "not an actual connection pool", a new connection on every call),

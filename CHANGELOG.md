@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- `CAUSE_LOST_ON_RETHROW` (WARNING): a catch block throws a new exception without the caught one as its cause, so the
+  original stack trace never reaches a log. Java and Kotlin. A handler that also logs stays with
+  `DUPLICATE_DIAGNOSTIC_SIGNAL`. On the calibration corpus it reports nothing, so its recall on real code is untested.
 - **One-run releases.** The `release` workflow takes a version and does everything: the release commit (POM versions,
   changelog, docs), the full test suite, a check of the Central bundle, publishing to Maven Central, the GitHub release
   with the changelog section as its notes, the source tag, and updates to the Homebrew tap, its README and the site. It
