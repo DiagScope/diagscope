@@ -161,6 +161,29 @@ Also not read: Quarkus-specific behaviour, and the two web pages that could not 
 opened from the audit environment (JEP 491, PostgreSQL isolation levels). The rules have no field data for Quarkus or
 Vert.x beyond the open-source quickstarts.
 
+## Second calibration round: five larger projects
+
+Five projects that are not tutorials: OpenMRS core (legacy, 930 files), ThingsBoard (5,500 files), Shopizer, macrozheng/mall
+and RuoYi, all scanned with the entrypoints REST, Kafka, scheduled, reactive and `PUBLIC_METHOD`. Each ERROR/HIGH rule
+(the class the hook gates on) was sampled and the source read.
+
+| Rule | Findings | What the code showed | Change |
+| --- | --- | --- | --- |
+| `SECRET_IN_STRING_LITERAL` | 41 | All but 3 were exception constructors or validators whose name contains "credential", "password" or "token", given a message | Not a setter; a sentence is not a secret (1.1.0) |
+| `JDBC_RESOURCE_NOT_CLOSED` | 48 | 25 were `getConnection()` on Liquibase's `Database`, which owns the connection; 19 were a `ResultSet` read from a statement that is closed or reported elsewhere | 1.2.0 |
+| `CACHEABLE_ON_VOID_METHOD` / `_PRIVATE_METHOD` | 238 | `@Cacheable` on an `@Entity` class (JPA), merged onto every method | Entities skipped; AOP rules too |
+| `SILENT_CATCH` | 122 | 64 had a variable named `ignore` or `ignored` | Name counts as intent (1.1.0) |
+| `TX_ROLLBACK_SUPPRESSED` | 39 | 13 caught a parse or host lookup that crosses no transactional boundary; the rest are real or arguable | Local failures skipped (1.2.0) |
+| `INTERRUPTED_EXCEPTION_SWALLOWED` | 30 | Sampled four, all as described | Unchanged |
+| `CAUSE_LOST_ON_RETHROW` | 107 | Real cases (a `RestApiException("Error while binding")` with no cause), and validation (`valueOf` to bad request) | `IllegalArgumentException` is LOW |
+
+Also found: ThingsBoard's scan did not finish in nine minutes because the Java parser scanned every type and method for
+each supertype and annotation lookup; it takes 46 seconds now. A parameter with two `@RequestBody` annotations (Spring's
+and Swagger's) stopped the whole scan with `duplicate element`, and a rule that throws now no longer stops the scan.
+
+Not reviewed in this round: `SILENT_FAILURE_CONVERSION` (88), `DUPLICATE_DIAGNOSTIC_SIGNAL` (328), `LOG_WITHOUT_THROWABLE`
+(276) and the style rules, which are WARNING or INFO and do not gate.
+
 ## What `PUBLIC_METHOD` adds on the calibration corpus (hook noise)
 
 The `init-agent` hook scans with `PUBLIC_METHOD` among the entrypoints, so code no endpoint reaches is checked. Each

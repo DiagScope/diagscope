@@ -472,19 +472,31 @@ class JavaParserProjectAnalyzerTest {
 
                 class Suppressions {
                     void valid() {
-                        try { work(); } catch (Exception ignored) {
+                        try { work(); } catch (Exception failure) {
                             // diagscope:ignore SILENT_CATCH -- x
                         }
                     }
                     void missingReason() {
-                        try { work(); } catch (Exception ignored) {
+                        try { work(); } catch (Exception failure) {
                             // diagscope:ignore SILENT_CATCH --
                         }
                     }
                     void wrongRule() {
-                        try { work(); } catch (Exception ignored) {
+                        try { work(); } catch (Exception failure) {
                             // diagscope:ignore SYSTEM_OUTPUT -- Intentional test output.
                         }
+                    }
+                    void namedIgnored() {
+                        try { work(); } catch (Exception ignored) { }
+                    }
+                    void rethrowsWithoutCause() {
+                        try { work(); } catch (Exception failure) { throw new IllegalStateException("failed"); }
+                    }
+                    void rethrowsMessageOnly() {
+                        try { work(); } catch (Exception failure) { throw new IllegalStateException(failure.getMessage()); }
+                    }
+                    void rethrowsWithCause() {
+                        try { work(); } catch (Exception failure) { throw new IllegalStateException("failed", failure); }
                     }
                     void work() { }
                 }
@@ -498,6 +510,15 @@ class JavaParserProjectAnalyzerTest {
                 .explicitlySuppressesSilentCatch()).isFalse();
         assertThat(method(analyzed, "sample.Suppressions", "wrongRule").catches().get(0)
                 .explicitlySuppressesSilentCatch()).isFalse();
+        // A variable called ignored says in code that dropping the exception is on purpose.
+        assertThat(method(analyzed, "sample.Suppressions", "namedIgnored").catches().get(0)
+                .explicitlySuppressesSilentCatch()).isTrue();
+        assertThat(method(analyzed, "sample.Suppressions", "rethrowsWithoutCause").catches().get(0)
+                .losesCauseOnRethrow()).isTrue();
+        assertThat(method(analyzed, "sample.Suppressions", "rethrowsMessageOnly").catches().get(0)
+                .losesCauseOnRethrow()).isTrue();
+        assertThat(method(analyzed, "sample.Suppressions", "rethrowsWithCause").catches().get(0)
+                .losesCauseOnRethrow()).isFalse();
     }
 
     @Test
@@ -956,5 +977,32 @@ class JavaParserProjectAnalyzerTest {
             Files.writeString(destination, source.getValue());
         }
         return root;
+    }
+
+    @Test
+    void cacheableOnAnEntityClassIsNotCountedAsSpringProxyAdvice() throws Exception {
+        Path project = project("entity-cacheable", Map.of(
+                "sample/Person.java", """
+                        package sample;
+
+                        @Entity
+                        @Cacheable
+                        class Person {
+                            public String name() { return ""; }
+                        }
+                        """,
+                "sample/Prices.java", """
+                        package sample;
+
+                        @Service
+                        class Prices {
+                            @Cacheable("prices")
+                            public String price() { return ""; }
+                        }
+                        """));
+        AnalyzedProject analyzed = analyze(project, AnalysisOptions.defaults());
+
+        assertThat(method(analyzed, "sample.Person", "name").proxy().proxiedAnnotations()).doesNotContain("Cacheable");
+        assertThat(method(analyzed, "sample.Prices", "price").proxy().proxiedAnnotations()).contains("Cacheable");
     }
 }

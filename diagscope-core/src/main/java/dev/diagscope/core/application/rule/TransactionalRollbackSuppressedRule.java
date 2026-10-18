@@ -27,6 +27,16 @@ public final class TransactionalRollbackSuppressedRule implements DiagnosticRule
     private static final Set<String> ROLLBACK_SIGNALS =
             Set.of("setRollbackOnly", "rollback", "doRollback");
 
+    /**
+     * Failures raised by plain JDK code, not by a data-access call. A transaction is only marked rollback-only when an
+     * exception crosses a transactional boundary, and a parse or lookup that fails inside the method crosses none, so
+     * catching one of these leaves nothing half-done.
+     */
+    private static final Set<String> LOCAL_FAILURES = Set.of(
+            "NumberFormatException", "DateTimeParseException", "ParseException", "UnknownHostException",
+            "UnsupportedEncodingException", "URISyntaxException", "MalformedURLException",
+            "NoSuchAlgorithmException", "NoSuchMethodException", "ClassNotFoundException");
+
     @Override
     public String id() {
         return ID;
@@ -42,6 +52,9 @@ public final class TransactionalRollbackSuppressedRule implements DiagnosticRule
             }
             for (CatchEvidence evidence : method.catches()) {
                 if (evidence.hasThrow() || evidence.explicitlySuppressesSilentCatch() || evidence.runsOnOtherThread()) {
+                    continue;
+                }
+                if (LOCAL_FAILURES.contains(evidence.exceptionType().substring(evidence.exceptionType().lastIndexOf('.') + 1))) {
                     continue;
                 }
                 if (marksRollback(method, evidence.location())) {

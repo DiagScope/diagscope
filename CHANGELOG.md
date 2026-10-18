@@ -53,6 +53,16 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Calibration on six more projects (OpenMRS, ThingsBoard, Shopizer, mall, RuoYi): 8,526 findings became 7,599, and every
+  removal was a false positive found by reading the code. `SECRET_IN_STRING_LITERAL` (1.1.0) no longer reports
+  `new BadCredentialsException("Failed to ...")`, `validatePassword(...)` or a sentence as a hardcoded secret (38).
+  `@Cacheable` on a JPA entity class is JPA's cache marker, not Spring's: `CACHEABLE_ON_VOID_METHOD`,
+  `CACHEABLE_ON_PRIVATE_METHOD`, `CACHE_EVICT_MISSING`, `CACHE_NAME_MISMATCH`, `AOP_SELF_INVOCATION` and
+  `AOP_UNMANAGED_ADVICE_TARGET` no longer count it (about 900). `JDBC_RESOURCE_NOT_CLOSED` (1.2.0) skips a `ResultSet`
+  read from a named statement (closing the statement closes it) and `getConnection()` on a receiver that is not a pool
+  or driver, such as Liquibase's `Database` (45 of 48). `SILENT_CATCH` (1.1.0) honours a catch variable named `ignore` or
+  `ignored`. `TX_ROLLBACK_SUPPRESSED` (1.2.0) skips local failures such as `NumberFormatException`.
+  `CAUSE_LOST_ON_RETHROW` reports `IllegalArgumentException` with LOW confidence, since that is usually validation.
 - Found by scanning large open-source projects: a scan of ThingsBoard (5,500 files) did not finish in nine minutes and
   now takes 46 seconds. The Java parser looked up annotation and super types, and the methods of a super type, by
   scanning every type or method in the project for each call. They are indexed once now.

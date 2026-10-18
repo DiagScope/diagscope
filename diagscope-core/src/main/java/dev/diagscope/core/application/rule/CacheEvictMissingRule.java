@@ -71,6 +71,7 @@ public final class CacheEvictMissingRule implements ProjectRule {
         boolean hasEviction = false;
 
         for (MethodModel method : methods) {
+            if (RuleSupport.isJpaPersistentClass(method)) continue;
             if (method.annotations().contains("Cacheable")
                     || method.annotations().contains("CacheConfig")) {
                 if (firstCacheable == null) firstCacheable = method;

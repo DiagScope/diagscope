@@ -513,12 +513,15 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                         .matcher(body.getText()).matches();
         boolean stableFailureCode = STABLE_FAILURE_CODE.matcher(stripQuotes(returnedExpression)).matches()
                 || Pattern.compile(".*\\b[A-Z][A-Z0-9_.-]{2,}\\b.*").matcher(returnedExpression).matches();
-        boolean suppression = body != null && SILENT_CATCH_SUPPRESSION.matcher(body.getText()).find();
+        boolean suppression = IGNORED_EXCEPTION_NAMES.contains(exceptionVariable)
+                || (body != null && SILENT_CATCH_SUPPRESSION.matcher(body.getText()).find());
         boolean empty = body instanceof KtBlockExpression block && block.getStatements().isEmpty();
         return new CatchEvidence(location(root, file, lines, clause), exceptionType, empty, hasLog,
                 !throwsFound.isEmpty(), hasReturn, returnedExpression, suppression, preservesCause, stableFailureCode,
                 false, losesCauseOnRethrow(throwsFound, body, exceptionVariable));
     }
+
+    private static final Set<String> IGNORED_EXCEPTION_NAMES = Set.of("ignore", "ignored");
 
     private static final Set<String> UNUSED_EXCEPTION_NAMES = Set.of("ignored", "ignore", "expected", "unused", "_");
 
@@ -1369,8 +1372,13 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
         declaredAnnotations.forEach(annotation -> names.add(annotation.name()));
         Set<String> effectiveAnnotations = Set.copyOf(names);
         TypeInfo type = types.get(method.id().declaringType());
+        // On a JPA entity, embeddable or mapped superclass, @Cacheable is the second-level cache marker, not Spring's.
+        boolean jpaClass = effectiveAnnotations.contains("Entity") || effectiveAnnotations.contains("Embeddable")
+                || effectiveAnnotations.contains("MappedSuperclass");
+        java.util.function.Predicate<String> isProxied =
+                name -> PROXIED_ANNOTATIONS.contains(name) && !(jpaClass && "Cacheable".equals(name));
         var proxied = new TreeSet<String>();
-        effectiveAnnotations.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxied::add);
+        effectiveAnnotations.stream().filter(isProxied).forEach(proxied::add);
         var matchingAdvice = new ArrayList<String>();
         for (AspectAdvice aspect : aspects) {
             if (aspect.aspectType().equals(method.id().declaringType())) continue;
@@ -1387,7 +1395,7 @@ public final class KotlinParserProjectAnalyzer implements ProjectAnalyzer {
                 method.finalMethod() && !springOpened,
                 type != null && type.finalType() && !springOpened, springManaged, false,
                 proxied, matchingAdvice,
-                declaredAnnotations.stream().map(AnnotationDescriptor::name).filter(PROXIED_ANNOTATIONS::contains)
+                declaredAnnotations.stream().map(AnnotationDescriptor::name).filter(isProxied)
                         .collect(java.util.stream.Collectors.toSet()));
     }
 

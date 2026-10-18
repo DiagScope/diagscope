@@ -57,7 +57,9 @@ public final class RuleVersions {
         // A method-level @Transactional now replaces the class-level readOnly = true, as Spring resolves it.
         overrides.put(ReadOnlyTransactionWriteRule.ID, "1.1.0");
         // A factory that returns the resource, and a resource kept in a field, are not leaks of the acquiring method.
-        overrides.put(JdbcResourceLeakRule.ID, "1.1.0");
+        // 1.2.0: a ResultSet from a named statement is covered by the statement; a getConnection() on a receiver that
+        // is not a pool or driver (Liquibase's Database) is not a leak. Found on OpenMRS: 44 of 48 findings were these.
+        overrides.put(JdbcResourceLeakRule.ID, "1.2.0");
         overrides.put(EntityManagerLeakRule.ID, "1.1.0");
         // now(ZoneId) is the system clock too, so it is reported; the doc already said so but the code skipped it.
         overrides.put(ClockDependencyNotInjectedRule.ID, "1.1.0");
@@ -73,7 +75,20 @@ public final class RuleVersions {
         // Metric rules gained exact Micrometer type resolution and provenance evidence.
         overrides.put(HighCardinalityMetricTagRule.ID, "1.1.0");
         // Transactional analysis gained self-invocation and propagation evidence.
-        overrides.put(TransactionalRollbackSuppressedRule.ID, "1.1.0");
+        // 1.2.0: a parse or lookup that fails inside the method crosses no transactional boundary, so it is not reported.
+        overrides.put(TransactionalRollbackSuppressedRule.ID, "1.2.0");
+        // The first two were found on OpenMRS and ThingsBoard. A constructor or validator whose name mentions a credential
+        // (new BadCredentialsException("...")) is not a setter, and a sentence is not a secret.
+        overrides.put(SecretInStringLiteralRule.ID, "1.1.0");
+        // @Cacheable on a JPA entity class is the second-level cache marker, not Spring's method cache.
+        // The parsers no longer count it as proxied advice either, which removed 700 AOP findings on OpenMRS.
+        overrides.put(SelfInvocationProxyBypassRule.ID, "1.1.0");
+        overrides.put(UnmanagedAdviceTargetRule.ID, "1.1.0");
+        overrides.put(CacheableOnPrivateMethodRule.ID, "1.1.0");
+        overrides.put(CacheableOnVoidMethodRule.ID, "1.1.0");
+        overrides.put(CacheEvictMissingRule.ID, "1.2.0");
+        overrides.put(CacheNameMismatchRule.ID, "1.1.0");
+        overrides.put(SilentCatchRule.ID, "1.1.0");
         // Mutiny recovery covers Multi operators and no longer reports chains that already observe
         // the failure through onFailure().invoke/call.
         overrides.put(MutinyFailureRecoveredSilentlyRule.ID, "1.1.0");
@@ -117,7 +132,6 @@ public final class RuleVersions {
         overrides.put(OptionalOrElseNullRule.ID, "1.1.0");
         // Framework-claim audit of the WARNING rules (Spring, Spring Kafka, Spring Cloud OpenFeign, Resilience4j).
         overrides.put(AsyncVoidReturnRule.ID, "1.0.1");
-        overrides.put(CacheEvictMissingRule.ID, "1.1.0");
         overrides.put(CorsWildcardOriginRule.ID, "2.0.0");
         overrides.put(CircuitBreakerWithoutFallbackRule.ID, "1.1.1");
         overrides.put(BulkheadWithoutFallbackRule.ID, "1.1.1");

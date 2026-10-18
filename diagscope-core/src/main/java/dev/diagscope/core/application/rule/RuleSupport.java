@@ -28,6 +28,15 @@ final class RuleSupport {
     private RuleSupport() {
     }
 
+    /**
+     * True for a JPA entity, embeddable or mapped superclass. {@code @Cacheable} there is JPA's second-level cache
+     * marker, set on the class and merged onto every method by the model, not Spring's method-level cache.
+     */
+    static boolean isJpaPersistentClass(MethodModel method) {
+        return method.annotations().contains("Entity") || method.annotations().contains("Embeddable")
+                || method.annotations().contains("MappedSuperclass");
+    }
+
     static boolean isSpringBean(MethodModel method) {
         return method.annotations().stream().anyMatch(SPRING_STEREOTYPES::contains);
     }

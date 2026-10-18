@@ -75,6 +75,7 @@ public final class CacheNameMismatchRule implements ProjectRule {
         MethodModel firstEvict = null;
 
         for (MethodModel method : methods) {
+            if (RuleSupport.isJpaPersistentClass(method)) continue;
             if (method.annotations().contains("Cacheable")) {
                 cacheableNames.addAll(extractCacheNames(method, "Cacheable"));
             }

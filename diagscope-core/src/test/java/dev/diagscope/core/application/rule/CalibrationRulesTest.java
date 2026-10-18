@@ -421,6 +421,69 @@ class CalibrationRulesTest {
                 false, List.of(), false, false, field);
     }
 
+    @Test
+    void credentialNamedExceptionsAndSentencesAreNotSecrets() {
+        var exception = service("a", Set.of("Service"), literalCall("BadCredentialsException", "\"Failed to get user permissions\""));
+        var validator = service("b", Set.of("Service"), literalCall("validatePassword", "\"admin\""));
+        var sentence = service("c", Set.of("Service"), literalCall("setPassword", "\"Empty password not supported\""));
+        var real = service("d", Set.of("Service"), literalCall("setPassword", "\"s3cr3tValue\""));
+        assertThat(new SecretInStringLiteralRule().evaluate(project(exception, validator, sentence))).isEmpty();
+        assertThat(new SecretInStringLiteralRule().evaluate(project(real))).hasSize(1);
+    }
+
+    @Test
+    void cacheableOnAJpaEntityClass_isNotSpringCaching() {
+        var entityPrivate = method("example.Person", "age", Set.of("Entity", "Cacheable"), "int");
+        var entityVoid = method("example.Person", "setName", Set.of("Entity", "Cacheable"), "void");
+        assertThat(new CacheableOnVoidMethodRule().evaluate(project(entityVoid))).isEmpty();
+        assertThat(new CacheEvictMissingRule().evaluate(project(entityPrivate, entityVoid))).isEmpty();
+        var service = method("example.Svc", "setName", Set.of("Service", "Cacheable"), "void");
+        assertThat(new CacheableOnVoidMethodRule().evaluate(project(service))).hasSize(1);
+    }
+
+    @Test
+    void localParseFailureInATransactionalMethod_isNotSuppressedRollback() {
+        var location = location(20);
+        var parse = new CatchEvidence(location, "NumberFormatException", false, false, false, false, "");
+        var data = new CatchEvidence(location(30), "DataAccessException", false, true, false, false, "");
+        var method = new MethodModel(new MethodId("example.Svc", "run", List.of()), location(1), Set.of("Transactional"),
+                List.of(parse, data), List.of(), List.of(), List.of(), List.of());
+        assertThat(new TransactionalRollbackSuppressedRule().evaluate(flow(method))).hasSize(1);
+    }
+
+    @Test
+    void resultSetFromANamedStatement_isCoveredByTheStatement() {
+        var named = method("example.Dao", "count", Set.of(), "int", resultSetFrom("stmt", "ResultSet"));
+        var chained = method("example.Dao", "count2", Set.of(), "int", resultSetFrom("connection.createStatement()", "Statement"));
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(named))).isEmpty();
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(chained))).hasSize(1);
+    }
+
+    @Test
+    void getConnectionOnAFrameworkHandle_isNotAPoolAcquisition() {
+        var liquibase = method("example.Change", "execute", Set.of(), "void", connectionFrom("database", "Database"));
+        var pool = method("example.Dao", "count", Set.of(), "int", connectionFrom("ds", "HikariDataSource"));
+        var unknown = method("example.Dao", "count2", Set.of(), "int", connectionFrom("dataSource", ""));
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(liquibase))).isEmpty();
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(pool))).hasSize(1);
+        assertThat(new JdbcResourceLeakRule().evaluate(flow(unknown))).hasSize(1);
+    }
+
+    private static InvocationEvidence literalCall(String name, String argument) {
+        return new InvocationEvidence(location(12), "", "", name, List.of(argument), InvocationResultUsage.IGNORED);
+    }
+
+    private static InvocationEvidence resultSetFrom(String scope, String type) {
+        return new InvocationEvidence(location(10), scope, type, "executeQuery", List.of(),
+                InvocationResultUsage.ASSIGNED, false, false, "rs", false, false, false, List.of(), false, false, false);
+    }
+
+    private static InvocationEvidence connectionFrom(String scope, String type) {
+        return new InvocationEvidence(location(10), scope, type, "getConnection", List.of(),
+                InvocationResultUsage.ASSIGNED, false, false, "connection", false, false, false, List.of(), false, false,
+                false);
+    }
+
     private static InvocationEvidence acquired(String variable, boolean field) {
         return new InvocationEvidence(location(10), "dataSource", "DataSource", "getConnection", List.of(),
                 InvocationResultUsage.ASSIGNED, false, false, variable, false, false, false, List.of(), false, false,

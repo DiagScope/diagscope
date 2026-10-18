@@ -25,6 +25,9 @@ public final class CauseLostOnRethrowRule implements DiagnosticRule {
     /** Invalid input rethrown as a client error: the parse failure itself says little, and the input is the cause. */
     private static final Set<String> INPUT_FAILURES = Set.of("NumberFormatException", "DateTimeParseException");
 
+    /** Rethrown as a client error; the argument that was wrong is the whole story, so the finding is weaker. */
+    private static final Set<String> USUALLY_VALIDATION = Set.of("IllegalArgumentException", "ParseException");
+
     @Override
     public String id() {
         return ID;
@@ -40,7 +43,9 @@ public final class CauseLostOnRethrowRule implements DiagnosticRule {
                     continue;
                 }
                 // With e.getMessage() the text survives but not the stack trace; with nothing at all even the text is gone.
-                Confidence ruleConfidence = evidence.preservesCause() ? Confidence.MEDIUM : Confidence.HIGH;
+                Confidence ruleConfidence = USUALLY_VALIDATION.contains(simpleName(evidence.exceptionType()))
+                        ? Confidence.LOW
+                        : evidence.preservesCause() ? Confidence.MEDIUM : Confidence.HIGH;
                 Confidence confidence = Confidence.min(ruleConfidence, flowMethod.confidence());
                 var details = new LinkedHashMap<String, String>();
                 details.put("method", method.id().displayName());

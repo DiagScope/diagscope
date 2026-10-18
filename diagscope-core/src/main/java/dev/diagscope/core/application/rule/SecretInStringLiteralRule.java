@@ -51,6 +51,12 @@ public final class SecretInStringLiteralRule implements ProjectRule {
     // Words that contain a hint without naming a credential: tokenizer("standard"), tokenFilters(...)
     private static final Pattern NOT_A_CREDENTIAL = Pattern.compile("tokeniz\\w*|tokenfilters?|tokenstream");
 
+    // Names that mention a credential without setting one: exceptions, validators, queries
+    // (new BadCredentialsException("Failed to ..."), validatePassword("admin", ...), getToken("x"))
+    private static final Pattern NOT_A_SETTER = Pattern.compile(
+            "(validate|check|verify|is|has|get|find|matches|encode|hash|require|assert|ensure|authenticate)\\w*"
+                    + "|\\w*(exception|error|validator|policy|message|constraint)");
+
     // Names of put/set operations on maps or configuration objects
     private static final Set<String> MAP_PUT_METHODS = Set.of(
             "put", "set", "setproperty", "setvalue", "add", "append", "with"
@@ -88,7 +94,7 @@ public final class SecretInStringLiteralRule implements ProjectRule {
         // ── Pattern 1: setter ────────────────────────────────────────────────────
         // methodName itself contains a secret-hint word → first argument must be a hardcoded literal
         if (isSecretHintWord(methodNameNorm)) {
-            if (!inv.arguments().isEmpty()) {
+            if (!inv.arguments().isEmpty() && !NOT_A_SETTER.matcher(methodNameNorm).matches()) {
                 String firstArg = inv.arguments().get(0);
                 if (isHardcodedLiteral(firstArg)) {
                     findings.add(buildFinding(
@@ -133,6 +139,8 @@ public final class SecretInStringLiteralRule implements ProjectRule {
         if (value.startsWith("<") && value.endsWith(">")) return false;
         // Common stand-in / placeholder strings
         if (PLACEHOLDER_VALUE.matcher(value.strip()).matches()) return false;
+        // A sentence is a message, not a secret: "Empty password not supported"
+        if (value.strip().matches(".*\\s.*")) return false;
         // Must have meaningful length
         return value.strip().length() >= 3;
     }

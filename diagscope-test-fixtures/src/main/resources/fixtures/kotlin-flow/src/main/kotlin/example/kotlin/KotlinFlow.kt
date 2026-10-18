@@ -22,7 +22,7 @@ class KotlinService(private val kafkaTemplate: KafkaTemplate) {
     fun reconcile() {
         try {
             work()
-        } catch (ignored: Exception) {
+        } catch (failure: Exception) {
         }
     }
 

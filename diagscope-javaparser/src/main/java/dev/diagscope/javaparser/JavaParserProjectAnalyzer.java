@@ -751,11 +751,16 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         Set<String> typeAnnotations = typeAnnotationNames(effectiveTypeAnnotations);
         annotationNames.addAll(typeAnnotations);
 
+        // On a JPA entity, embeddable or mapped superclass, @Cacheable is the second-level cache marker, not Spring's.
+        boolean jpaClass = typeAnnotations.contains("Entity") || typeAnnotations.contains("Embeddable")
+                || typeAnnotations.contains("MappedSuperclass");
+        java.util.function.Predicate<String> proxied =
+                name -> PROXIED_ANNOTATIONS.contains(name) && !(jpaClass && "Cacheable".equals(name));
         var proxiedAnnotations = new TreeSet<String>();
-        annotationNames.stream().filter(PROXIED_ANNOTATIONS::contains).forEach(proxiedAnnotations::add);
+        annotationNames.stream().filter(proxied).forEach(proxiedAnnotations::add);
 
         var declaredAnnotations = new TreeSet<String>();
-        effectiveMethodAnnotations.stream().map(AnnotationDescriptor::name).filter(PROXIED_ANNOTATIONS::contains)
+        effectiveMethodAnnotations.stream().map(AnnotationDescriptor::name).filter(proxied)
                 .forEach(declaredAnnotations::add);
 
         var target = new AspectPointcutMatcher.Target(
@@ -1480,7 +1485,9 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
         boolean preservesCause = body.findAll(NameExpr.class).stream()
                 .anyMatch(name -> exceptionVariable.equals(name.getNameAsString()));
         boolean stableFailureCode = returned.stream().anyMatch(JavaParserProjectAnalyzer::containsStableFailureCode);
-        boolean suppression = body.getAllContainedComments().stream().map(Comment::getContent)
+        // A handler whose variable is called ignore or ignored says in code that dropping it is on purpose.
+        boolean suppression = IGNORED_EXCEPTION_NAMES.contains(exceptionVariable)
+                || body.getAllContainedComments().stream().map(Comment::getContent)
                 .anyMatch(content -> SILENT_CATCH_SUPPRESSION.matcher(content.trim()).find());
         return new CatchEvidence(
                 location(root, file, clause),
@@ -1497,6 +1504,8 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
                 losesCauseOnRethrow(body, exceptionVariable)
         );
     }
+
+    private static final Set<String> IGNORED_EXCEPTION_NAMES = Set.of("ignore", "ignored");
 
     private static final Set<String> UNUSED_EXCEPTION_NAMES = Set.of("ignored", "ignore", "expected", "unused", "_");
 

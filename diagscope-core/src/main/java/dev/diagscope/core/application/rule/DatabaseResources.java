@@ -21,6 +21,12 @@ final class DatabaseResources {
             "datasource", "connection", "statement", "preparedstatement", "callablestatement",
             "resultset");
 
+    private static final Set<String> CONNECTION_SOURCE_HINTS = Set.of(
+            "datasource", "drivermanager", "pool", "driver", "connectionprovider");
+
+    /** Calls that return a {@code ResultSet}, which its {@code Statement} closes when it is closed. */
+    static final Set<String> RESULT_SET_ACQUISITIONS = Set.of("executeQuery", "getResultSet", "getGeneratedKeys");
+
     private static final Set<String> JDBC_RESOURCE_TYPES = Set.of(
             "Connection", "Statement", "PreparedStatement", "CallableStatement", "ResultSet");
 
@@ -51,7 +57,10 @@ final class DatabaseResources {
     /** True when the receiver of the call is recognisably a JDBC handle rather than an unrelated API. */
     static boolean looksJdbc(InvocationEvidence invocation) {
         if ("getConnection".equals(invocation.methodName())) {
-            return true;
+            // A resolved receiver that is not a pool or driver (Liquibase's Database, a framework's own handle)
+            // hands out a connection it owns and closes itself.
+            String receiverType = invocation.receiverType() == null ? "" : invocation.receiverType().toLowerCase(Locale.ROOT);
+            return receiverType.isBlank() || CONNECTION_SOURCE_HINTS.stream().anyMatch(receiverType::contains);
         }
         String receiver = hint(invocation);
         return JDBC_RECEIVER_HINTS.stream().anyMatch(receiver::contains);

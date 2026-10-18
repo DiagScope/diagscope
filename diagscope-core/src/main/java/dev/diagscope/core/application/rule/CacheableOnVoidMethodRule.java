@@ -33,7 +33,8 @@ public final class CacheableOnVoidMethodRule implements ProjectRule {
     public List<Finding> evaluate(AnalyzedProject project) {
         var findings = new ArrayList<Finding>();
         for (MethodModel method : project.methods().values()) {
-            if (!DiagnosticSignals.hasAnnotation(method, "Cacheable") || !RuleSupport.returnsNothing(method)) continue;
+            if (!DiagnosticSignals.hasAnnotation(method, "Cacheable") || !RuleSupport.returnsNothing(method)
+                    || RuleSupport.isJpaPersistentClass(method)) continue;
             findings.add(new Finding(
                     ID, Severity.WARNING, Confidence.HIGH, method.location(),
                     "'" + method.id().displayName() + "' is @Cacheable but returns " + method.returnType()

@@ -52,7 +52,7 @@ public final class CacheableOnPrivateMethodRule implements ProjectRule {
 
     private static void check(MethodModel method, List<Finding> findings) {
         boolean hasCacheAnnotation = method.annotations().stream().anyMatch(CACHE_ANNOTATIONS::contains);
-        if (!hasCacheAnnotation) return;
+        if (!hasCacheAnnotation || RuleSupport.isJpaPersistentClass(method)) return;
         if (method.proxy().interceptable()) return;
 
         String reason = method.proxy().nonInterceptableReason();

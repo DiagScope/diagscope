@@ -51,6 +51,13 @@ public final class JdbcResourceLeakRule implements DiagnosticRule {
                 if (handsResourceToCaller || invocation.assignedToField()) {
                     continue;
                 }
+                // Statement.close() closes its current ResultSet (JDK Javadoc), so a ResultSet read from a named
+                // statement is covered by that statement's own checks: it is closed, owned by the caller, or
+                // reported where it was created. Only a ResultSet from a chained call has no other place to be seen.
+                if (DatabaseResources.RESULT_SET_ACQUISITIONS.contains(invocation.methodName())
+                        && invocation.scope().matches("[A-Za-z_$][\\w$]*")) {
+                    continue;
+                }
                 if (DatabaseResources.releaseOf(method, invocation.assignedTo())
                         != DatabaseResources.Release.NONE) {
                     continue;
