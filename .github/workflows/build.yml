@@ -24,7 +24,8 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # The first version is the build JDK; the others are exposed as JAVA_HOME_<version>_X64.
+          # Every version is exposed as JAVA_HOME_<version>_X64. JAVA_HOME itself ends up on the last one, so the steps
+          # below choose the build JDK explicitly.
           java-version: |
             25
             21
@@ -32,6 +33,7 @@ jobs:
           cache: maven
       - name: Build and test
         run: |
+          export JAVA_HOME="$JAVA_HOME_25_X64"
           TEST_JAVA="$(printenv JAVA_HOME_${{ matrix.test-jdk }}_X64)/bin/java"
           "$TEST_JAVA" -version
           mvn --batch-mode --no-transfer-progress clean verify -Djvm="$TEST_JAVA"
@@ -49,6 +51,6 @@ jobs:
             17
           cache: maven
       - name: Install the artifacts
-        run: mvn --batch-mode --no-transfer-progress -DskipTests install
+        run: JAVA_HOME="$JAVA_HOME_25_X64" mvn --batch-mode --no-transfer-progress -DskipTests install
       - name: Run the plugin with Maven on Java 17
         run: JAVA_HOME="$JAVA_HOME_17_X64" scripts/ci/maven-plugin-smoke.sh
