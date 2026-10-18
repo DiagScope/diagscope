@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.6 — 2026-10-18
+
 ### Changed
 
 - **The Maven groupId is now `io.github.diagscope`** (was `dev.diagscope`), the namespace the GitHub organization can
