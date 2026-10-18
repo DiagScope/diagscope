@@ -59,6 +59,8 @@ All notable project changes are recorded in this file.
   `readOnly = true`, as Spring resolves it. The Java and Kotlin parsers previously ignored such a method annotation.
 - `JDBC_RESOURCE_NOT_CLOSED` (1.1.0) no longer reports a factory method that returns the resource it acquires, nor a
   resource assigned to a field.
+- `JPA_ENTITY_MANAGER_NOT_CLOSED` (1.1.0): same correction. A method returning the `EntityManager` it creates, or
+  assigning it to a field, is no longer reported.
 - The `init-agent` Stop hook now scans with `PUBLIC_METHOD` among the entrypoints. Without it, code not reachable from a
   REST, Kafka, reactive or scheduled entrypoint, such as a helper an assistant had just written, produced no findings at
   all, not even for an empty `catch`. It also writes its reports to a temporary directory instead of `target/` or

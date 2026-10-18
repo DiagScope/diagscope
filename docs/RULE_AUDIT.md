@@ -190,5 +190,6 @@ extra ERROR findings from `PUBLIC_METHOD` drop from 14 to 6.
 
 Known limits of the fixes: `HTTP_CLIENT_ERROR_DISCARDED` stays silent when the error operator is in a different method
 from the HTTP call, or when the client is a local created in the method (the receiver type is unknown).
-`EntityManagerLeakRule` has the same "never closed in this method" logic and has not been given the factory and field
-exemptions, because it was not exercised on the corpus.
+`JPA_ENTITY_MANAGER_NOT_CLOSED` (1.1.0) has the same "never closed in this method" logic and received the same two
+exemptions (a method returning `EntityManager`, and a result assigned to a field) by analogy, with unit tests; it
+produced no finding on the corpus, so the fix is not corpus-validated.

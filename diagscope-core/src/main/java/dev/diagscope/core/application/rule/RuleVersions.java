@@ -58,6 +58,7 @@ public final class RuleVersions {
         overrides.put(ReadOnlyTransactionWriteRule.ID, "1.1.0");
         // A factory that returns the resource, and a resource kept in a field, are not leaks of the acquiring method.
         overrides.put(JdbcResourceLeakRule.ID, "1.1.0");
+        overrides.put(EntityManagerLeakRule.ID, "1.1.0");
         overrides.put(IgnoredKafkaSendResultRule.ID, "1.2.0");
         // Manual acknowledgement detection was extended to class-level listeners and @KafkaHandler.
         overrides.put(KafkaManualAckMissingRule.ID, "1.1.0");

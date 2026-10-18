@@ -34,11 +34,17 @@ public final class EntityManagerLeakRule implements DiagnosticRule {
         var findings = new ArrayList<Finding>();
         for (var flowMethod : flow.methods()) {
             MethodModel method = flowMethod.method();
+            boolean handsResourceToCaller = DatabaseResources.returnsEntityManager(method);
             for (InvocationEvidence invocation : method.invocations()) {
                 if (!DatabaseResources.createsEntityManager(invocation) || invocation.resourceManaged()) {
                     continue;
                 }
                 if (invocation.resultUsage() != InvocationResultUsage.ASSIGNED) {
+                    continue;
+                }
+                // A factory hands the EntityManager to its caller, and a field keeps it for the object's lifetime:
+                // in both the close is somewhere else, so "never closed in this method" is not a leak.
+                if (handsResourceToCaller || invocation.assignedToField()) {
                     continue;
                 }
                 if (DatabaseResources.releaseOf(method, invocation.assignedTo())

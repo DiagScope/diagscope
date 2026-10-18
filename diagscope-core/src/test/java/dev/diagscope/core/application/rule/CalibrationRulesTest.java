@@ -338,6 +338,32 @@ class CalibrationRulesTest {
         assertThat(new JdbcResourceLeakRule().evaluate(flow(method))).hasSize(1);
     }
 
+    // ── JPA_ENTITY_MANAGER_NOT_CLOSED ────────────────────────────────────────
+
+    @Test
+    void entityManagerThatTheMethodReturns_isNotALeak() {
+        var factory = method("example.Provider", "open", Set.of(), "EntityManager", createdEntityManager("em", false));
+        assertThat(new EntityManagerLeakRule().evaluate(flow(factory))).isEmpty();
+    }
+
+    @Test
+    void entityManagerKeptInAField_isNotALeakOfTheCreatingMethod() {
+        var method = method("example.Server", "setUp", Set.of(), "void", createdEntityManager("em", true));
+        assertThat(new EntityManagerLeakRule().evaluate(flow(method))).isEmpty();
+    }
+
+    @Test
+    void entityManagerNeitherReturnedNorKept_isStillALeak() {
+        var method = method("example.Dao", "count", Set.of(), "int", createdEntityManager("em", false));
+        assertThat(new EntityManagerLeakRule().evaluate(flow(method))).hasSize(1);
+    }
+
+    private static InvocationEvidence createdEntityManager(String variable, boolean field) {
+        return new InvocationEvidence(location(10), "entityManagerFactory", "EntityManagerFactory",
+                "createEntityManager", List.of(), InvocationResultUsage.ASSIGNED, false, false, variable, false, false,
+                false, List.of(), false, false, field);
+    }
+
     private static InvocationEvidence acquired(String variable, boolean field) {
         return new InvocationEvidence(location(10), "dataSource", "DataSource", "getConnection", List.of(),
                 InvocationResultUsage.ASSIGNED, false, false, variable, false, false, false, List.of(), false, false,
