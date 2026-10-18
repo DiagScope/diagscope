@@ -1,98 +1,255 @@
 name: release
 
+# One entry point for a release: run it with the version. It prepares the release commit (POM versions, changelog, the docs
+# that quote the version), runs the whole test suite, publishes to Maven Central, publishes the CLI jar as a GitHub
+# release, tags the source, and tells the Homebrew tap and the site. docs/RELEASING.md has the setup and the details.
+#
+# It is safe to run again after a failure: a version already on Central or already released on GitHub is skipped, and
+# preparing an already prepared version changes nothing. A dry run (the default) builds and checks everything and
+# changes nothing anywhere.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g. v0.1.0-alpha.4)'
+      version:
+        description: 'Version to release, e.g. 0.1.7 (it must be newer than the POM version, and CHANGELOG.md must have entries under Unreleased)'
         required: true
+      dry-run:
+        description: 'Build and check only: push nothing, publish nothing. Untick to release for real.'
+        type: boolean
+        default: true
+      publish-central:
+        description: 'Publish to Maven Central. Central versions can never be changed or removed.'
+        type: boolean
+        default: true
+      auto-publish:
+        description: 'Let Central publish as soon as it validates, instead of waiting for a click in the Portal.'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
-jobs:
-  release:
-    runs-on: ubuntu-latest
+env:
+  VERSION: ${{ inputs.version }}
 
+jobs:
+  prepare:
+    name: Prepare and verify
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: main
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
 
-      # Derive the human-readable version from the tag (v0.2.0 → 0.2.0).
-      # On workflow_dispatch the tag comes from the manual input.
-      - name: Resolve version
-        id: version
-        run: |
-          REF="${{ github.event.inputs.tag || github.ref_name }}"
-          VERSION="${REF#v}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+      - name: Prepare the release commit
+        run: python3 scripts/release/prepare.py "$VERSION"
 
-      # Validate that the POM version matches the tag — catches the common mistake
-      # of pushing a tag without bumping the POM first.
-      - name: Verify POM version matches tag
-        run: |
-          POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          TAG_VERSION="${{ steps.version.outputs.version }}"
-          if [ "$POM_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::POM version ($POM_VERSION) does not match tag ($TAG_VERSION)."
-            echo "::error::Run: mvn versions:set -DnewVersion=${TAG_VERSION} -DgenerateBackupPoms=false"
-            echo "::error::Then commit, tag, and push."
-            exit 1
-          fi
-
-      # Full build + tests
       - name: Build and test
         run: mvn --batch-mode --no-transfer-progress clean verify
 
-      # Rename the artifact to include the version for clarity
-      - name: Prepare artifact
-        id: artifact
+      # The same bundle Central will get, signed with a throwaway key and not uploaded: a broken javadoc or signing
+      # setup fails here and not after something irreversible happened.
+      - name: Check the Central bundle
         run: |
-          JAR="diagscope-cli/target/diagscope-${{ steps.version.outputs.version }}.jar"
-          cp diagscope-cli/target/diagscope.jar "$JAR"
-          SHA256=$(sha256sum "$JAR" | awk '{print $1}')
-          echo "jar=${JAR}"     >> "$GITHUB_OUTPUT"
-          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+          cat > /tmp/key-params <<'KEY'
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 3072
+          Name-Real: release dry run
+          Name-Email: ci@example.invalid
+          Expire-Date: 1d
+          %commit
+          KEY
+          gpg --batch --gen-key /tmp/key-params
+          mvn --batch-mode --no-transfer-progress -Prelease -Dcentral.skipUpload=true -DskipTests deploy
+          scripts/ci/check-central-bundle.sh target/central-publishing/central-bundle.zip
 
-      # Publish the JAR to the public DiagScope/releases repo so Homebrew
-      # (and any unauthenticated user) can download it without needing access
-      # to the private source repository.
-      - name: Publish to public releases repo
+      - name: Commit and push the release commit
+        id: commit
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
-          VERSION: ${{ steps.version.outputs.version }}
-          REF: ${{ steps.version.outputs.ref }}
-          JAR: ${{ steps.artifact.outputs.jar }}
+          DRY_RUN: ${{ inputs.dry-run }}
         run: |
-          PRERELEASE=""
-          if echo "$VERSION" | grep -qE 'alpha|beta|rc'; then
-            PRERELEASE="--prerelease"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Release $VERSION"
+          fi
+          {
+            echo "### Release $VERSION"
+            echo
+            echo '```'
+            git show --stat --format='%s' HEAD | head -20
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: the commit stays in this runner." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  central:
+    name: Publish to Maven Central
+    needs: prepare
+    if: ${{ !inputs.dry-run && inputs.publish-central }}
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment (Settings > Environments) are the human gate before anything irreversible.
+    environment: maven-central
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Already on Central?
+        id: central
+        run: |
+          meta=$(curl -s -m 30 https://repo1.maven.org/maven2/io/github/diagscope/diagscope-maven-plugin/maven-metadata.xml || true)
+          if grep -q "<version>$VERSION</version>" <<<"$meta"; then
+            echo "::notice::$VERSION is already on Central; nothing to publish."
+            echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
-          gh release create "$REF" \
-            --repo DiagScope/releases \
-            --title "DiagScope ${VERSION}" \
-            --generate-notes \
-            $PRERELEASE \
-            "$JAR"
+      - name: Check the secrets
+        if: steps.central.outputs.present != 'true'
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          for name in CENTRAL_USERNAME CENTRAL_PASSWORD GPG_PRIVATE_KEY; do
+            [ -n "${!name}" ] || { echo "::error::The secret $name is not set. See docs/PUBLISHING.md."; exit 1; }
+          done
 
-      # Notify the Homebrew tap to update its formula.
-      # Requires a PAT with 'repo' scope stored as HOMEBREW_TAP_TOKEN.
-      - name: Update Homebrew tap
+      # The tests ran in the previous job, on this same commit.
+      - name: Build, sign and upload
+        if: steps.central.outputs.present != 'true'
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: >
+          mvn --batch-mode --no-transfer-progress -Prelease -DskipTests
+          -Dcentral.autoPublish=${{ inputs.auto-publish }} deploy
+
+  github-release:
+    name: GitHub release, tag, tap and site
+    needs: [prepare, central]
+    # Runs when Central succeeded or was skipped on purpose; never after a failed Central publish.
+    if: ${{ !inputs.dry-run && !cancelled() && needs.prepare.result == 'success' && (needs.central.result == 'success' || needs.central.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build the CLI jar
+        id: artifact
+        run: |
+          [ "$(mvn -q -B help:evaluate -Dexpression=project.version -DforceStdout)" = "$VERSION" ] \
+            || { echo "::error::The POM is not at $VERSION."; exit 1; }
+          mvn --batch-mode --no-transfer-progress -DskipTests -pl diagscope-cli -am package
+          JAR="diagscope-cli/target/diagscope-$VERSION.jar"
+          cp diagscope-cli/target/diagscope.jar "$JAR"
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$JAR" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          python3 scripts/release/notes.py "$VERSION" > /tmp/release-notes.md
+
+      - name: Tag the source
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "The tag v$VERSION already exists."
+          else
+            git tag -a "v$VERSION" -m "DiagScope $VERSION"
+            git push origin "v$VERSION"
+          fi
+
+      # The jar goes to the public releases repository, so Homebrew and anyone else can download it without access to
+      # this one.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+          JAR: ${{ steps.artifact.outputs.jar }}
+        run: |
+          if gh release view "v$VERSION" --repo DiagScope/releases >/dev/null 2>&1; then
+            echo "The release v$VERSION already exists."
+          else
+            PRERELEASE=""
+            if echo "$VERSION" | grep -qE 'alpha|beta|rc'; then PRERELEASE="--prerelease"; fi
+            gh release create "v$VERSION" --repo DiagScope/releases --title "DiagScope $VERSION" \
+              --notes-file /tmp/release-notes.md $PRERELEASE "$JAR"
+          fi
+
+      - name: Point the releases README at the new version
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_PAT }}
+        run: |
+          git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/DiagScope/releases.git" /tmp/releases
+          cd /tmp/releases
+          OLD=$(grep -oE 'diagscope-[0-9]+\.[0-9]+\.[0-9]+[^ /]*\.jar' README.md | head -1 | sed -E 's/^diagscope-//; s/\.jar$//')
+          if [ -n "$OLD" ] && [ "$OLD" != "$VERSION" ]; then
+            sed -i "s/$OLD/$VERSION/g" README.md
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -qam "docs: examples at $VERSION"
+            git push -q origin HEAD:main
+          fi
+
+      - name: Update the Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SHA256: ${{ steps.artifact.outputs.sha256 }}
+        run: |
+          gh api repos/DiagScope/homebrew-tap/dispatches --method POST \
+            --field event_type=new-release \
+            --field client_payload[version]="$VERSION" \
+            --field client_payload[sha256]="$SHA256"
+
+      # Not fatal: the release is already public. If the token cannot reach the site repository, fix the token and
+      # dispatch "new-release" there by hand.
+      - name: Update the site
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          gh api repos/DiagScope/homebrew-tap/dispatches \
-            --method POST \
+          gh api repos/DiagScope/diagscope.github.io/dispatches --method POST \
             --field event_type=new-release \
-            --field client_payload[version]="${{ steps.version.outputs.version }}" \
-            --field client_payload[sha256]="${{ steps.artifact.outputs.sha256 }}"
+            --field client_payload[version]="$VERSION"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Released $VERSION"
+            echo "- Maven Central: https://repo1.maven.org/maven2/io/github/diagscope/diagscope-maven-plugin/$VERSION/"
+            echo "- GitHub release: https://github.com/DiagScope/releases/releases/tag/v$VERSION"
+          } >> "$GITHUB_STEP_SUMMARY"

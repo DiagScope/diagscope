@@ -83,3 +83,30 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress -Prelease -Dcentral.skipUpload=true -DskipTests deploy
       - name: Check what Central requires
         run: scripts/ci/check-central-bundle.sh target/central-publishing/central-bundle.zip
+
+  # The release workflow runs these scripts once per release and on real data; here they run on every push, on a copy of
+  # the repository, so a change that breaks them is found long before release day.
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare a release on a copy
+        run: |
+          work=$(mktemp -d)
+          cp -r . "$work/repo" && cd "$work/repo"
+          python3 - <<'PY'
+          s = open("CHANGELOG.md").read()
+          open("CHANGELOG.md", "w").write(s.replace("## Unreleased\n", "## Unreleased\n\n### Added\n\n- A test entry.\n", 1))
+          PY
+          current=$(sed -n 's#.*<version>\([^<]*\)</version>.*#\1#p' pom.xml | head -1)
+          next=$(python3 -c "a,b,c='$current'.split('-')[0].split('.'); print(f'{a}.{b}.{int(c)+1}')")
+          python3 scripts/release/prepare.py "$next"
+          python3 scripts/release/prepare.py "$next"
+          grep -q "<version>$next</version>" pom.xml diagscope-cli/pom.xml diagscope-maven-plugin/pom.xml
+          ! grep -rq "<version>$current</version>" pom.xml diagscope-*/pom.xml
+          python3 scripts/release/notes.py "$next" | grep -q "A test entry."
+          if python3 scripts/release/prepare.py "$current" 2>/dev/null; then echo "an older version was accepted"; exit 1; fi
+      - name: Lint the workflows
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint

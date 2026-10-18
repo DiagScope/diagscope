@@ -258,17 +258,11 @@ pull request, plus a job that runs the Maven plugin inside a Maven on Java 17.
 `action.yml` is the composite GitHub Action other repositories use to run DiagScope
 ([docs/CI.md](docs/CI.md)).
 
-Releases are built by `.github/workflows/release.yml` when a version tag is pushed, or by running the workflow manually
-with the `tag` input. The POM is the source of truth for the version.
+A release is one run of `.github/workflows/release.yml` with the version: it prepares the commit, tests, publishes to
+Maven Central and to the GitHub releases, tags the source and updates the tap and the site
+([docs/RELEASING.md](docs/RELEASING.md)). The POM is the source of truth for the version.
 
-```bash
-mvn versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false   # 1. bump every module
-git add -A && git commit -m "chore: release 0.2.0"               # 2. commit
-git tag v0.2.0 && git push && git push --tags                    # 3. tag; the workflow does the rest
-```
-
-The workflow fails fast if the POM version does not match the tag. `alpha`, `beta` and `rc` versions are
-published as pre-releases. The Homebrew formula lives in
+`alpha`, `beta` and `rc` versions are published as pre-releases. The Homebrew formula lives in
 [DiagScope/homebrew-tap](https://github.com/DiagScope/homebrew-tap).
 
 ## Documentation map
@@ -279,7 +273,7 @@ published as pre-releases. The Homebrew formula lives in
 | Writing and testing code here | [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/CODE_GUIDELINES.md](docs/CODE_GUIDELINES.md), [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) |
 | CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md), [docs/MAVEN_PLUGIN.md](docs/MAVEN_PLUGIN.md) |
 | Rules: reference, backlog, lifecycle | [docs/RULES.md](docs/RULES.md), [docs/RULE_CANDIDATES.md](docs/RULE_CANDIDATES.md), [docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md) |
-| Releasing and publishing | [docs/PUBLISHING.md](docs/PUBLISHING.md) |
+| Releasing and publishing | [docs/RELEASING.md](docs/RELEASING.md), [docs/PUBLISHING.md](docs/PUBLISHING.md) |
 | Output contracts | [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md), [docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md) |
 | Rule audit and calibration | [docs/RULE_AUDIT.md](docs/RULE_AUDIT.md), `scripts/calibrate.sh` |
 | Using it with AI assistants | [docs/CLI.md](docs/CLI.md#init-agent), [docs/CONFIGURATION.md](docs/CONFIGURATION.md#gate) |

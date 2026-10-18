@@ -50,22 +50,15 @@ requires that a developer is present.
 
 ## Release procedure
 
-1. Release as usual: bump the version, update the changelog, run the `release` workflow. A version on Central can never
-   be changed or removed, so publish only what is already released and verified.
-2. Run the **publish-central** workflow, with the release commit (or tag) as `ref` and `auto-publish` **off**.
-   It builds with tests, signs, and uploads the bundle.
-3. Open the deployment in the Portal (<https://central.sonatype.com/publishing/deployments>). It should be
-   *validated*. Check the file list, then press *Publish*. (With `auto-publish` on, Central publishes by itself as soon
-   as validation passes; use that once the procedure is proven.)
-4. After a few minutes the artifacts are under
-   <https://repo1.maven.org/maven2/io/github/diagscope/>. The search index follows later.
-5. Confirm from a clean repository, as a user would:
+Publishing is part of the `release` workflow, run once per version: see [RELEASING.md](RELEASING.md). It publishes
+with auto-publish on by default; run it with `auto-publish` off to inspect the deployment in the Portal
+(<https://central.sonatype.com/publishing/deployments>) and press *Publish* yourself. A version on Central can never be
+changed or removed, so release only what is ready. After a few minutes the artifacts are under
+<https://repo1.maven.org/maven2/io/github/diagscope/>. To confirm from a clean repository, as a user would:
 
-   ```bash
-   mvn -Dmaven.repo.local=/tmp/clean-repo io.github.diagscope:diagscope-maven-plugin:<version>:scan
-   ```
-
-6. Update [MAVEN_PLUGIN.md](MAVEN_PLUGIN.md) and the README of the tap, which say the plugin is not on Central yet.
+```bash
+mvn -Dmaven.repo.local=/tmp/clean-repo io.github.diagscope:diagscope-maven-plugin:<version>:scan
+```
 
 ## What CI already checks
 
@@ -84,7 +77,7 @@ the CLI jar and the parent POM resolved, and the gate failed the build as design
 
 ## What the first run showed
 
-The first publication of 0.1.6 went through `publish-central` and taught two things worth keeping:
+The first publication of 0.1.6 went through a standalone publish workflow, since folded into `release`, and taught two things worth keeping:
 
 - **The public key must be on a keyserver before the upload.** The first attempt reached the Portal, authenticated, and
   was rejected with one error repeated for every file: *Could not find a public key by the key fingerprint*. Everything

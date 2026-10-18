@@ -4,6 +4,14 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Added
+
+- **One-run releases.** The `release` workflow takes a version and does everything: the release commit (POM versions,
+  changelog, docs), the full test suite, a check of the Central bundle, publishing to Maven Central, the GitHub release
+  with the changelog section as its notes, the source tag, and updates to the Homebrew tap, its README and the site. It
+  can be re-run after a failure, and a dry run (the default) changes nothing. The standalone `publish-central` workflow is
+  gone. See [RELEASING.md](docs/RELEASING.md).
+
 ## 0.1.6 — 2026-10-18
 
 ### Changed
