@@ -12,7 +12,7 @@ This repository is the analyzer itself. It is under active development (alpha).
 
 | If you want to… | Go to |
 |---|---|
-| **Use** DiagScope on a project | [Homebrew tap](https://github.com/DiagScope/homebrew-tap) — install, scan, collect reports, set a gate, use it with AI assistants |
+| **Use** DiagScope on a project | [Homebrew tap](https://github.com/DiagScope/homebrew-tap) — install, scan, collect reports, set a gate, use it in a Maven build, use it with AI assistants |
 | See what it looks like | <https://diagscope.github.io> |
 | **Work on** DiagScope | keep reading |
 

@@ -98,8 +98,12 @@ The first publication of 0.1.6 went through `publish-central` and taught two thi
 
 The second run validated and left the deployment waiting for the manual *Publish* (`autoPublish` off), as designed.
 
+## Confirmed after publishing
+
+After the *Publish* click on 0.1.6, `repo1.maven.org` served the files within minutes, and a Maven project with an empty
+local repository and no extra repository configured resolved the plugin, the parent POM and the 78 MB CLI jar from
+Central and failed its build on the gate, as designed.
+
 ## Not tested
 
-- What happens after the *Publish* click, until `repo1.maven.org` serves the files and a clean build resolves them. Do
-  step 5 of the procedure and record the result here.
 - `autoPublish` against the live service. The parameter name was read from the plugin's descriptor.

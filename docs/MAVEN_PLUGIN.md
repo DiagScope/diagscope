@@ -6,11 +6,10 @@ here matches the command line.
 
 ## Availability and requirements
 
-- **Maven Central publication is prepared but has not happened yet** ([PUBLISHING.md](PUBLISHING.md),
-  [ADR-0010](decisions/ADR-0010-maven-central-publishing.md)); the coordinates will be `io.github.diagscope`. Until the
-  first version is on Central, build it from source (`mvn install`) or deploy it to your organisation's repository
-  (`mvn deploy -DaltDeploymentRepository=...`). The plugin jar is small; it depends on the `diagscope-cli` jar (about
-  78 MB, the analyzer, both parsers and the Kotlin compiler), which Maven downloads once.
+- **On Maven Central** as `io.github.diagscope:diagscope-maven-plugin`, from version 0.1.6; nothing to configure besides
+  the plugin entry below ([PUBLISHING.md](PUBLISHING.md), [ADR-0010](decisions/ADR-0010-maven-central-publishing.md)). The
+  plugin jar is small; it depends on the `diagscope-cli` jar (about 78 MB, the analyzer, both parsers and the Kotlin
+  compiler), which Maven downloads once and caches.
 - **Maven must run on JDK 17 or newer** ([ADR-0009](decisions/ADR-0009-java-17-runtime-baseline.md)). CI starts Maven
   on 17 and runs the plugin against a sample project. Building the plugin itself needs JDK 21 or newer.
 - Maven 3.9 or newer.
@@ -30,7 +29,7 @@ here matches the command line.
 </plugin>
 ```
 
-Or on demand: `mvn io.github.diagscope:diagscope-maven-plugin:0.1.6:scan -Ddiagscope.failOn=ERROR`.
+Or on demand, without touching the POM: `mvn io.github.diagscope:diagscope-maven-plugin:0.1.6:scan -Ddiagscope.failOn=ERROR`.
 
 With no gate configured the scan only reports. Reports go to `target/diagscope` of each module.
 
