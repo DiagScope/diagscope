@@ -238,6 +238,7 @@ jobs:
       # Not fatal: the release is already public. If the token cannot reach the site repository, fix the token and
       # dispatch "new-release" there by hand.
       - name: Update the site
+        id: site
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -252,4 +253,10 @@ jobs:
             echo "### Released $VERSION"
             echo "- Maven Central: https://repo1.maven.org/maven2/io/github/diagscope/diagscope-maven-plugin/$VERSION/"
             echo "- GitHub release: https://github.com/DiagScope/releases/releases/tag/v$VERSION"
+            if [ "$SITE_OUTCOME" != "success" ]; then
+              echo "- **The site was not updated** (HOMEBREW_TAP_TOKEN cannot reach DiagScope/diagscope.github.io)."
+              echo "  Fix the token and run the \`bump-version\` workflow there, or edit the version on the pages."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SITE_OUTCOME: ${{ steps.site.outcome }}
