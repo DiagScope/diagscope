@@ -103,7 +103,9 @@ jobs:
           python3 scripts/release/prepare.py "$next"
           python3 scripts/release/prepare.py "$next"
           grep -q "<version>$next</version>" pom.xml diagscope-cli/pom.xml diagscope-maven-plugin/pom.xml
-          ! grep -rq "<version>$current</version>" pom.xml diagscope-*/pom.xml
+          if grep -rq "<version>$current</version>" pom.xml diagscope-*/pom.xml; then
+            echo "the old version $current is still in a POM"; exit 1
+          fi
           python3 scripts/release/notes.py "$next" | grep -q "A test entry."
           if python3 scripts/release/prepare.py "$current" 2>/dev/null; then echo "an older version was accepted"; exit 1; fi
       - name: Lint the workflows
