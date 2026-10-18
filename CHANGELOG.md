@@ -4,6 +4,13 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Added
+
+- `diagscope-maven-plugin`: a `scan` goal, bound to `verify`, that runs DiagScope in the Maven build and fails it
+  according to the same gate as the CLI (`failOn`, `failOnConfidence`, `gateProfile`, or the `gate:` section of
+  `diagscope.yml`). Per module, with the policy found at the multi-module root. Not published to Maven Central yet. See
+  [MAVEN_PLUGIN.md](docs/MAVEN_PLUGIN.md) and [ADR-0008](docs/decisions/ADR-0008-maven-plugin.md).
+
 ## 0.1.4 — 2026-10-17
 
 ### Added

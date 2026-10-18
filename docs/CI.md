@@ -118,6 +118,10 @@ java -jar diagscope-cli/target/diagscope.jar scan \
 4. Move the policy into `diagscope.yml` (`gate:`) so it is versioned with the code and reviewed in pull requests, e.g. a stricter profile for release branches.
 5. Tighten the gate as the baseline shrinks; waive intentional cases in `diagscope.yml`.
 
+## Maven plugin
+
+Maven builds can run the scan and the gate without a CI step: see [MAVEN_PLUGIN.md](MAVEN_PLUGIN.md).
+
 ## Embedding the engine
 
 `ScanWorkflow` is the public entry point for plugins and custom wrappers:

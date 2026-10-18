@@ -19,6 +19,7 @@
         <module>diagscope-javaparser</module>
         <module>diagscope-kotlinparser</module>
         <module>diagscope-cli</module>
+        <module>diagscope-maven-plugin</module>
         <module>diagscope-test-fixtures</module>
     </modules>
 

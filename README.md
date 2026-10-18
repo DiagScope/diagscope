@@ -50,6 +50,7 @@ diagscope-jvmanalysis     layout detection (Maven/Gradle), analyzer composition,
 diagscope-javaparser      JavaParser adapter: Java source → core domain
 diagscope-kotlinparser    Kotlin compiler PSI adapter: Kotlin source → core domain
 diagscope-cli             Picocli commands, composition root, reporters (Markdown/JSON/HTML/SARIF/agent text), gate, init-agent
+diagscope-maven-plugin    Maven `scan` goal: runs the engine in a build and applies the gate
 diagscope-test-fixtures   small sample projects used by integration tests (resources only)
 docs/                     architecture, CLI, configuration, rule lifecycle, ADRs, roadmap
 scripts/                  run-fixture, benchmark, JFR profiling, corpus validation, CI action helpers
@@ -63,6 +64,7 @@ diagscope-jvmanalysis ─► diagscope-core
 diagscope-javaparser ──► diagscope-core, diagscope-jvmanalysis
 diagscope-kotlinparser ► diagscope-core, diagscope-jvmanalysis
 diagscope-cli ─────────► all of the above
+diagscope-maven-plugin ► diagscope-cli (its public ScanWorkflow only)
 ```
 
 `diagscope-core` compiles with the JDK alone. It must never import JavaParser, Kotlin PSI, Picocli,
@@ -273,7 +275,7 @@ published as pre-releases. The Homebrew formula lives in
 |---|---|
 | Architecture and module responsibilities | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/decisions/](docs/decisions) |
 | Writing and testing code here | [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/CODE_GUIDELINES.md](docs/CODE_GUIDELINES.md), [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) |
-| CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md) |
+| CLI, configuration, CI | [docs/CLI.md](docs/CLI.md), [docs/CONFIGURATION.md](docs/CONFIGURATION.md), [docs/CI.md](docs/CI.md), [docs/MAVEN_PLUGIN.md](docs/MAVEN_PLUGIN.md) |
 | Rules: reference, backlog, lifecycle | [docs/RULES.md](docs/RULES.md), [docs/RULE_CANDIDATES.md](docs/RULE_CANDIDATES.md), [docs/RULE_LIFECYCLE.md](docs/RULE_LIFECYCLE.md) |
 | Output contracts | [docs/RESULT_JSON_SCHEMA.md](docs/RESULT_JSON_SCHEMA.md), [docs/FINGERPRINT_POLICY.md](docs/FINGERPRINT_POLICY.md) |
 | Rule audit and calibration | [docs/RULE_AUDIT.md](docs/RULE_AUDIT.md), `scripts/calibrate.sh` |
