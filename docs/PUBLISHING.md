@@ -82,11 +82,24 @@ scripts/ci/check-central-bundle.sh target/central-publishing/central-bundle.zip
 A bundle built this way was also consumed from a clean local Maven repository (as a `file:` repository): the plugin,
 the CLI jar and the parent POM resolved, and the gate failed the build as designed.
 
+## What the first run showed
+
+The first publication of 0.1.6 went through `publish-central` and taught two things worth keeping:
+
+- **The public key must be on a keyserver before the upload.** The first attempt reached the Portal, authenticated, and
+  was rejected with one error repeated for every file: *Could not find a public key by the key fingerprint*. Everything
+  else (namespace, POM metadata, javadoc and source jars, checksums) had passed. Publishing the key to
+  `keyserver.ubuntu.com` was the whole fix. `gpg --send-keys` over the default HKP port can fail on a network that blocks
+  it (`No route to host`); `hkps://keyserver.ubuntu.com` or pasting the exported public key into the keyserver's web form
+  both work. Check with
+  `https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x<fingerprint>` before running the workflow.
+- **A failed deployment publishes nothing**, so re-running the workflow for the same commit after fixing the cause is
+  safe. The failed deployment stays listed in the Portal and can be ignored or dropped there.
+
+The second run validated and left the deployment waiting for the manual *Publish* (`autoPublish` off), as designed.
+
 ## Not tested
 
-- The upload to the Portal and the Portal's own validation (rules that are not visible from here, such as the namespace
-  being verified or the public key being found on a keyserver).
-- The `waitUntil=validated` and `autoPublish` behaviour of `central-publishing-maven-plugin` 0.12.0 against the live
-  service. The parameter names were read from its descriptor.
-- If the first upload is rejected, the Portal lists the reason on the deployment; fix it and publish again. A rejected
-  deployment publishes nothing.
+- What happens after the *Publish* click, until `repo1.maven.org` serves the files and a clean build resolves them. Do
+  step 5 of the procedure and record the result here.
+- `autoPublish` against the live service. The parameter name was read from the plugin's descriptor.
