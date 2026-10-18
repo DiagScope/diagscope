@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** Executes diagnostic rules and deterministically consolidates their findings. */
@@ -50,7 +51,8 @@ public final class RuleEngine {
     /** Runs flow-level rules over the flows and project-level rules over the whole project. */
     public List<Finding> run(List<Flow> flows, AnalyzedProject project, AnalysisPolicy policy) {
         var combined = new LinkedHashMap<String, Finding>();
-        for (var finding : run(flows, policy)) {
+        var failures = new LinkedHashMap<String, RuleFailure>();
+        for (var finding : run(flows, policy, failures)) {
             combined.put(finding.fingerprint(), finding);
         }
         boolean withTests = project.hasTestSources();
@@ -59,16 +61,56 @@ public final class RuleEngine {
         for (var rule : projectRules) {
             if (policy.disabledRules().contains(rule.id())) continue;
             if (rule.testSourceRule() && tests == null) continue;
-            for (var finding : rule.evaluate(rule.testSourceRule() ? tests : production)) {
+            for (var finding : evaluateSafely(rule.id(), failures,
+                    () -> rule.evaluate(rule.testSourceRule() ? tests : production))) {
                 Objects.requireNonNull(finding, () -> "ProjectRule " + rule.id() + " returned a null finding");
                 Finding configured = applySeverityOverride(finding, policy);
                 combined.merge(configured.fingerprint(), configured, RuleEngine::mergeFindings);
             }
         }
+        reportFailures(failures);
         return combined.values().stream().sorted(FINDING_ORDER).toList();
     }
 
     public List<Finding> run(List<Flow> flows, AnalysisPolicy policy) {
+        var failures = new LinkedHashMap<String, RuleFailure>();
+        var result = run(flows, policy, failures);
+        reportFailures(failures);
+        return result;
+    }
+
+    /** A rule that threw while evaluating: how often, and the first message. */
+    private static final class RuleFailure {
+        final Throwable first;
+        int count;
+
+        RuleFailure(Throwable first) {
+            this.first = first;
+        }
+    }
+
+    /**
+     * One rule failing on code it did not expect must not take the whole scan down: the other rules' findings are
+     * still true. The failure is reported on standard error, once per rule, so it is not silent.
+     */
+    private static List<Finding> evaluateSafely(
+            String ruleId, Map<String, RuleFailure> failures, java.util.function.Supplier<List<Finding>> evaluation) {
+        try {
+            return Objects.requireNonNull(evaluation.get(), () -> "Rule " + ruleId + " returned null");
+        } catch (RuntimeException exception) {
+            failures.computeIfAbsent(ruleId, ignored -> new RuleFailure(exception)).count++;
+            return List.of();
+        }
+    }
+
+    private static void reportFailures(Map<String, RuleFailure> failures) {
+        failures.forEach((ruleId, failure) -> System.err.println("warning: rule " + ruleId + " failed " + failure.count
+                + " time(s) and was skipped for those cases: " + failure.first
+                + " (set -Ddiagscope.debug=true for the stack trace)"));
+        if (Boolean.getBoolean("diagscope.debug")) failures.values().forEach(failure -> failure.first.printStackTrace());
+    }
+
+    private List<Finding> run(List<Flow> flows, AnalysisPolicy policy, Map<String, RuleFailure> failures) {
         Objects.requireNonNull(flows, "flows");
         Objects.requireNonNull(policy, "policy");
         var sortedFlows = new ArrayList<>(flows);
@@ -81,8 +123,7 @@ public final class RuleEngine {
         for (var flow : sortedFlows) {
             for (var rule : rules) {
                 if (policy.disabledRules().contains(rule.id())) continue;
-                var evaluated = Objects.requireNonNull(rule.evaluate(flow, policy),
-                        () -> "Rule " + rule.id() + " returned null");
+                var evaluated = evaluateSafely(rule.id(), failures, () -> rule.evaluate(flow, policy));
                 for (var finding : evaluated) {
                     Objects.requireNonNull(finding, () -> "Rule " + rule.id() + " returned a null finding");
                     Finding configuredFinding = applySeverityOverride(finding, policy);

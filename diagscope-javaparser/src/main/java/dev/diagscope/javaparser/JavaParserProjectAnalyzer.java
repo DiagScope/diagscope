@@ -90,6 +90,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Pattern;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /** Syntax-first Java source adapter for the alpha release. */
@@ -898,15 +899,15 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static List<AnnotationDescriptor> effectiveTypeAnnotations(
             RawMethod method, MappedProject project) {
         TypeInfo owner = project.types().get(method.id().declaringType());
-        if (owner == null) return expandAnnotations(method.typeAnnotations(), project.types());
+        if (owner == null) return expandAnnotations(method.typeAnnotations(), project.index());
         var result = new LinkedHashMap<String, AnnotationDescriptor>();
-        collectTypeAnnotations(owner, project.types(), result, new LinkedHashSet<>());
+        collectTypeAnnotations(owner, project.index(), result, new LinkedHashSet<>());
         return List.copyOf(result.values());
     }
 
     private static void collectTypeAnnotations(
             TypeInfo type,
-            Map<String, TypeInfo> types,
+            TypeIndex types,
             Map<String, AnnotationDescriptor> result,
             Set<String> visited
     ) {
@@ -922,7 +923,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     private static List<AnnotationDescriptor> effectiveMethodAnnotations(
             RawMethod method, MappedProject project) {
         var result = new LinkedHashMap<String, AnnotationDescriptor>();
-        expandAnnotations(method.methodAnnotations(), project.types()).forEach(annotation ->
+        expandAnnotations(method.methodAnnotations(), project.index()).forEach(annotation ->
                 result.putIfAbsent(annotation.name(), annotation));
         TypeInfo owner = project.types().get(method.id().declaringType());
         if (owner != null) {
@@ -940,12 +941,11 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     ) {
         if (!visited.add(type.qualifiedName())) return;
         for (String superType : type.superTypes().stream().sorted().toList()) {
-            TypeInfo parent = findType(superType, project.types());
+            TypeInfo parent = findType(superType, project.index());
             if (parent == null) continue;
-            project.rawMethods().values().stream()
-                    .filter(candidate -> candidate.id().declaringType().equals(parent.qualifiedName()))
+            project.rawMethodsByType().getOrDefault(parent.qualifiedName(), List.of()).stream()
                     .filter(candidate -> sameSignature(method, candidate))
-                    .flatMap(candidate -> expandAnnotations(candidate.methodAnnotations(), project.types()).stream())
+                    .flatMap(candidate -> expandAnnotations(candidate.methodAnnotations(), project.index()).stream())
                     .forEach(annotation -> result.putIfAbsent(annotation.name(), annotation));
             collectInheritedMethodAnnotations(method, parent, project, result, visited);
         }
@@ -962,7 +962,7 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
     }
 
     private static List<AnnotationDescriptor> expandAnnotations(
-            List<AnnotationDescriptor> annotations, Map<String, TypeInfo> types) {
+            List<AnnotationDescriptor> annotations, TypeIndex types) {
         var result = new LinkedHashMap<String, AnnotationDescriptor>();
         collectExpandedAnnotations(annotations, types, result, new LinkedHashSet<>());
         return List.copyOf(result.values());
@@ -970,26 +970,23 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
 
     private static void collectExpandedAnnotations(
             List<AnnotationDescriptor> annotations,
-            Map<String, TypeInfo> types,
+            TypeIndex types,
             Map<String, AnnotationDescriptor> result,
             Set<String> visited
     ) {
         for (AnnotationDescriptor annotation : annotations) {
             result.putIfAbsent(annotation.name(), annotation);
-            List<TypeInfo> matches = types.values().stream().filter(TypeInfo::annotationType)
-                    .filter(type -> type.simpleName().equals(annotation.name())).limit(2).toList();
-            TypeInfo annotationType = matches.size() == 1 ? matches.get(0) : null;
+            TypeInfo annotationType = types.annotationTypeBySimpleName().get(annotation.name());
             if (annotationType != null && visited.add(annotationType.qualifiedName())) {
                 collectExpandedAnnotations(annotationType.declaredAnnotations(), types, result, visited);
             }
         }
     }
 
-    private static TypeInfo findType(String typeName, Map<String, TypeInfo> types) {
-        TypeInfo exact = types.get(baseTypeName(typeName));
+    private static TypeInfo findType(String typeName, TypeIndex index) {
+        TypeInfo exact = index.types().get(baseTypeName(typeName));
         if (exact != null) return exact;
-        List<TypeInfo> candidates = types.values().stream()
-                .filter(type -> type.simpleName().equals(simpleName(typeName))).limit(2).toList();
+        List<TypeInfo> candidates = index.bySimpleName().getOrDefault(simpleName(typeName), List.of());
         return candidates.size() == 1 ? candidates.get(0) : null;
     }
 
@@ -2048,8 +2045,41 @@ public final class JavaParserProjectAnalyzer implements ProjectAnalyzer {
             Map<MethodId, RawMethod> rawMethods,
             Map<String, TypeInfo> types,
             List<IdentityConflict> identityConflicts,
-            boolean producerListenerVisible
-    ) {}
+            boolean producerListenerVisible,
+            TypeIndex index,
+            Map<String, List<RawMethod>> rawMethodsByType
+    ) {
+        MappedProject(Map<MethodId, RawMethod> rawMethods, Map<String, TypeInfo> types,
+                      List<IdentityConflict> identityConflicts, boolean producerListenerVisible) {
+            this(rawMethods, types, identityConflicts, producerListenerVisible, TypeIndex.of(types),
+                    rawMethods.values().stream().collect(Collectors.groupingBy(
+                            method -> method.id().declaringType(), LinkedHashMap::new, Collectors.toList())));
+        }
+    }
+
+    /**
+     * Type lookups built once. Resolving a supertype or an annotation by simple name used to scan every type in the
+     * project for each call, which made a project of several thousand classes take minutes.
+     */
+    private record TypeIndex(
+            Map<String, TypeInfo> types,
+            Map<String, List<TypeInfo>> bySimpleName,
+            Map<String, TypeInfo> annotationTypeBySimpleName
+    ) {
+        static TypeIndex of(Map<String, TypeInfo> types) {
+            var bySimpleName = new HashMap<String, List<TypeInfo>>();
+            var annotationTypes = new HashMap<String, List<TypeInfo>>();
+            for (TypeInfo type : types.values()) {
+                bySimpleName.computeIfAbsent(type.simpleName(), ignored -> new ArrayList<>()).add(type);
+                if (type.annotationType()) {
+                    annotationTypes.computeIfAbsent(type.simpleName(), ignored -> new ArrayList<>()).add(type);
+                }
+            }
+            var unique = new HashMap<String, TypeInfo>();
+            annotationTypes.forEach((name, list) -> { if (list.size() == 1) unique.put(name, list.get(0)); });
+            return new TypeIndex(types, bySimpleName, unique);
+        }
+    }
 
     private record Resolution(Optional<MethodId> target, ResolutionReason reason) {}
 }

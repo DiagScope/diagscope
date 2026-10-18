@@ -170,6 +170,13 @@ class CalibrationRulesTest {
         return new InvocationEvidence(location(12), scope, type, name, List.of(), InvocationResultUsage.ASSIGNED);
     }
 
+    @Test
+    void aParameterWithTwoAnnotationsOfTheSameSimpleName_doesNotCrash() {
+        // Spring's @RequestBody next to Swagger's @RequestBody both have the simple name RequestBody.
+        var endpoint = controllerPost("create", List.of("Owner"), Map.of("p0", "RequestBody,RequestBody,Valid"));
+        assertThat(endpoint.parameterAnnotations(0)).containsExactlyInAnyOrder("RequestBody", "Valid");
+    }
+
     // ── MASS_ASSIGNMENT_RISK ─────────────────────────────────────────────────
 
     @Test

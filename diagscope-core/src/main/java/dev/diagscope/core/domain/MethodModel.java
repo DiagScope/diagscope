@@ -77,7 +77,7 @@ public record MethodModel(
     /** Names of the annotations on the parameter at {@code index}, or an empty set. */
     public Set<String> parameterAnnotations(int index) {
         String names = annotationAttributes.getOrDefault(PARAMETER_ANNOTATIONS, Map.of()).getOrDefault("p" + index, "");
-        return names.isEmpty() ? Set.of() : Set.of(names.split(","));
+        return names.isEmpty() ? Set.of() : Set.copyOf(java.util.Arrays.asList(names.split(",")));
     }
 
     /** Whether the method is declared in a test source root ({@code src/test}). */

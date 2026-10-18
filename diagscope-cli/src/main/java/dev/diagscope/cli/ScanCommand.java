@@ -116,9 +116,11 @@ public final class ScanCommand implements Callable<Integer> {
             return 3;
         } catch (IllegalArgumentException exception) {
             System.err.println("Invalid scan configuration: " + exception.getMessage());
+            if (Boolean.getBoolean("diagscope.debug")) exception.printStackTrace();
             return 2;
         } catch (Exception exception) {
             System.err.println("DiagScope failed: " + exception.getMessage());
+            if (Boolean.getBoolean("diagscope.debug")) exception.printStackTrace();
             return 2;
         }
     }

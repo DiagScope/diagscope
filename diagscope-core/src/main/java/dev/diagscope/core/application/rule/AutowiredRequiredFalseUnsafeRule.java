@@ -68,7 +68,7 @@ public final class AutowiredRequiredFalseUnsafeRule implements DiagnosticRule {
 
     private static Set<String> optionalFields(MethodModel method) {
         String fields = method.annotationAttribute(MethodModel.OPTIONAL_AUTOWIRED_ANNOTATION, "fields").orElse("");
-        return fields.isBlank() ? Set.of() : Set.of(fields.split(","));
+        return fields.isBlank() ? Set.of() : Set.copyOf(java.util.Arrays.asList(fields.split(",")));
     }
 
     private static int identifierEnd(String text) {

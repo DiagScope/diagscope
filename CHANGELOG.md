@@ -53,6 +53,13 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Found by scanning large open-source projects: a scan of ThingsBoard (5,500 files) did not finish in nine minutes and
+  now takes 46 seconds. The Java parser looked up annotation and super types, and the methods of a super type, by
+  scanning every type or method in the project for each call. They are indexed once now.
+- A parameter with two annotations of the same simple name (Spring's and Swagger's `@RequestBody`) made the scan stop
+  with `duplicate element: RequestBody`. And a rule that throws on code it did not expect no longer stops the scan: it is
+  skipped, reported once on standard error, and the other rules keep reporting. `-Ddiagscope.debug=true` prints the
+  stack trace.
 - Eight rules that were marked as pattern were read against the framework sources (see `docs/RULE_AUDIT.md`) and are
   now sourced. Four changed behaviour (1.1.0): `CLOCK_DEPENDENCY_NOT_INJECTED` now reports `now(ZoneId)` too, which is
   the system clock; `HTTP_CLIENT_CREATED_PER_REQUEST` reports only `OkHttpClient`, because `RestTemplate` and a default

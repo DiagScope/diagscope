@@ -73,6 +73,18 @@ class RuleEngineTest {
         });
     }
 
+    @Test
+    void a_rule_that_throws_is_skipped_and_the_other_rules_still_report() {
+        var method = method("example.Worker", "run", 20);
+        var flow = flow(method, EntrypointType.REST, "POST /work", Confidence.HIGH);
+        var broken = new DiagnosticRule() {
+            @Override public String id() { return "BROKEN_RULE"; }
+            @Override public List<Finding> evaluate(Flow ignored) { throw new IllegalArgumentException("duplicate element"); }
+        };
+        var findings = new RuleEngine(List.of(broken, rule("TEST_RULE"))).run(List.of(flow));
+        assertThat(findings).singleElement().satisfies(finding -> assertThat(finding.ruleId()).isEqualTo("TEST_RULE"));
+    }
+
     private static DiagnosticRule rule(String id) {
         return new DiagnosticRule() {
             @Override

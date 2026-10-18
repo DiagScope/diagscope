@@ -155,13 +155,13 @@ final class RuleSupport {
     /** Variables the method visibly checks for null, as recorded by the parsers; empty when none. */
     static Set<String> nullCheckedNames(MethodModel method) {
         String names = method.annotationAttribute(MethodModel.NULL_CHECKED_ANNOTATION, "names").orElse("");
-        return names.isBlank() ? Set.of() : Set.of(names.split(","));
+        return names.isBlank() ? Set.of() : Set.copyOf(java.util.Arrays.asList(names.split(",")));
     }
 
     /** Names of the method's parameters, as exposed by the parsers; empty when unknown or none. */
     static Set<String> parameterNames(MethodModel method) {
         String names = method.annotationAttribute("ParameterNames", "names").orElse("");
-        return names.isBlank() ? Set.of() : Set.of(names.split(","));
+        return names.isBlank() ? Set.of() : Set.copyOf(java.util.Arrays.asList(names.split(",")));
     }
 
     /**
