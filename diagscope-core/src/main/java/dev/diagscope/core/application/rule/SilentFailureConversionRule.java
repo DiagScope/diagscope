@@ -16,7 +16,11 @@ public final class SilentFailureConversionRule implements DiagnosticRule {
     public static final String ID = "SILENT_FAILURE_CONVERSION";
 
     private static final Set<String> PARSE_FAILURES = Set.of(
-            "NumberFormatException", "DateTimeParseException");
+            "NumberFormatException", "DateTimeParseException", "IllegalArgumentException");
+
+    /** A yes/no question: failing to answer it is a "no" by the method's own contract ({@code canConnect}, {@code isLocked}). */
+    private static final java.util.regex.Pattern PREDICATE_NAME = java.util.regex.Pattern.compile(
+            "(is|has|can|should|supports?|exists?|matches|contains|allows?|accepts?|valid(ate)?|check)([A-Z_]\\w*)?");
 
     @Override public String id() { return ID; }
 
@@ -28,7 +32,8 @@ public final class SilentFailureConversionRule implements DiagnosticRule {
             for (var evidence : method.catches()) {
                 if (!evidence.hasReturn() || evidence.hasLog() || evidence.hasThrow()
                         || evidence.preservesCause() || evidence.hasStableFailureCode()
-                        || isParseFailure(evidence.exceptionType())) continue;
+                        || isParseFailure(evidence.exceptionType())
+                        || answersAYesNoQuestion(method, evidence.returnedExpression())) continue;
                 var confidence = Confidence.min(Confidence.HIGH, flowMethod.confidence());
                 findings.add(new Finding(
                         ID, Severity.ERROR, confidence, evidence.location(),
@@ -40,6 +45,14 @@ public final class SilentFailureConversionRule implements DiagnosticRule {
             }
         }
         return List.copyOf(findings);
+    }
+
+    private static boolean answersAYesNoQuestion(MethodModel method, String returned) {
+        String type = method.returnType();
+        boolean booleanResult = "boolean".equals(type) || "Boolean".equals(type);
+        String literal = returned == null ? "" : returned.strip();
+        return booleanResult && (literal.equals("false") || literal.equals("true"))
+                && PREDICATE_NAME.matcher(method.id().name()).matches();
     }
 
     private static boolean isParseFailure(String exceptionType) {

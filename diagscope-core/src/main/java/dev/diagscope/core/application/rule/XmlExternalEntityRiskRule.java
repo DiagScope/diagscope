@@ -61,8 +61,16 @@ public final class XmlExternalEntityRiskRule implements ProjectRule {
             for (InvocationEvidence invocation : method.invocations()) {
                 String factory = factoryOf(invocation);
                 if (factory == null) continue;
+                // A TransformerFactory that only writes a document out (newTransformer() with no stylesheet is the identity
+                // transform) reads nothing from outside, so it is reported as a hardening gap, not as a likely XXE.
+                boolean writesOnly = "TransformerFactory".equals(factory)
+                        && method.invocations().stream().anyMatch(call -> "newTransformer".equals(call.methodName())
+                                && call.arguments().isEmpty())
+                        && method.invocations().stream().noneMatch(call -> "newTemplates".equals(call.methodName())
+                                || "newTransformer".equals(call.methodName()) && !call.arguments().isEmpty());
                 findings.add(new Finding(
-                        ID, Severity.ERROR, secureProcessingOnly ? Confidence.MEDIUM : Confidence.HIGH, invocation.location(),
+                        ID, Severity.ERROR, secureProcessingOnly || writesOnly ? Confidence.MEDIUM : Confidence.HIGH,
+                        invocation.location(),
                         "'" + method.id().displayName() + "' creates a " + factory + " without disabling DTDs or external"
                                 + " entities" + (secureProcessingOnly
                                         ? " (FEATURE_SECURE_PROCESSING limits entity expansion but still resolves external entities)"

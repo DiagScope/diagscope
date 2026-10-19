@@ -177,6 +177,15 @@ and RuoYi, all scanned with the entrypoints REST, Kafka, scheduled, reactive and
 | `INTERRUPTED_EXCEPTION_SWALLOWED` | 30 | Sampled four, all as described | Unchanged |
 | `CAUSE_LOST_ON_RETHROW` | 107 | Real cases (a `RestApiException("Error while binding")` with no cause), and validation (`valueOf` to bad request) | `IllegalArgumentException` is LOW |
 
+A user then reported false alarms in `LOCK_NOT_RELEASED` (a lock taken in a try-with-resources, `KeyLock.AutoUnlock`),
+which none of the 16 corpus projects exercised, so the corpus had not shown it. Reviewing every other ERROR rule on the
+same projects found more: `NATIVE_QUERY_STRING_CONCAT` fired on `executor.execute(() -> a + b)` and on literals joined by `+`;
+`SILENT_FAILURE_CONVERSION` fired on yes/no methods; `ASYNC_RESULT_UNOBSERVED` on tasks that catch their own failure. Left
+as they were, because the code showed they describe a real defect: `INTERRUPTED_EXCEPTION_SWALLOWED`,
+`OBJECT_INPUT_STREAM_RISK`, `DB_RESOURCE_CLOSE_NOT_GUARDED`, `TRANSACTIONAL_NO_ROLLBACK_FOR_EXCEPTION` (a deliberate
+`noRollbackFor = Exception.class` with a comment still changes what commits), and the hardcoded passwords in example code.
+`SENSITIVE_PAYLOAD_LOGGED` matches names, so a CoAP request `token` is reported like an auth token (arguable, MEDIUM).
+
 Also found: ThingsBoard's scan did not finish in nine minutes because the Java parser scanned every type and method for
 each supertype and annotation lookup; it takes 46 seconds now. A parameter with two `@RequestBody` annotations (Spring's
 and Swagger's) stopped the whole scan with `duplicate element`, and a rule that throws now no longer stops the scan.

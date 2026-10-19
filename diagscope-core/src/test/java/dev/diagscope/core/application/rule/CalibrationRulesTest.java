@@ -422,6 +422,96 @@ class CalibrationRulesTest {
     }
 
     @Test
+    void lockAcquiredInTryWithResources_orAsAHandle_isReleasedByTheBlock() {
+        var inTry = service("a", Set.of(), lockCall("keyLock", "KeyLock", "lock", InvocationResultUsage.ASSIGNED, true, false));
+        var handle = service("b", Set.of(), lockCall("keyLock", "KeyLock", "lock", InvocationResultUsage.ASSIGNED, false, false));
+        var helper = service("c", Set.of(), lockCall("lock", "Lock", "lock", InvocationResultUsage.IGNORED, false, false),
+                lockCall("this", "", "releaseLock", InvocationResultUsage.IGNORED, false, true));
+        var wrapper = method("example.Guard", "lock", Set.of(), "void",
+                lockCall("lock", "Lock", "lock", InvocationResultUsage.IGNORED, false, false));
+        var plain = service("e", Set.of(), lockCall("lock", "ReentrantLock", "lock", InvocationResultUsage.IGNORED, false, false));
+        for (var released : List.of(inTry, handle, helper, wrapper)) {
+            assertThat(new LockNotReleasedRule().evaluate(flow(released))).isEmpty();
+        }
+        assertThat(new LockNotReleasedRule().evaluate(flow(plain))).hasSize(1);
+    }
+
+    @Test
+    void thisPrefixedLockIsTheSameReceiverAsTheUnlock() {
+        var lock = lockCall("this.lock", "ReentrantLock", "lock", InvocationResultUsage.IGNORED, false, false);
+        var unlock = lockCall("lock", "ReentrantLock", "unlock", InvocationResultUsage.IGNORED, false, true);
+        assertThat(new LockNotReleasedRule().evaluate(flow(service("f", Set.of(), lock, unlock)))).isEmpty();
+    }
+
+    private static InvocationEvidence lockCall(String scope, String type, String name, InvocationResultUsage usage,
+                                               boolean resource, boolean finallyBlock) {
+        return new InvocationEvidence(location(12), scope, type, name, List.of(), usage, false, resource, "held",
+                finallyBlock, false, false, List.of(), false, false, false);
+    }
+
+    @Test
+    void aTaskThatCatchesItsOwnFailure_hasObservedIt() {
+        var call = new InvocationEvidence(new SourceLocation(Path.of("Service.java"), 10, 20), "executor", "ExecutorService",
+                "submit", List.of("() -> work()"), InvocationResultUsage.IGNORED);
+        var catchInside = new CatchEvidence(new SourceLocation(Path.of("Service.java"), 12, 14), "Exception", false, true,
+                false, false, "");
+        var handled = new MethodModel(new MethodId("example.Service", "run", List.of()), location(1), Set.of(),
+                List.of(catchInside), List.of(call), List.of(), List.of(), List.of());
+        var bare = service("bare", Set.of(), call);
+        assertThat(new AsyncResultUnobservedRule().evaluate(flow(handled))).isEmpty();
+        assertThat(new AsyncResultUnobservedRule().evaluate(flow(bare))).hasSize(1);
+    }
+
+    @Test
+    void aPredicateThatAnswersNoWhenItCannotCheck_isNotASilentConversion() {
+        var failure = new CatchEvidence(location(20), "IOException", false, false, false, true, "false");
+        var predicate = new MethodModel(new MethodId("example.Net", "canConnect", List.of()), location(1), Set.of(),
+                List.of(failure), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "boolean", false);
+        var save = new MethodModel(new MethodId("example.Net", "save", List.of()), location(1), Set.of(),
+                List.of(failure), List.of(), List.of(), List.of(), List.of(), ProxyProfile.unknown(), Map.of(),
+                CallableShape.fixed(0), "boolean", false);
+        assertThat(new SilentFailureConversionRule().evaluate(flow(predicate))).isEmpty();
+        assertThat(new SilentFailureConversionRule().evaluate(flow(save))).hasSize(1);
+    }
+
+    @Test
+    void queryConcatenationOfLiteralsOrOfAnExecutor_isNotInjectable() {
+        var literals = service("a", Set.of(), queryCall("em", "createQuery", "\"from A a \" + \"where a.id = :id\""));
+        var constant = service("b", Set.of(), queryCall("em", "createQuery", "\"from A a where \" + WHERE_CLAUSE"));
+        var executor = service("c", Set.of(), queryCall("executor", "execute", "() -> run(a + b)"));
+        var tainted = service("d", Set.of(), queryCall("em", "createQuery", "\"from A a where a.name = '\" + name + \"'\""));
+        assertThat(new NativeQueryStringConcatRule().evaluate(project(literals, constant, executor))).isEmpty();
+        assertThat(new NativeQueryStringConcatRule().evaluate(project(tainted))).hasSize(1);
+    }
+
+    private static InvocationEvidence queryCall(String scope, String name, String argument) {
+        return new InvocationEvidence(location(12), scope, "", name, List.of(argument), InvocationResultUsage.IGNORED);
+    }
+
+    @Test
+    void identityTransformerIsAHardeningGapNotALikelyXxe() {
+        var writer = service("w", Set.of(), construct2("TransformerFactory", "newInstance"),
+                construct2("TransformerFactory", "newTransformer"));
+        assertThat(new XmlExternalEntityRiskRule().evaluate(project(writer))).singleElement()
+                .satisfies(finding -> assertThat(finding.confidence()).isEqualTo(Confidence.MEDIUM));
+    }
+
+    private static InvocationEvidence construct2(String scope, String name) {
+        return new InvocationEvidence(location(12), scope, scope, name, List.of(), InvocationResultUsage.ASSIGNED);
+    }
+
+    @Test
+    void theConcernSummaryOfAProxyProfileIsSortedWhateverTheJvmOrder() {
+        // Set.copyOf iterates in an order that changes from one JVM run to the next, which changed the evidence and so the
+        // fingerprint of a finding between two scans of the same code.
+        var profile = new ProxyProfile(MethodVisibility.PUBLIC, false, false, false, true, false,
+                Set.of("Transactional", "PreAuthorize", "Cacheable", "Async", "Validated", "Timed"), List.of());
+        assertThat(profile.concernSummary())
+                .isEqualTo("@Async, @Cacheable, @PreAuthorize, @Timed, @Transactional, @Validated");
+    }
+
+    @Test
     void credentialNamedExceptionsAndSentencesAreNotSecrets() {
         var exception = service("a", Set.of("Service"), literalCall("BadCredentialsException", "\"Failed to get user permissions\""));
         var validator = service("b", Set.of("Service"), literalCall("validatePassword", "\"admin\""));

@@ -90,6 +90,9 @@ public final class SecretInStringLiteralRule implements ProjectRule {
 
     private static void checkInvocation(MethodModel method, InvocationEvidence inv, List<Finding> findings) {
         String methodNameNorm = normalize(inv.methodName());
+        // A name that starts with a capital is a constructor (new ApiKey("JWT", ...)): its literal names something, and a
+        // setter is what carries the value.
+        if (!inv.methodName().isEmpty() && Character.isUpperCase(inv.methodName().charAt(0))) return;
 
         // ── Pattern 1: setter ────────────────────────────────────────────────────
         // methodName itself contains a secret-hint word → first argument must be a hardcoded literal

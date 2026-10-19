@@ -55,6 +55,21 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- False alarms reported by a user, and the same classes hunted across 16 projects:
+  - `LOCK_NOT_RELEASED` (1.1.0) no longer reports `try (KeyLock.AutoUnlock held = keyLock.lock(key)) { ... }`: the
+    try-with-resources releases the lock. It also skips a `lock()` whose result is used (an API that hands out a handle),
+    a method that is itself named `lock` or `acquire`, `this.lock` against `lock`, and an `unlockAll`/`releaseLock` helper
+    called from `finally`.
+  - `ASYNC_RESULT_UNOBSERVED` (1.1.0) skips a task that catches `Exception` itself and a method that only wraps `schedule`.
+  - `NATIVE_QUERY_STRING_CONCAT` (1.1.0) skips literals and constants joined together and `execute(() -> ...)` on an
+    executor, where nothing is injectable (27 of 44 on the corpus).
+  - `SILENT_FAILURE_CONVERSION` (1.1.0) skips a yes/no method (`canConnect`, `isLocked`) that answers `false`, and
+    `IllegalArgumentException`, which is what `valueOf` and `UUID.fromString` throw (29 of 109).
+  - `SECRET_IN_STRING_LITERAL` (1.2.0) does not treat a constructor such as `new ApiKey("JWT", ...)` as a setter.
+    `XML_EXTERNAL_ENTITY_RISK` (1.1.0) reports a `TransformerFactory` that only writes (identity transform) as MEDIUM.
+- The evidence of the AOP self-invocation findings listed their annotations in an order that changed from one run to the
+  next, so the fingerprint of the same finding changed between two scans and a baseline could stop matching. The order is
+  sorted now; two scans of OpenMRS and Shopizer produce identical fingerprints.
 - Calibration on six more projects (OpenMRS, ThingsBoard, Shopizer, mall, RuoYi): 8,526 findings became 7,599, and every
   removal was a false positive found by reading the code. `SECRET_IN_STRING_LITERAL` (1.1.0) no longer reports
   `new BadCredentialsException("Failed to ...")`, `validatePassword(...)` or a sentence as a hardcoded secret (38).

@@ -79,7 +79,6 @@ public final class RuleVersions {
         overrides.put(TransactionalRollbackSuppressedRule.ID, "1.2.0");
         // The first two were found on OpenMRS and ThingsBoard. A constructor or validator whose name mentions a credential
         // (new BadCredentialsException("...")) is not a setter, and a sentence is not a secret.
-        overrides.put(SecretInStringLiteralRule.ID, "1.1.0");
         // @Cacheable on a JPA entity class is the second-level cache marker, not Spring's method cache.
         // The parsers no longer count it as proxied advice either, which removed 700 AOP findings on OpenMRS.
         overrides.put(SelfInvocationProxyBypassRule.ID, "1.1.0");
@@ -89,6 +88,17 @@ public final class RuleVersions {
         overrides.put(CacheEvictMissingRule.ID, "1.2.0");
         overrides.put(CacheNameMismatchRule.ID, "1.1.0");
         overrides.put(SilentCatchRule.ID, "1.1.0");
+        // Reported by a user: lock() in a try-with-resources (KeyLock.AutoUnlock) is released by the block. Also skipped now:
+        // a lock() whose result is used, a lock-named wrapper method, `this.lock`, and a release helper in finally.
+        overrides.put(LockNotReleasedRule.ID, "1.1.0");
+        // A task that catches Exception itself has observed its failure; a method named like the call it makes is a wrapper.
+        overrides.put(AsyncResultUnobservedRule.ID, "1.1.0");
+        // Concatenation of only literals and constants is one fixed string, and execute(() -> a + b) is not a query.
+        overrides.put(NativeQueryStringConcatRule.ID, "1.1.0");
+        // 1.1.0: a constructor is not a setter (new ApiKey("JWT", ...)).
+        overrides.put(SecretInStringLiteralRule.ID, "1.2.0");
+        // A TransformerFactory that only writes (identity transform, no stylesheet) is MEDIUM, not HIGH.
+        overrides.put(XmlExternalEntityRiskRule.ID, "1.1.0");
         // Mutiny recovery covers Multi operators and no longer reports chains that already observe
         // the failure through onFailure().invoke/call.
         overrides.put(MutinyFailureRecoveredSilentlyRule.ID, "1.1.0");
@@ -150,7 +160,7 @@ public final class RuleVersions {
         overrides.put(TransactionalAsyncCombinationRule.ID, "1.1.0");
         overrides.put(TransactionalEventListenerMissingPhaseRule.ID, "2.0.0");
         overrides.put(TransactionalOnRestControllerRule.ID, "2.1.0");
-        overrides.put(SilentFailureConversionRule.ID, "1.0.1");
+        overrides.put(SilentFailureConversionRule.ID, "1.1.0"); // 1.1.0: yes/no predicates and IllegalArgumentException (a parse) are answers, not hidden failures
         overrides.put(GodClassRule.ID, "1.0.1");
         overrides.put(TransactionalOnFinalMethodRule.ID, "1.0.1");
         overrides.put(DeleteAllWithoutIdRule.ID, "1.0.1");

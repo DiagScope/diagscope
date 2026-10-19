@@ -36,6 +36,10 @@ public final class AsyncResultUnobservedRule implements DiagnosticRule {
                 if (invocation.resultUsage() != InvocationResultUsage.IGNORED) continue;
                 if (!looksAsync(RuleSupport.hintText(invocation)
                         + ' ' + invocation.methodName())) continue;
+                // A method called schedule that schedules is a thin wrapper: its caller owns the task and its failure.
+                if (method.id().name().equals(invocation.methodName())) continue;
+                // A task that catches its own failure has observed it: the future would only ever hold what escaped.
+                if (handlesItsOwnFailure(method, invocation)) continue;
                 var instrumentation = DiagnosticSignals.instrumentationAnnotation(method);
                 var confidence = Confidence.min(
                         instrumentation.isPresent() ? Confidence.LOW : Confidence.MEDIUM,
@@ -52,6 +56,18 @@ public final class AsyncResultUnobservedRule implements DiagnosticRule {
             }
         }
         return List.copyOf(findings);
+    }
+
+    /** True when a catch of Exception, Throwable or RuntimeException sits inside the call, that is in the submitted task. */
+    private static boolean handlesItsOwnFailure(
+            dev.diagscope.core.domain.MethodModel method, dev.diagscope.core.domain.InvocationEvidence invocation) {
+        var call = invocation.location();
+        return method.catches().stream().anyMatch(handler -> {
+            String type = handler.exceptionType().substring(handler.exceptionType().lastIndexOf('.') + 1);
+            var at = handler.location();
+            return at.file().equals(call.file()) && at.startLine() >= call.startLine() && at.startLine() <= call.endLine()
+                    && (type.equals("Exception") || type.equals("Throwable") || type.equals("RuntimeException"));
+        });
     }
 
     private static boolean looksAsync(String hint) {

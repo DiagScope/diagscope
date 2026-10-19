@@ -43,8 +43,8 @@ public record ProxyProfile(
         Objects.requireNonNull(proxiedAnnotations, "proxiedAnnotations");
         Objects.requireNonNull(matchingAdvice, "matchingAdvice");
         Objects.requireNonNull(declaredAnnotations, "declaredAnnotations");
-        declaredAnnotations = Set.copyOf(new TreeSet<>(declaredAnnotations));
-        proxiedAnnotations = Set.copyOf(new TreeSet<>(proxiedAnnotations));
+        declaredAnnotations = java.util.Collections.unmodifiableSet(new TreeSet<>(declaredAnnotations));
+        proxiedAnnotations = java.util.Collections.unmodifiableSet(new TreeSet<>(proxiedAnnotations));
         matchingAdvice = List.copyOf(matchingAdvice);
     }
 
