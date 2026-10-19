@@ -4,6 +4,24 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Fixed
+
+- False alarms reported by a user, and the same classes hunted across 16 projects:
+  - `LOCK_NOT_RELEASED` (1.1.0) no longer reports `try (KeyLock.AutoUnlock held = keyLock.lock(key)) { ... }`: the
+    try-with-resources releases the lock. It also skips a `lock()` whose result is used (an API that hands out a handle),
+    a method that is itself named `lock` or `acquire`, `this.lock` against `lock`, and an `unlockAll`/`releaseLock` helper
+    called from `finally`.
+  - `ASYNC_RESULT_UNOBSERVED` (1.1.0) skips a task that catches `Exception` itself and a method that only wraps `schedule`.
+  - `NATIVE_QUERY_STRING_CONCAT` (1.1.0) skips literals and constants joined together and `execute(() -> ...)` on an
+    executor, where nothing is injectable (27 of 44 on the corpus).
+  - `SILENT_FAILURE_CONVERSION` (1.1.0) skips a yes/no method (`canConnect`, `isLocked`) that answers `false`, and
+    `IllegalArgumentException`, which is what `valueOf` and `UUID.fromString` throw (29 of 109).
+  - `SECRET_IN_STRING_LITERAL` (1.2.0) does not treat a constructor such as `new ApiKey("JWT", ...)` as a setter.
+    `XML_EXTERNAL_ENTITY_RISK` (1.1.0) reports a `TransformerFactory` that only writes (identity transform) as MEDIUM.
+- The evidence of the AOP self-invocation findings listed their annotations in an order that changed from one run to the
+  next, so the fingerprint of the same finding changed between two scans and a baseline could stop matching. The order is
+  sorted now; two scans of OpenMRS and Shopizer produce identical fingerprints.
+
 ## 0.1.7 — 2026-10-18
 
 ### Added
@@ -16,6 +34,33 @@ All notable project changes are recorded in this file.
   with the changelog section as its notes, the source tag, and updates to the Homebrew tap, its README and the site. It
   can be re-run after a failure, and a dry run (the default) changes nothing. The standalone `publish-central` workflow is
   gone. See [RELEASING.md](docs/RELEASING.md).
+
+### Fixed
+
+- Calibration on six more projects (OpenMRS, ThingsBoard, Shopizer, mall, RuoYi): 8,526 findings became 7,599, and every
+  removal was a false positive found by reading the code. `SECRET_IN_STRING_LITERAL` (1.1.0) no longer reports
+  `new BadCredentialsException("Failed to ...")`, `validatePassword(...)` or a sentence as a hardcoded secret (38).
+  `@Cacheable` on a JPA entity class is JPA's cache marker, not Spring's: `CACHEABLE_ON_VOID_METHOD`,
+  `CACHEABLE_ON_PRIVATE_METHOD`, `CACHE_EVICT_MISSING`, `CACHE_NAME_MISMATCH`, `AOP_SELF_INVOCATION` and
+  `AOP_UNMANAGED_ADVICE_TARGET` no longer count it (about 900). `JDBC_RESOURCE_NOT_CLOSED` (1.2.0) skips a `ResultSet`
+  read from a named statement (closing the statement closes it) and `getConnection()` on a receiver that is not a pool
+  or driver, such as Liquibase's `Database` (45 of 48). `SILENT_CATCH` (1.1.0) honours a catch variable named `ignore` or
+  `ignored`. `TX_ROLLBACK_SUPPRESSED` (1.2.0) skips local failures such as `NumberFormatException`.
+  `CAUSE_LOST_ON_RETHROW` reports `IllegalArgumentException` with LOW confidence, since that is usually validation.
+- Found by scanning large open-source projects: a scan of ThingsBoard (5,500 files) did not finish in nine minutes and
+  now takes 46 seconds. The Java parser looked up annotation and super types, and the methods of a super type, by
+  scanning every type or method in the project for each call. They are indexed once now.
+- A parameter with two annotations of the same simple name (Spring's and Swagger's `@RequestBody`) made the scan stop
+  with `duplicate element: RequestBody`. And a rule that throws on code it did not expect no longer stops the scan: it is
+  skipped, reported once on standard error, and the other rules keep reporting. `-Ddiagscope.debug=true` prints the
+  stack trace.
+- Eight rules that were marked as pattern were read against the framework sources (see `docs/RULE_AUDIT.md`) and are
+  now sourced. Four changed behaviour (1.1.0): `CLOCK_DEPENDENCY_NOT_INJECTED` now reports `now(ZoneId)` too, which is
+  the system clock; `HTTP_CLIENT_CREATED_PER_REQUEST` reports only `OkHttpClient`, because `RestTemplate` and a default
+  `WebClient` keep no pool of their own; `MASS_ASSIGNMENT_RISK` is no longer silenced by an `@InitBinder` for a
+  `@RequestBody`, which the binder does not fill; `APPLICATION_CONTEXT_LOCATOR` needs a receiver that looks like a
+  context and skips `main`. The texts of `OUTBOX_PATTERN_MISSING` (an `AFTER_COMMIT` listener narrows the window, it
+  does not close it) and `ENTITY_EXPOSED_IN_REST_RESPONSE` were corrected.
 
 ## 0.1.6 — 2026-10-18
 
@@ -55,45 +100,6 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
-- False alarms reported by a user, and the same classes hunted across 16 projects:
-  - `LOCK_NOT_RELEASED` (1.1.0) no longer reports `try (KeyLock.AutoUnlock held = keyLock.lock(key)) { ... }`: the
-    try-with-resources releases the lock. It also skips a `lock()` whose result is used (an API that hands out a handle),
-    a method that is itself named `lock` or `acquire`, `this.lock` against `lock`, and an `unlockAll`/`releaseLock` helper
-    called from `finally`.
-  - `ASYNC_RESULT_UNOBSERVED` (1.1.0) skips a task that catches `Exception` itself and a method that only wraps `schedule`.
-  - `NATIVE_QUERY_STRING_CONCAT` (1.1.0) skips literals and constants joined together and `execute(() -> ...)` on an
-    executor, where nothing is injectable (27 of 44 on the corpus).
-  - `SILENT_FAILURE_CONVERSION` (1.1.0) skips a yes/no method (`canConnect`, `isLocked`) that answers `false`, and
-    `IllegalArgumentException`, which is what `valueOf` and `UUID.fromString` throw (29 of 109).
-  - `SECRET_IN_STRING_LITERAL` (1.2.0) does not treat a constructor such as `new ApiKey("JWT", ...)` as a setter.
-    `XML_EXTERNAL_ENTITY_RISK` (1.1.0) reports a `TransformerFactory` that only writes (identity transform) as MEDIUM.
-- The evidence of the AOP self-invocation findings listed their annotations in an order that changed from one run to the
-  next, so the fingerprint of the same finding changed between two scans and a baseline could stop matching. The order is
-  sorted now; two scans of OpenMRS and Shopizer produce identical fingerprints.
-- Calibration on six more projects (OpenMRS, ThingsBoard, Shopizer, mall, RuoYi): 8,526 findings became 7,599, and every
-  removal was a false positive found by reading the code. `SECRET_IN_STRING_LITERAL` (1.1.0) no longer reports
-  `new BadCredentialsException("Failed to ...")`, `validatePassword(...)` or a sentence as a hardcoded secret (38).
-  `@Cacheable` on a JPA entity class is JPA's cache marker, not Spring's: `CACHEABLE_ON_VOID_METHOD`,
-  `CACHEABLE_ON_PRIVATE_METHOD`, `CACHE_EVICT_MISSING`, `CACHE_NAME_MISMATCH`, `AOP_SELF_INVOCATION` and
-  `AOP_UNMANAGED_ADVICE_TARGET` no longer count it (about 900). `JDBC_RESOURCE_NOT_CLOSED` (1.2.0) skips a `ResultSet`
-  read from a named statement (closing the statement closes it) and `getConnection()` on a receiver that is not a pool
-  or driver, such as Liquibase's `Database` (45 of 48). `SILENT_CATCH` (1.1.0) honours a catch variable named `ignore` or
-  `ignored`. `TX_ROLLBACK_SUPPRESSED` (1.2.0) skips local failures such as `NumberFormatException`.
-  `CAUSE_LOST_ON_RETHROW` reports `IllegalArgumentException` with LOW confidence, since that is usually validation.
-- Found by scanning large open-source projects: a scan of ThingsBoard (5,500 files) did not finish in nine minutes and
-  now takes 46 seconds. The Java parser looked up annotation and super types, and the methods of a super type, by
-  scanning every type or method in the project for each call. They are indexed once now.
-- A parameter with two annotations of the same simple name (Spring's and Swagger's `@RequestBody`) made the scan stop
-  with `duplicate element: RequestBody`. And a rule that throws on code it did not expect no longer stops the scan: it is
-  skipped, reported once on standard error, and the other rules keep reporting. `-Ddiagscope.debug=true` prints the
-  stack trace.
-- Eight rules that were marked as pattern were read against the framework sources (see `docs/RULE_AUDIT.md`) and are
-  now sourced. Four changed behaviour (1.1.0): `CLOCK_DEPENDENCY_NOT_INJECTED` now reports `now(ZoneId)` too, which is
-  the system clock; `HTTP_CLIENT_CREATED_PER_REQUEST` reports only `OkHttpClient`, because `RestTemplate` and a default
-  `WebClient` keep no pool of their own; `MASS_ASSIGNMENT_RISK` is no longer silenced by an `@InitBinder` for a
-  `@RequestBody`, which the binder does not fill; `APPLICATION_CONTEXT_LOCATOR` needs a receiver that looks like a
-  context and skips `main`. The texts of `OUTBOX_PATTERN_MISSING` (an `AFTER_COMMIT` listener narrows the window, it
-  does not close it) and `ENTITY_EXPOSED_IN_REST_RESPONSE` were corrected.
 - The `init-agent` hook now gates on ERROR findings of HIGH confidence instead of every ERROR, and honours
   `diagscope-baseline.json` when present. On the calibration corpus the ERROR/MEDIUM class was where the false
   positives were. Re-run `diagscope init-agent` to regenerate the hook.
