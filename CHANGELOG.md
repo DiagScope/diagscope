@@ -4,6 +4,8 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+## 0.1.8 — 2026-10-19
+
 ### Fixed
 
 - False alarms reported by a user, and the same classes hunted across 16 projects:
